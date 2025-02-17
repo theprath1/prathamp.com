@@ -1,6 +1,6 @@
 baseURL = "https://prthmptl.github.io/"
 languageCode = 'en-us'
-title = 'My New Hugo Site'
+title = 'Pratham Patel'
 theme = "PaperMod"
 
 [params]
