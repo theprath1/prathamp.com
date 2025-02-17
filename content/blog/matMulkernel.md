@@ -1,9 +1,9 @@
 ---
-title: "Matrix Multiplication with CUDA: A Beginner's Guide"
+title: "2D Matrix Multiplication with CUDA"
 date: 2025-02-16
 draft: false
 ---
-# Matrix Multiplication with CUDA: A Beginner's Guide
+# 2D Matrix Multiplication with CUDA
 
 Matrix multiplication is a fundamental operation in scientific computing, machine learning, and computer graphics. Leveraging the parallel processing power of GPUs can significantly speed up matrix operations. In this blog, we'll break down a CUDA-based matrix multiplication program step by step, explaining it in an intuitive manner.
 
