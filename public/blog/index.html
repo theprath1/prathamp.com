@@ -131,15 +131,17 @@
 
 <article class="post-entry"> 
   <header class="entry-header">
-    <h2 class="entry-hint-parent">My First Blog Post
+    <h2 class="entry-hint-parent">Understanding CUDA: A Simple Vector Addition Example
     </h2>
   </header>
   <div class="entry-content">
-    <p>Welcome to my first blog post on my portfolio site!
-</p>
+    <p>Understanding CUDA: A Simple Vector Addition Example CUDA (Compute Unified Device Architecture) is a parallel computing platform by NVIDIA that allows developers to leverage the massive computational power of GPUs. In this blog, we’ll break down a simple CUDA program that performs vector addition using GPU acceleration.
+The Code Let’s analyze the given CUDA program, which adds two vectors element-wise using parallel processing:
+#include &lt;iostream&gt; #include &lt;cuda_runtime.h&gt; __global__ void vecAddKernel(float* A, float* B, float* C, int n) { int i = threadIdx.x &#43; blockDim.x * blockIdx.x; if (i &lt; n) { C[i] = A[i] &#43; B[i]; } } int main() { const int n = 256; float A[n], B[n], C[n]; for(int i=1; i&lt;=n; i&#43;&#43;) { A[i-1] = i; B[i-1] = i; } float *A_d, *B_d, *C_d; int size = n * sizeof(float); cudaMalloc((void **) &amp;A_d, size); cudaMalloc((void **) &amp;B_d, size); cudaMalloc((void **) &amp;C_d, size); cudaMemcpy(A_d, A, size, cudaMemcpyHostToDevice); cudaMemcpy(B_d, B, size, cudaMemcpyHostToDevice); vecAddKernel&lt;&lt;&lt;ceil(n/256.0), 256&gt;&gt;&gt;(A_d, B_d, C_d, n); cudaMemcpy(C, C_d, size, cudaMemcpyDeviceToHost); for(int i=0; i&lt;n; i&#43;&#43;) { printf(&#34;%.2f\n&#34;, C[i]); } cudaFree(A_d); cudaFree(B_d); cudaFree(C_d); } Breaking It Down 1. The Kernel Function The function vecAddKernel is a CUDA kernel, which means it runs on the GPU. It follows this format:
+...</p>
   </div>
-  <footer class="entry-footer"><span title='2025-02-15 00:00:00 +0000 UTC'>February 15, 2025</span>&nbsp;·&nbsp;1 min&nbsp;·&nbsp;Pratham Patel</footer>
-  <a class="entry-link" aria-label="post link to My First Blog Post" href="http://localhost:1313/blog/my-first-post/"></a>
+  <footer class="entry-footer"><span title='2025-02-15 00:00:00 +0000 UTC'>February 15, 2025</span>&nbsp;·&nbsp;3 min&nbsp;·&nbsp;Pratham Patel</footer>
+  <a class="entry-link" aria-label="post link to Understanding CUDA: A Simple Vector Addition Example" href="http://localhost:1313/blog/vecaddkernel/"></a>
 </article>
     </main>
     
