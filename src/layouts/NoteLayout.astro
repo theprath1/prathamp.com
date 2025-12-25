@@ -1,0 +1,42 @@
+---
+import BaseLayout from "./BaseLayout.astro";
+import { formatDate } from "../utils/formatDate";
+
+interface Props {
+  frontmatter: {
+    title: string;
+    date: Date;
+    topic?: string;
+  };
+}
+
+const { frontmatter } = Astro.props;
+---
+
+<BaseLayout title={frontmatter.title}>
+  <article class="max-w-3xl mx-auto px-4 py-16">
+    <header class="mb-8">
+      <div class="flex items-center gap-4 text-sm text-gray-500 mb-4">
+        <time datetime={frontmatter.date.toISOString()}>
+          {formatDate(frontmatter.date)}
+        </time>
+        {
+          frontmatter.topic && (
+            <>
+              <span>&middot;</span>
+              <span class="text-primary-600">{frontmatter.topic}</span>
+            </>
+          )
+        }
+      </div>
+      <h1 class="text-3xl md:text-4xl font-bold text-gray-900">
+        {frontmatter.title}
+      </h1>
+    </header>
+    <div
+      class="prose prose-gray max-w-none prose-headings:font-semibold prose-a:text-primary-600 prose-code:text-primary-700 prose-code:bg-gray-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded"
+    >
+      <slot />
+    </div>
+  </article>
+</BaseLayout>

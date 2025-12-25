@@ -1,0 +1,53 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import BlogCard from "../../components/BlogCard.astro";
+import { getCollection } from "astro:content";
+
+export async function getStaticPaths() {
+  const posts = await getCollection("blog");
+  const tags = [...new Set(posts.flatMap((post) => post.data.tags || []))];
+
+  return tags.map((tag) => ({
+    params: { tag: tag.toLowerCase() },
+    props: {
+      tag,
+      posts: posts.filter((post) =>
+        post.data.tags?.map((t) => t.toLowerCase()).includes(tag.toLowerCase())
+      ),
+    },
+  }));
+}
+
+const { tag, posts } = Astro.props;
+const sortedPosts = posts
+  .filter((p) => !p.data.draft)
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+---
+
+<BaseLayout title={`Posts tagged "${tag}"`} description={`All posts tagged with ${tag}`}>
+  <section class="max-w-6xl mx-auto px-4 py-16">
+    <div class="mb-8">
+      <a href="/blog" class="text-primary-600 hover:text-primary-700 font-medium">
+        &larr; All posts
+      </a>
+    </div>
+    <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+      Posts tagged <span class="text-primary-600">"{tag}"</span>
+    </h1>
+    <p class="text-xl text-gray-600 mb-12">
+      {sortedPosts.length} post{sortedPosts.length !== 1 ? "s" : ""} found
+    </p>
+
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {sortedPosts.map((post) => (
+        <BlogCard
+          title={post.data.title}
+          description={post.data.description}
+          date={post.data.date}
+          slug={post.slug}
+          tags={post.data.tags}
+        />
+      ))}
+    </div>
+  </section>
+</BaseLayout>

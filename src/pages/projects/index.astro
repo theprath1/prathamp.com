@@ -1,0 +1,37 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import ProjectCard from "../../components/ProjectCard.astro";
+import { getCollection } from "astro:content";
+
+const projects = (await getCollection("projects"))
+  .filter((p) => !p.data.draft)
+  .sort((a, b) => (b.data.featured ? 1 : 0) - (a.data.featured ? 1 : 0));
+---
+
+<BaseLayout title="Projects" description="A showcase of my work and side projects.">
+  <section class="max-w-6xl mx-auto px-4 py-16">
+    <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">Projects</h1>
+    <p class="text-xl text-gray-600 mb-12 max-w-2xl">
+      A collection of projects I've built. Each one taught me something new.
+    </p>
+
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {projects.map((project) => (
+        <ProjectCard
+          title={project.data.title}
+          description={project.data.description}
+          tech={project.data.tech}
+          slug={project.slug}
+          featured={project.data.featured}
+          image={project.data.image}
+        />
+      ))}
+    </div>
+
+    {projects.length === 0 && (
+      <div class="text-center py-12">
+        <p class="text-gray-500">No projects yet. Check back soon!</p>
+      </div>
+    )}
+  </section>
+</BaseLayout>

@@ -1,0 +1,47 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import NoteCard from "../../components/NoteCard.astro";
+import { getCollection } from "astro:content";
+
+const notes = (await getCollection("notes"))
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+
+// Group notes by topic
+const topics = [...new Set(notes.map((n) => n.data.topic).filter(Boolean))];
+---
+
+<BaseLayout title="Notes" description="Short-form notes and learning updates.">
+  <section class="max-w-4xl mx-auto px-4 py-16">
+    <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">Notes</h1>
+    <p class="text-xl text-gray-600 mb-8 max-w-2xl">
+      Quick notes, TILs, and things I'm learning. Less polished, more frequent.
+    </p>
+
+    {topics.length > 0 && (
+      <div class="flex flex-wrap gap-2 mb-8">
+        {topics.map((topic) => (
+          <span class="px-3 py-1 bg-primary-100 text-primary-700 text-sm font-medium rounded-full">
+            {topic}
+          </span>
+        ))}
+      </div>
+    )}
+
+    <div class="grid gap-4">
+      {notes.map((note) => (
+        <NoteCard
+          title={note.data.title}
+          date={note.data.date}
+          slug={note.slug}
+          topic={note.data.topic}
+        />
+      ))}
+    </div>
+
+    {notes.length === 0 && (
+      <div class="text-center py-12">
+        <p class="text-gray-500">No notes yet. Check back soon!</p>
+      </div>
+    )}
+  </section>
+</BaseLayout>

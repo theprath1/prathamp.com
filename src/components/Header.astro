@@ -1,0 +1,13 @@
+---
+import NavBar from "./NavBar.astro";
+import { siteConfig } from "../config/site";
+---
+
+<header class="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
+  <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+    <a href="/" class="text-xl font-bold text-gray-900 hover:text-primary-600 transition-colors">
+      {siteConfig.name}
+    </a>
+    <NavBar />
+  </div>
+</header>

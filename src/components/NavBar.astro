@@ -1,0 +1,67 @@
+---
+import { siteConfig } from "../config/site";
+
+const currentPath = Astro.url.pathname;
+---
+
+<nav class="hidden md:flex items-center gap-8">
+  {
+    siteConfig.nav.map((item) => (
+      <a
+        href={item.href}
+        class:list={[
+          "text-sm font-medium transition-colors",
+          currentPath === item.href || (item.href !== "/" && currentPath.startsWith(item.href))
+            ? "text-primary-600"
+            : "text-gray-600 hover:text-gray-900",
+        ]}
+      >
+        {item.name}
+      </a>
+    ))
+  }
+</nav>
+
+<!-- Mobile menu button -->
+<button
+  id="mobile-menu-btn"
+  class="md:hidden p-2 text-gray-600 hover:text-gray-900"
+  aria-label="Toggle menu"
+>
+  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+  </svg>
+</button>
+
+<!-- Mobile menu -->
+<div
+  id="mobile-menu"
+  class="hidden fixed inset-0 top-[65px] bg-white z-40 md:hidden"
+>
+  <nav class="flex flex-col p-4">
+    {
+      siteConfig.nav.map((item) => (
+        <a
+          href={item.href}
+          class:list={[
+            "py-3 px-4 text-lg font-medium border-b border-gray-100 transition-colors",
+            currentPath === item.href || (item.href !== "/" && currentPath.startsWith(item.href))
+              ? "text-primary-600"
+              : "text-gray-600 hover:text-gray-900",
+          ]}
+        >
+          {item.name}
+        </a>
+      ))
+    }
+  </nav>
+</div>
+
+<script>
+  const btn = document.getElementById("mobile-menu-btn");
+  const menu = document.getElementById("mobile-menu");
+
+  btn?.addEventListener("click", () => {
+    menu?.classList.toggle("hidden");
+  });
+</script>
