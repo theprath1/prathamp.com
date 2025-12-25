@@ -57,8 +57,8 @@ const currentPath = Astro.url.pathname;
   </nav>
 </div>
 
-<script is:inline>
-  document.addEventListener("DOMContentLoaded", () => {
+<script>
+  function setupMobileMenu() {
     const btn = document.getElementById("mobile-menu-btn");
     const menu = document.getElementById("mobile-menu");
 
@@ -67,5 +67,15 @@ const currentPath = Astro.url.pathname;
         menu.classList.toggle("hidden");
       });
     }
-  });
+  }
+
+  // Run on initial load
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupMobileMenu);
+  } else {
+    setupMobileMenu();
+  }
+
+  // Re-run after view transitions (if any)
+  document.addEventListener('astro:page-load', setupMobileMenu);
 </script>
