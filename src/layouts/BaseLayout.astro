@@ -29,6 +29,11 @@ const pageDescription = description || siteConfig.description;
       rel="stylesheet"
     />
     <title>{pageTitle}</title>
+    <script is:inline>
+      if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+      }
+    </script>
   </head>
   <body class="min-h-screen flex flex-col">
     <Header />

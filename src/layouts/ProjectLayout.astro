@@ -19,10 +19,10 @@ const { frontmatter } = Astro.props;
 <BaseLayout title={frontmatter.title} description={frontmatter.description}>
   <article class="max-w-4xl mx-auto px-4 py-16">
     <header class="mb-12">
-      <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+      <h1 class="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
         {frontmatter.title}
       </h1>
-      <p class="text-xl text-gray-600 mb-6">{frontmatter.description}</p>
+      <p class="text-xl text-gray-600 dark:text-gray-400 mb-6">{frontmatter.description}</p>
       <div class="flex flex-wrap gap-2 mb-6">
         {frontmatter.tech.map((t) => <Tag name={t} />)}
       </div>
@@ -33,7 +33,7 @@ const { frontmatter } = Astro.props;
               href={frontmatter.github}
               target="_blank"
               rel="noopener noreferrer"
-              class="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+              class="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors"
             >
               <svg
                 class="w-5 h-5"
@@ -88,7 +88,7 @@ const { frontmatter } = Astro.props;
       )
     }
     <div
-      class="prose prose-lg prose-gray max-w-none prose-headings:font-semibold prose-a:text-primary-600"
+      class="prose prose-lg prose-gray dark:prose-invert max-w-none prose-headings:font-semibold prose-a:text-primary-600 dark:prose-a:text-primary-400"
     >
       <slot />
     </div>

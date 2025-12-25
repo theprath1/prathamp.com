@@ -1,25 +1,16 @@
 ---
-title: "Welcome to My Blog"
-description: "An introduction to my blog and what you can expect to find here."
+title: "Hello, World!"
+description: "A quick introduction about me and what I do."
 date: 2025-01-01
 tags: [personal, introduction]
 ---
 
-# Welcome!
+# Hello!
 
-This is my first blog post. I'm excited to share my thoughts, learnings, and experiences with you.
+I'm Pratham Patel, a Data Scientist at Bacancy Technology with a passion for building AI-powered solutions that solve real-world problems.
 
-## What to Expect
+I hold a B.Tech in Computer Engineering from Charotar University of Science and Technology (2020-2024). My journey in tech has led me to work on exciting projects ranging from computer vision systems achieving 70% accuracy in metal defect detection to NLP-powered meeting analysis platforms that save teams 3+ hours weekly.
 
-Here's what you can expect from this blog:
+I specialize in machine learning, natural language processing, and building enterprise-grade no-code ML platforms. I've collaborated with cross-functional teams of 10-15 engineers and delivered solutions deployed across major organizations including Kyndryl and Xyzies.
 
-- **Tutorials** - Step-by-step guides on various technologies
-- **Deep Dives** - In-depth explorations of concepts and tools
-- **Project Updates** - Updates on what I'm building
-- **Opinions** - My thoughts on software development
-
-## Stay Connected
-
-Feel free to reach out if you have questions or just want to chat. You can find me on [GitHub](https://github.com) or [Twitter](https://twitter.com).
-
-Thanks for reading!
+Thanks for stopping by!

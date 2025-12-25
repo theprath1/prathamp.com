@@ -12,9 +12,9 @@ const skills = [
 
 <BaseLayout title="About" description="Learn more about me and my journey as a developer.">
   <section class="max-w-4xl mx-auto px-4 py-16">
-    <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-8">About Me</h1>
+    <h1 class="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-8">About Me</h1>
 
-    <div class="prose prose-lg prose-gray max-w-none mb-12">
+    <div class="prose prose-lg prose-gray dark:prose-invert max-w-none mb-12">
       <p>
         Hey there! I'm {siteConfig.name}, a Data Scientist at Bacancy Technology with a passion for
         building AI-powered solutions that solve real-world problems.
@@ -34,14 +34,14 @@ const skills = [
 
     <!-- Skills Section -->
     <div class="mb-12">
-      <h2 class="text-2xl font-bold text-gray-900 mb-6">Skills & Technologies</h2>
+      <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Skills & Technologies</h2>
       <div class="grid md:grid-cols-2 gap-6">
         {skills.map((skill) => (
-          <div class="bg-white rounded-xl p-6 border border-gray-200">
-            <h3 class="font-semibold text-gray-900 mb-3">{skill.category}</h3>
+          <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+            <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-3">{skill.category}</h3>
             <div class="flex flex-wrap gap-2">
               {skill.items.map((item) => (
-                <span class="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full">
+                <span class="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm rounded-full">
                   {item}
                 </span>
               ))}
@@ -52,9 +52,9 @@ const skills = [
     </div>
 
     <!-- Resume Download -->
-    <div class="bg-gray-50 rounded-xl p-6 border border-gray-200">
-      <h2 class="text-xl font-bold text-gray-900 mb-2">Want to know more?</h2>
-      <p class="text-gray-600 mb-4">
+    <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+      <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Want to know more?</h2>
+      <p class="text-gray-600 dark:text-gray-400 mb-4">
         Download my resume for a complete overview of my experience and skills.
       </p>
       <a

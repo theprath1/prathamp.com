@@ -16,7 +16,7 @@ const { frontmatter } = Astro.props;
 <BaseLayout title={frontmatter.title}>
   <article class="max-w-3xl mx-auto px-4 py-16">
     <header class="mb-8">
-      <div class="flex items-center gap-4 text-sm text-gray-500 mb-4">
+      <div class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-4">
         <time datetime={frontmatter.date.toISOString()}>
           {formatDate(frontmatter.date)}
         </time>
@@ -24,17 +24,17 @@ const { frontmatter } = Astro.props;
           frontmatter.topic && (
             <>
               <span>&middot;</span>
-              <span class="text-primary-600">{frontmatter.topic}</span>
+              <span class="text-primary-600 dark:text-primary-400">{frontmatter.topic}</span>
             </>
           )
         }
       </div>
-      <h1 class="text-3xl md:text-4xl font-bold text-gray-900">
+      <h1 class="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
         {frontmatter.title}
       </h1>
     </header>
     <div
-      class="prose prose-gray max-w-none prose-headings:font-semibold prose-a:text-primary-600 prose-code:text-primary-700 prose-code:bg-gray-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded"
+      class="prose prose-gray dark:prose-invert max-w-none prose-headings:font-semibold prose-a:text-primary-600 dark:prose-a:text-primary-400 prose-code:text-primary-700 dark:prose-code:text-primary-300 prose-code:bg-gray-100 dark:prose-code:bg-gray-800 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded"
     >
       <slot />
     </div>

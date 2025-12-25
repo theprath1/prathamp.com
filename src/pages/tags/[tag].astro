@@ -27,14 +27,14 @@ const sortedPosts = posts
 <BaseLayout title={`Posts tagged "${tag}"`} description={`All posts tagged with ${tag}`}>
   <section class="max-w-6xl mx-auto px-4 py-16">
     <div class="mb-8">
-      <a href="/blog" class="text-primary-600 hover:text-primary-700 font-medium">
+      <a href="/blog" class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">
         &larr; All posts
       </a>
     </div>
-    <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-      Posts tagged <span class="text-primary-600">"{tag}"</span>
+    <h1 class="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
+      Posts tagged <span class="text-primary-600 dark:text-primary-400">"{tag}"</span>
     </h1>
-    <p class="text-xl text-gray-600 mb-12">
+    <p class="text-xl text-gray-600 dark:text-gray-400 mb-12">
       {sortedPosts.length} post{sortedPosts.length !== 1 ? "s" : ""} found
     </p>
 
