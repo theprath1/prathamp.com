@@ -27,6 +27,7 @@ const currentPath = Astro.url.pathname;
   id="mobile-menu-btn"
   class="md:hidden p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
   aria-label="Toggle menu"
+  onclick="document.getElementById('mobile-menu').classList.toggle('hidden')"
 >
   <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
@@ -56,16 +57,3 @@ const currentPath = Astro.url.pathname;
     }
   </nav>
 </div>
-
-<script is:inline>
-  (function() {
-    const btn = document.getElementById("mobile-menu-btn");
-    const menu = document.getElementById("mobile-menu");
-
-    if (btn && menu) {
-      btn.addEventListener("click", function() {
-        menu.classList.toggle("hidden");
-      });
-    }
-  })();
-</script>
