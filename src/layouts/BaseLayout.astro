@@ -30,9 +30,34 @@ const pageDescription = description || siteConfig.description;
     />
     <title>{pageTitle}</title>
     <script is:inline>
-      if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.documentElement.classList.add('dark');
-      }
+      // Apply saved theme or system preference
+      (function() {
+        const savedTheme = localStorage.getItem('theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
+
+        function applyTheme() {
+          const saved = localStorage.getItem('theme');
+          if (saved === 'dark' || (!saved && prefersDark.matches)) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        }
+
+        // Apply theme immediately
+        applyTheme();
+
+        // Listen for system preference changes (only if no saved preference)
+        prefersDark.addEventListener('change', (e) => {
+          if (!localStorage.getItem('theme')) {
+            if (e.matches) {
+              document.documentElement.classList.add('dark');
+            } else {
+              document.documentElement.classList.remove('dark');
+            }
+          }
+        });
+      })();
     </script>
   </head>
   <body class="min-h-screen flex flex-col">
