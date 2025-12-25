@@ -2,22 +2,29 @@
 interface Props {
   name: string;
   size?: "sm" | "md";
+  asLink?: boolean;
 }
 
-const { name, size = "md" } = Astro.props;
+const { name, size = "md", asLink = true } = Astro.props;
 
 const sizeClasses = {
   sm: "text-xs px-2 py-0.5",
   md: "text-sm px-3 py-1",
 };
+
+const baseClasses = "inline-block font-medium bg-gray-100 text-gray-700 rounded-full transition-colors";
+const hoverClasses = asLink ? "hover:bg-primary-100 hover:text-primary-700" : "";
 ---
 
-<a
-  href={`/tags/${name.toLowerCase()}`}
-  class:list={[
-    "inline-block font-medium bg-gray-100 text-gray-700 rounded-full hover:bg-primary-100 hover:text-primary-700 transition-colors",
-    sizeClasses[size],
-  ]}
->
-  {name}
-</a>
+{asLink ? (
+  <a
+    href={`/tags/${name.toLowerCase()}`}
+    class:list={[baseClasses, hoverClasses, sizeClasses[size]]}
+  >
+    {name}
+  </a>
+) : (
+  <span class:list={[baseClasses, sizeClasses[size]]}>
+    {name}
+  </span>
+)}
