@@ -57,11 +57,15 @@ const currentPath = Astro.url.pathname;
   </nav>
 </div>
 
-<script>
-  const btn = document.getElementById("mobile-menu-btn");
-  const menu = document.getElementById("mobile-menu");
+<script is:inline>
+  document.addEventListener("DOMContentLoaded", () => {
+    const btn = document.getElementById("mobile-menu-btn");
+    const menu = document.getElementById("mobile-menu");
 
-  btn?.addEventListener("click", () => {
-    menu?.classList.toggle("hidden");
+    if (btn && menu) {
+      btn.addEventListener("click", () => {
+        menu.classList.toggle("hidden");
+      });
+    }
   });
 </script>
