@@ -34,26 +34,3 @@ const currentPath = Astro.url.pathname;
   </svg>
 </button>
 
-<!-- Mobile menu -->
-<div
-  id="mobile-menu"
-  class="hidden fixed inset-x-0 top-[65px] bottom-0 bg-white dark:bg-gray-900 z-[60] md:hidden shadow-lg overflow-y-auto"
->
-  <nav class="flex flex-col p-4">
-    {
-      siteConfig.nav.map((item) => (
-        <a
-          href={item.href}
-          class:list={[
-            "py-3 px-4 text-lg font-medium border-b border-gray-100 dark:border-gray-800 transition-colors",
-            currentPath === item.href || (item.href !== "/" && currentPath.startsWith(item.href))
-              ? "text-primary-600 dark:text-primary-400"
-              : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100",
-          ]}
-        >
-          {item.name}
-        </a>
-      ))
-    }
-  </nav>
-</div>
