@@ -62,6 +62,33 @@ const pageDescription = description || siteConfig.description;
   </head>
   <body class="min-h-screen flex flex-col">
     <Header />
+    <!-- Mobile menu - outside header to avoid stacking context issues -->
+    <div
+      id="mobile-menu"
+      class="hidden fixed inset-x-0 top-[65px] bottom-0 bg-white dark:bg-gray-900 z-[100] md:hidden shadow-lg overflow-y-auto"
+    >
+      <nav class="flex flex-col p-4">
+        {
+          siteConfig.nav.map((item) => {
+            const currentPath = Astro.url.pathname;
+            const isActive = currentPath === item.href || (item.href !== "/" && currentPath.startsWith(item.href));
+            return (
+              <a
+                href={item.href}
+                class:list={[
+                  "py-3 px-4 text-lg font-medium border-b border-gray-100 dark:border-gray-800 transition-colors",
+                  isActive
+                    ? "text-primary-600 dark:text-primary-400"
+                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100",
+                ]}
+              >
+                {item.name}
+              </a>
+            );
+          })
+        }
+      </nav>
+    </div>
     <main class="flex-1">
       <slot />
     </main>
