@@ -1,43 +1,111 @@
-# Astro Starter Kit: Minimal
+# Pratham Patel - Portfolio
 
-```sh
-npm create astro@latest -- --template minimal
+A personal portfolio and blog built with Astro and Tailwind CSS, showcasing projects, blog posts, and notes.
+
+## Features
+
+- **Projects** - Showcase of data science and AI projects
+- **Blog** - Technical articles and thoughts
+- **Notes** - Quick learning notes and references
+- **Dark Mode** - Theme toggle for light/dark modes
+- **Responsive** - Mobile-friendly design
+- **Content Collections** - Markdown-based content management
+
+## Tech Stack
+
+- [Astro](https://astro.build/) - Static site generator
+- [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
+- TypeScript
+
+## Project Structure
+
 ```
-
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
-
-## 🚀 Project Structure
-
-Inside of your Astro project, you'll see the following folders and files:
-
-```text
 /
-├── public/
+├── public/              # Static assets
 ├── src/
-│   └── pages/
-│       └── index.astro
+│   ├── components/      # Reusable UI components
+│   ├── config/          # Site configuration
+│   ├── content/         # Markdown content (projects, blog, notes)
+│   ├── layouts/         # Page layouts
+│   ├── pages/           # Route pages
+│   ├── styles/          # Global styles
+│   └── utils/           # Utility functions
 └── package.json
 ```
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+## Getting Started
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
+### Prerequisites
 
-Any static assets, like images, can be placed in the `public/` directory.
+- Node.js 18+
+- npm or yarn
 
-## 🧞 Commands
+### Installation
 
-All commands are run from the root of the project, from a terminal:
+```bash
+# Clone the repository
+git clone https://github.com/prthmptl/my-portfolio.git
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
+# Navigate to the project
+cd my-portfolio
 
-## 👀 Want to learn more?
+# Install dependencies
+npm install
+```
 
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+### Development
+
+```bash
+# Start development server
+npm run dev
+```
+
+Open [http://localhost:4321](http://localhost:4321) in your browser.
+
+### Build
+
+```bash
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+```
+
+## Adding Content
+
+### Projects
+
+Add new projects in `src/content/projects/` as Markdown files with frontmatter:
+
+```markdown
+---
+title: "Project Title"
+description: "Brief description"
+tech: ["Python", "TensorFlow"]
+featured: true
+draft: false
+---
+
+Project content here...
+```
+
+### Blog Posts
+
+Add blog posts in `src/content/blog/` with frontmatter:
+
+```markdown
+---
+title: "Post Title"
+description: "Brief description"
+date: 2024-01-01
+tags: ["tag1", "tag2"]
+draft: false
+---
+
+Post content here...
+```
+
+## License
+
+MIT
