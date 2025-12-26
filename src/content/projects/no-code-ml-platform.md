@@ -1,7 +1,7 @@
 ---
 title: "No-Code ML Platform"
 description: "Enterprise-grade no-code ML platform with time series forecasting module, reducing baseline model development time by 80% for forecasting workflows."
-tech: [Pandas, PySpark, Docker, K9S, Grafana, TensorFlow, Scikit-learn]
+tech: [Python, Pandas, PySpark, Docker, K9S, Grafana, TensorFlow, Scikit-learn]
 featured: true
 ---
 
