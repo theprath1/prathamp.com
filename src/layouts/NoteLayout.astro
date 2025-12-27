@@ -24,7 +24,12 @@ const { frontmatter } = Astro.props;
           frontmatter.topic && (
             <>
               <span>&middot;</span>
-              <span class="text-primary-600 dark:text-primary-400">{frontmatter.topic}</span>
+              <a
+                href={`/notes?topic=${encodeURIComponent(frontmatter.topic)}`}
+                class="text-primary-600 dark:text-primary-400 hover:underline"
+              >
+                {frontmatter.topic}
+              </a>
             </>
           )
         }

@@ -18,23 +18,34 @@ const topics = [...new Set(notes.map((n) => n.data.topic).filter(Boolean))];
     </p>
 
     {topics.length > 0 && (
-      <div class="flex flex-wrap gap-2 mb-8">
+      <div class="flex flex-wrap gap-2 mb-8" id="topic-filters">
+        <button
+          data-topic="all"
+          class="topic-btn px-3 py-1 text-sm font-medium rounded-full transition-colors bg-primary-600 text-white"
+        >
+          All
+        </button>
         {topics.map((topic) => (
-          <span class="px-3 py-1 bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 text-sm font-medium rounded-full">
+          <button
+            data-topic={topic}
+            class="topic-btn px-3 py-1 bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 text-sm font-medium rounded-full transition-colors hover:bg-primary-200 dark:hover:bg-primary-800"
+          >
             {topic}
-          </span>
+          </button>
         ))}
       </div>
     )}
 
-    <div class="grid gap-4">
+    <div class="grid gap-4" id="notes-grid">
       {notes.map((note) => (
-        <NoteCard
-          title={note.data.title}
-          date={note.data.date}
-          slug={note.slug}
-          topic={note.data.topic}
-        />
+        <div class="note-item" data-topic={note.data.topic || ""}>
+          <NoteCard
+            title={note.data.title}
+            date={note.data.date}
+            slug={note.slug}
+            topic={note.data.topic}
+          />
+        </div>
       ))}
     </div>
 
@@ -45,3 +56,60 @@ const topics = [...new Set(notes.map((n) => n.data.topic).filter(Boolean))];
     )}
   </section>
 </BaseLayout>
+
+<script>
+  function initTopicFilter() {
+    const buttons = document.querySelectorAll('.topic-btn');
+    const noteItems = document.querySelectorAll('.note-item');
+
+    function applyFilter(topic: string) {
+      // Update button styles
+      buttons.forEach(b => {
+        b.classList.remove('bg-primary-600', 'text-white');
+        b.classList.add('bg-primary-100', 'dark:bg-primary-900', 'text-primary-700', 'dark:text-primary-300');
+        if (b.getAttribute('data-topic') === topic) {
+          b.classList.remove('bg-primary-100', 'dark:bg-primary-900', 'text-primary-700', 'dark:text-primary-300');
+          b.classList.add('bg-primary-600', 'text-white');
+        }
+      });
+
+      // Filter notes
+      noteItems.forEach(item => {
+        const itemTopic = item.getAttribute('data-topic');
+        if (topic === 'all' || itemTopic === topic) {
+          (item as HTMLElement).style.display = 'block';
+        } else {
+          (item as HTMLElement).style.display = 'none';
+        }
+      });
+
+      // Update URL without reload
+      const url = new URL(window.location.href);
+      if (topic === 'all') {
+        url.searchParams.delete('topic');
+      } else {
+        url.searchParams.set('topic', topic);
+      }
+      window.history.replaceState({}, '', url.toString());
+    }
+
+    // Check URL for initial filter
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialTopic = urlParams.get('topic') || 'all';
+    applyFilter(initialTopic);
+
+    // Add click handlers
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const topic = btn.getAttribute('data-topic') || 'all';
+        applyFilter(topic);
+      });
+    });
+  }
+
+  // Run on initial load
+  initTopicFilter();
+
+  // Re-run on Astro page transitions
+  document.addEventListener('astro:after-swap', initTopicFilter);
+</script>
