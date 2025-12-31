@@ -1,7 +1,7 @@
 ---
 title: "Gradient Boosting: A Complete Guide"
 description: "A deep dive into Gradient Boosting - from intuition and geometry to the math behind pseudo-residuals, stage-wise corrections, and practical implementation considerations."
-date: 2025-01-02
+date: 2025-12-31
 tags: [machine-learning, gradient-boosting, ensemble-methods, algorithms]
 ---
 
