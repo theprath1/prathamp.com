@@ -2,7 +2,7 @@ export const siteConfig = {
   name: "Pratham Patel",
   title: "Pratham Patel | Developer Portfolio",
   description: "Personal portfolio and blog showcasing my projects, thoughts, and learning journey.",
-  url: "https://prthmptl.github.io",
+  url: "https://prathamp.com",
   author: {
     name: "Pratham Patel",
     email: "prathammpatel@outlook.com",
