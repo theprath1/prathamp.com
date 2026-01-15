@@ -5,7 +5,7 @@ import { getCollection } from "astro:content";
 
 const projects = (await getCollection("projects"))
   .filter((p) => !p.data.draft)
-  .sort((a, b) => (b.data.featured ? 1 : 0) - (a.data.featured ? 1 : 0));
+  .sort((a, b) => a.data.title.localeCompare(b.data.title));
 ---
 
 <BaseLayout title="Projects" description="A showcase of my work and side projects.">
