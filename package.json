@@ -14,6 +14,11 @@
     "@tailwindcss/vite": "^4.1.18",
     "astro": "^5.16.9",
     "pagefind": "^1.4.0",
+    "satori": "^0.19.1",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4.1.18"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.10"
   }
 }

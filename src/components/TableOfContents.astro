@@ -1,0 +1,78 @@
+---
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  headings: Heading[];
+}
+
+const { headings } = Astro.props;
+
+// Filter to only include h2 and h3 headings
+const toc = headings.filter((h) => h.depth >= 2 && h.depth <= 3);
+---
+
+{toc.length > 0 && (
+  <nav class="toc hidden lg:block">
+    <div class="sticky top-24">
+      <h2 class="text-sm font-semibold text-gray-900 dark:text-white mb-4">
+        On this page
+      </h2>
+      <ul class="space-y-2 text-sm">
+        {toc.map((heading) => (
+          <li class={heading.depth === 3 ? "ml-4" : ""}>
+            <a
+              href={`#${heading.slug}`}
+              class="toc-link block py-1 text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+              data-heading={heading.slug}
+            >
+              {heading.text}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </nav>
+)}
+
+<script is:inline>
+  function setupTOC() {
+    const tocLinks = document.querySelectorAll('.toc-link');
+    if (tocLinks.length === 0) return;
+
+    const headings = Array.from(tocLinks).map(link => {
+      const id = link.getAttribute('data-heading');
+      return document.getElementById(id);
+    }).filter(Boolean);
+
+    function updateActiveLink() {
+      const scrollPos = window.scrollY + 100;
+
+      let activeIndex = 0;
+      headings.forEach((heading, index) => {
+        if (heading.offsetTop <= scrollPos) {
+          activeIndex = index;
+        }
+      });
+
+      tocLinks.forEach((link, index) => {
+        if (index === activeIndex) {
+          link.classList.add('text-primary-600', 'dark:text-primary-400', 'font-medium');
+          link.classList.remove('text-gray-600', 'dark:text-gray-400');
+        } else {
+          link.classList.remove('text-primary-600', 'dark:text-primary-400', 'font-medium');
+          link.classList.add('text-gray-600', 'dark:text-gray-400');
+        }
+      });
+    }
+
+    window.addEventListener('scroll', updateActiveLink, { passive: true });
+    updateActiveLink();
+  }
+
+  setupTOC();
+  document.addEventListener('astro:after-swap', setupTOC);
+</script>

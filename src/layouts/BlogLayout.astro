@@ -3,6 +3,13 @@ import BaseLayout from "./BaseLayout.astro";
 import { formatDate } from "../utils/formatDate";
 import { readingTime } from "../utils/readingTime";
 import Tag from "../components/Tag.astro";
+import TableOfContents from "../components/TableOfContents.astro";
+
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
 
 interface Props {
   frontmatter: {
@@ -12,13 +19,17 @@ interface Props {
     tags?: string[];
   };
   body: string;
+  headings?: Heading[];
+  slug: string;
 }
 
-const { frontmatter, body } = Astro.props;
+const { frontmatter, body, headings = [], slug } = Astro.props;
+const ogImage = `/og/blog/${slug}.png`;
 ---
 
-<BaseLayout title={frontmatter.title} description={frontmatter.description}>
-  <article class="max-w-3xl mx-auto px-4 py-16">
+<BaseLayout title={frontmatter.title} description={frontmatter.description} type="article" image={ogImage}>
+  <div class="max-w-6xl mx-auto px-4 py-16 lg:grid lg:grid-cols-[1fr_220px] lg:gap-12">
+    <article>
     <header class="mb-12">
       <div class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-4">
         <time datetime={frontmatter.date.toISOString()}>
@@ -46,5 +57,7 @@ const { frontmatter, body } = Astro.props;
     >
       <slot />
     </div>
-  </article>
+    </article>
+    <TableOfContents headings={headings} />
+  </div>
 </BaseLayout>
