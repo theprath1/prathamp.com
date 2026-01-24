@@ -1,0 +1,268 @@
+---
+---
+
+<!-- Search Button -->
+<button
+  id="search-btn"
+  type="button"
+  class="p-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-800 transition-colors"
+  aria-label="Search"
+>
+  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+    />
+  </svg>
+</button>
+
+<!-- Search Modal -->
+<div
+  id="search-modal"
+  class="fixed inset-0 z-[100] hidden"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="search-modal-title"
+>
+  <!-- Backdrop -->
+  <div
+    id="search-backdrop"
+    class="absolute inset-0 bg-gray-900/50 dark:bg-gray-950/70 backdrop-blur-sm"
+  ></div>
+
+  <!-- Modal Content -->
+  <div class="relative flex items-start justify-center pt-[10vh] px-4">
+    <div
+      class="w-full max-w-2xl bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+    >
+      <!-- Search Header -->
+      <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+        <svg
+          class="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
+        </svg>
+        <input
+          id="search-input"
+          type="text"
+          placeholder="Search projects, blog posts, notes..."
+          class="flex-1 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 outline-none text-base"
+          autocomplete="off"
+        />
+        <kbd
+          class="hidden sm:inline-flex items-center px-2 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded"
+        >
+          ESC
+        </kbd>
+      </div>
+
+      <!-- Search Results -->
+      <div
+        id="search-results"
+        class="max-h-[60vh] overflow-y-auto p-2"
+      >
+        <div id="search-placeholder" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+          <p class="text-sm">Start typing to search...</p>
+          <p class="text-xs mt-2 text-gray-400 dark:text-gray-500">
+            Press <kbd class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs">↵</kbd> to select,
+            <kbd class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs">↑↓</kbd> to navigate
+          </p>
+        </div>
+        <div id="search-results-list" class="hidden space-y-1"></div>
+        <div id="search-no-results" class="hidden px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+          <p class="text-sm">No results found</p>
+        </div>
+        <div id="search-loading" class="hidden px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+          <p class="text-sm">Loading search index...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+  let pagefind = null;
+  let selectedIndex = -1;
+
+  function setupSearch() {
+    const searchBtn = document.getElementById('search-btn');
+    const searchModal = document.getElementById('search-modal');
+    const searchBackdrop = document.getElementById('search-backdrop');
+    const searchInput = document.getElementById('search-input');
+    const searchResultsList = document.getElementById('search-results-list');
+    const searchPlaceholder = document.getElementById('search-placeholder');
+    const searchNoResults = document.getElementById('search-no-results');
+    const searchLoading = document.getElementById('search-loading');
+
+    if (!searchBtn || !searchModal || !searchInput || !searchResultsList) return;
+
+    // Open modal
+    function openModal() {
+      searchModal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      searchInput.focus();
+      loadPagefind();
+    }
+
+    // Close modal
+    function closeModal() {
+      searchModal.classList.add('hidden');
+      document.body.style.overflow = '';
+      searchInput.value = '';
+      resetResults();
+    }
+
+    // Reset results
+    function resetResults() {
+      selectedIndex = -1;
+      searchResultsList.innerHTML = '';
+      searchResultsList.classList.add('hidden');
+      searchNoResults.classList.add('hidden');
+      searchLoading.classList.add('hidden');
+      searchPlaceholder.classList.remove('hidden');
+    }
+
+    // Load Pagefind
+    async function loadPagefind() {
+      if (pagefind) return;
+
+      try {
+        searchPlaceholder.classList.add('hidden');
+        searchLoading.classList.remove('hidden');
+        pagefind = await import('/pagefind/pagefind.js');
+        await pagefind.init();
+        searchLoading.classList.add('hidden');
+        searchPlaceholder.classList.remove('hidden');
+      } catch (e) {
+        console.error('Failed to load Pagefind:', e);
+        searchLoading.classList.add('hidden');
+        searchPlaceholder.innerHTML = '<p class="text-sm text-amber-600 dark:text-amber-400">Search unavailable. Run `npm run build` first.</p>';
+        searchPlaceholder.classList.remove('hidden');
+      }
+    }
+
+    // Perform search
+    async function performSearch(query) {
+      if (!pagefind || !query.trim()) {
+        resetResults();
+        return;
+      }
+
+      searchPlaceholder.classList.add('hidden');
+      searchNoResults.classList.add('hidden');
+
+      try {
+        const search = await pagefind.search(query);
+        const results = await Promise.all(
+          search.results.slice(0, 8).map((r) => r.data())
+        );
+
+        if (results.length === 0) {
+          searchResultsList.classList.add('hidden');
+          searchNoResults.classList.remove('hidden');
+          return;
+        }
+
+        selectedIndex = -1;
+        searchResultsList.innerHTML = results
+          .map(
+            (result, index) => `
+            <a
+              href="${result.url}"
+              class="search-result block px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group"
+              data-index="${index}"
+            >
+              <div class="font-medium text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400">
+                ${result.meta?.title || 'Untitled'}
+              </div>
+              <div class="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                ${result.excerpt || ''}
+              </div>
+            </a>
+          `
+          )
+          .join('');
+        searchResultsList.classList.remove('hidden');
+      } catch (e) {
+        console.error('Search error:', e);
+      }
+    }
+
+    // Update selection
+    function updateSelection() {
+      const results = searchResultsList.querySelectorAll('.search-result');
+      results.forEach((result, index) => {
+        if (index === selectedIndex) {
+          result.classList.add('bg-gray-100', 'dark:bg-gray-800');
+        } else {
+          result.classList.remove('bg-gray-100', 'dark:bg-gray-800');
+        }
+      });
+    }
+
+    // Event listeners
+    searchBtn.addEventListener('click', openModal);
+    searchBackdrop.addEventListener('click', closeModal);
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+      // Open with Cmd/Ctrl + K
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        if (searchModal.classList.contains('hidden')) {
+          openModal();
+        } else {
+          closeModal();
+        }
+      }
+
+      // Close with Escape
+      if (e.key === 'Escape' && !searchModal.classList.contains('hidden')) {
+        closeModal();
+      }
+
+      // Navigate results
+      if (!searchModal.classList.contains('hidden')) {
+        const results = searchResultsList.querySelectorAll('.search-result');
+        const resultCount = results.length || 0;
+
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          selectedIndex = Math.min(selectedIndex + 1, resultCount - 1);
+          updateSelection();
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          selectedIndex = Math.max(selectedIndex - 1, -1);
+          updateSelection();
+        } else if (e.key === 'Enter' && selectedIndex >= 0) {
+          e.preventDefault();
+          const selectedResult = results[selectedIndex];
+          if (selectedResult) {
+            window.location.href = selectedResult.href;
+          }
+        }
+      }
+    });
+
+    // Search input
+    let debounceTimer;
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value;
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => performSearch(query), 150);
+    });
+  }
+
+  setupSearch();
+  document.addEventListener('astro:after-swap', setupSearch);
+</script>
