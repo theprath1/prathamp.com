@@ -1,6 +1,41 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import Timeline from "../components/Timeline.astro";
 import { siteConfig } from "../config/site";
+
+const experience = [
+  {
+    title: "Data Scientist",
+    company: "Bacancy Technology",
+    location: "Ahmedabad, Gujarat",
+    period: "Jul 2024 – Present",
+    type: "work" as const,
+    highlights: [
+      "Built AI meeting assistant reducing documentation time by 3+ hours weekly using AssemblyAI and GPT-4",
+      "Co-developed enterprise no-code ML platform with 10-15 engineers; owned time series forecasting module",
+      "Implemented MLOps infrastructure achieving 99.9% platform uptime for enterprise clients",
+    ],
+  },
+  {
+    title: "Data Science Intern",
+    company: "Bacancy Technology",
+    location: "Ahmedabad, Gujarat",
+    period: "Jan 2024 – Jun 2024",
+    type: "work" as const,
+    highlights: [
+      "Developed YOLOv8-based computer vision system for defect detection with 70% accuracy",
+      "Improved model robustness through systematic hyperparameter optimization",
+    ],
+  },
+  {
+    title: "B.Tech in Computer Engineering",
+    company: "Charotar University of Science and Technology",
+    location: "Anand, Gujarat",
+    period: "Dec 2020 – May 2024",
+    type: "education" as const,
+    description: "Focused on computer science fundamentals, machine learning, and software development.",
+  },
+];
 
 const skills = [
   { category: "Languages", items: ["Java", "Python", "C/C++"] },
@@ -30,6 +65,12 @@ const skills = [
         no-code ML platforms. I've collaborated with cross-functional teams of 10-15 engineers and
         delivered solutions deployed across major organizations.
       </p>
+    </div>
+
+    <!-- Experience Timeline -->
+    <div class="mb-16">
+      <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-8">Experience & Education</h2>
+      <Timeline items={experience} />
     </div>
 
     <!-- Skills Section -->
