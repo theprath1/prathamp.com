@@ -1,0 +1,47 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Page Not Found" description="The page you're looking for doesn't exist.">
+  <div class="min-h-[70vh] flex items-center justify-center px-4">
+    <div class="text-center">
+      <p class="text-primary-500 font-mono text-lg mb-4">404</p>
+      <h1 class="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
+        Page not found
+      </h1>
+      <p class="text-lg text-gray-600 dark:text-gray-400 mb-8 max-w-md mx-auto">
+        Sorry, the page you're looking for doesn't exist or has been moved.
+      </p>
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+        <a
+          href="/"
+          class="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          </svg>
+          Go home
+        </a>
+        <button
+          onclick="history.back()"
+          class="inline-flex items-center gap-2 px-6 py-3 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 font-medium rounded-lg transition-colors"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Go back
+        </button>
+      </div>
+
+      <div class="mt-12 pt-8 border-t border-gray-200 dark:border-gray-800">
+        <p class="text-sm text-gray-500 dark:text-gray-500 mb-4">Looking for something?</p>
+        <div class="flex flex-wrap justify-center gap-4 text-sm">
+          <a href="/projects" class="text-primary-600 dark:text-primary-400 hover:underline">Projects</a>
+          <a href="/blog" class="text-primary-600 dark:text-primary-400 hover:underline">Blog</a>
+          <a href="/about" class="text-primary-600 dark:text-primary-400 hover:underline">About</a>
+          <a href="/contact" class="text-primary-600 dark:text-primary-400 hover:underline">Contact</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
