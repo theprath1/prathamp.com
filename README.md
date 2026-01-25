@@ -44,7 +44,7 @@ A personal portfolio and blog built with Astro and Tailwind CSS, showcasing proj
 
 ```bash
 # Clone the repository
-git clone https://github.com/prthmptl/my-portfolio.git
+git clone https://github.com/prathamthepatel/my-portfolio.git
 
 # Navigate to the project
 cd my-portfolio
