@@ -4,8 +4,6 @@ date: 2025-12-27
 topic: "Machine Learning"
 ---
 
-# ML DEEP-PASS Notes Prompt
-
 You are an expert ML educator. Generate DEEP-PASS notes for the topic I provide.
 These notes are for full mathematical mastery, not speed.
 
