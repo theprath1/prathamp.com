@@ -5,8 +5,6 @@ date: 2025-12-31
 tags: [machine-learning, gradient-boosting, ensemble-methods, algorithms]
 ---
 
-# Gradient Boosting: A Complete Guide
-
 Gradient Boosting is one of the most powerful and widely-used machine learning algorithms, powering everything from Kaggle competition winners to production recommendation systems. In this post, we'll build a complete understanding—from geometric intuition to the mathematical foundations.
 
 ## The Core Idea
