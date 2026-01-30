@@ -1,7 +1,7 @@
 ---
 title: "Manifold-Constrained Hyper-Connections: Stabilizing Deep Networks Beyond ResNets"
 description: "A deep dive into why residual connections work, how Hyper-Connections generalize them, and why constraining learned skip paths to doubly stochastic matrices solves the instability problem"
-date: 2024-01-30
+date: 2026-01-30
 tags: ["deep-learning", "neural-networks", "linear-algebra", "transformers", "architecture", "optimization"]
 ---
 
@@ -372,3 +372,13 @@ Skip paths become **learned weighted averages**. Forward signals are preserved, 
 The progression tells a clear story. Plain networks suffer from vanishing/exploding signals—the fundamental problem. ResNets fix this with identity skip paths, but sacrifice flexibility by hard-coding the skip behavior. Hyper-Connections learn the skip path, gaining flexibility but reintroducing instability. Finally, mHC constrains learned skip paths to doubly stochastic matrices, achieving both stability and flexibility.
 
 The mathematical elegance lies in recognizing that by constraining $H$ to lie on the manifold of doubly stochastic matrices (the Birkhoff polytope), we get the best of both worlds—learned routing that remains numerically stable across arbitrary depth.
+
+## References
+
+1. He, K., Zhang, X., Ren, S., & Sun, J. (2015). *Deep Residual Learning for Image Recognition*. [arXiv:1512.03385](https://arxiv.org/abs/1512.03385)
+
+2. He, K., Zhang, X., Ren, S., & Sun, J. (2016). *Identity Mappings in Deep Residual Networks*. [arXiv:1603.05027](https://arxiv.org/abs/1603.05027)
+
+3. Zhu, D., Huang, H., Huang, Z., Zeng, Y., Mao, Y., Wu, B., Min, Q., & Zhou, X. (2024). *Hyper-Connections*. [arXiv:2409.19606](https://arxiv.org/abs/2409.19606)
+
+4. Xie, Z., Wei, Y., Cao, H., Zhao, C., Deng, C., Li, J., Dai, D., Gao, H., et al. (2025). *mHC: Manifold-Constrained Hyper-Connections*. [arXiv:2512.24880](https://arxiv.org/abs/2512.24880)
