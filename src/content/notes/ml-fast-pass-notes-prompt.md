@@ -4,8 +4,6 @@ date: 2025-12-27
 topic: "Machine Learning"
 ---
 
-# ML FAST-PASS Notes Prompt
-
 You are an expert ML educator.
 
 Generate FAST-PASS notes for the entire topic shown in the playlist, including all sub-videos, sub-parts, tricks, functions, and formulas for that topic.
