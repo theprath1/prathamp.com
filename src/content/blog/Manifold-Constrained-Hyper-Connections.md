@@ -2,6 +2,7 @@
 title: "Manifold-Constrained Hyper-Connections: Stabilizing Deep Networks Beyond ResNets"
 description: "A deep dive into mHC - how doubly stochastic matrices and the Birkhoff polytope solve the instability problem in learned skip connections, from ResNets to Hyper-Connections."
 date: 2025-01-30
+tags: [deep-learning, neural-networks, optimization, linear-algebra, transformers]
 ---
 
 # Manifold-Constrained Hyper-Connections: Stabilizing Deep Networks Beyond ResNets
@@ -74,10 +75,10 @@ The straight line at the top is the identity path—it passes information unchan
 ### Why Hyper-Connections Were Introduced
 
 In very deep transformers, each layer has multiple residual streams:
-- Attention stream
-- MLP stream
-- Skip connections across blocks
-- Sometimes dozens of paths
+- **Attention stream:** carries information processed by self-attention mechanisms, capturing long-range dependencies
+- **MLP stream:** processes features through feed-forward networks, adding non-linear transformations
+- **Skip connections across blocks:** allow gradients and information to flow directly between non-adjacent layers
+- **Sometimes dozens of paths:** modern architectures like mixture-of-experts can have many parallel information routes
 
 Standard ResNet architecture only allows:
 
@@ -99,22 +100,30 @@ Here, $H$ is a learned matrix that replaces the identity path:
 
 Consider our example matrix:
 
-$$H = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}$$
+$$
+H = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}
+$$
 
 This means neuron 1 keeps 70% of its value and mixes in 30% from neuron 2, and vice versa.
 
 Applied to our input:
 
-$$Hx = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix} \begin{bmatrix} 10 \\ 20 \end{bmatrix} = \begin{bmatrix} 0.7(10) + 0.3(20) \\ 0.3(10) + 0.7(20) \end{bmatrix} = \begin{bmatrix} 13 \\ 17 \end{bmatrix}$$
+$$
+Hx = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix} \begin{bmatrix} 10 \\ 20 \end{bmatrix}
+$$
+
+$$
+= \begin{bmatrix} 0.7(10) + 0.3(20) \\ 0.3(10) + 0.7(20) \end{bmatrix} = \begin{bmatrix} 13 \\ 17 \end{bmatrix}
+$$
 
 The values are mixed but preserved—no explosion, no vanishing.
 
 ### The Appeal of Hyper-Connections
 
 Hyper-Connections allow:
-- Adaptive routing
-- Dynamic information flow
-- Richer expressiveness
+- **Adaptive routing:** the network can learn to emphasize or suppress different feature channels based on task requirements
+- **Dynamic information flow:** skip connection weights can vary depending on the learned representations, not fixed at 1
+- **Richer expressiveness:** the model gains additional learnable parameters that can capture complex inter-neuron relationships
 
 The idea is elegant: let the network decide how identity should behave.
 
@@ -130,17 +139,23 @@ $$H^n \neq H$$
 
 Let's see what happens when we apply our $H$ matrix repeatedly. After two layers:
 
-$$H^2 = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}^2 = \begin{bmatrix} 0.58 & 0.42 \\ 0.42 & 0.58 \end{bmatrix}$$
+$$
+H^2 = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}^2 = \begin{bmatrix} 0.58 & 0.42 \\ 0.42 & 0.58 \end{bmatrix}
+$$
 
 The mixing increases. After 20 layers:
 
-$$H^{20} \approx \begin{bmatrix} 0.5 & 0.5 \\ 0.5 & 0.5 \end{bmatrix}$$
+$$
+H^{20} \approx \begin{bmatrix} 0.5 & 0.5 \\ 0.5 & 0.5 \end{bmatrix}
+$$
 
 All information about which neuron had which value is lost—both neurons converge to the average.
 
 Now consider a slightly different matrix where one eigenvalue exceeds 1:
 
-$$H' = \begin{bmatrix} 0.8 & 0.3 \\ 0.3 & 0.8 \end{bmatrix}$$
+$$
+H' = \begin{bmatrix} 0.8 & 0.3 \\ 0.3 & 0.8 \end{bmatrix}
+$$
 
 After many layers, $(H')^{20} x$ explodes because the dominant eigenvalue is $1.1 > 1$.
 
@@ -158,7 +173,9 @@ $$x_{l+1} = Hx_l$$
 
 Where:
 
-$$H = \begin{bmatrix} h_{11} & h_{12} \\ h_{21} & h_{22} \end{bmatrix}$$
+$$
+H = \begin{bmatrix} h_{11} & h_{12} \\ h_{21} & h_{22} \end{bmatrix}
+$$
 
 Each $h_{ij}$ is a scalar parameter stored like any other weight and updated by backpropagation.
 
@@ -167,9 +184,9 @@ Each $h_{ij}$ is a scalar parameter stored like any other weight and updated by 
 ResNet hard-codes the identity, assuming every layer should pass exactly the same information forward. Hyper-Connections ask: *What if some features should pass more strongly, others less, or be mixed?*
 
 This allows:
-- Feature re-weighting
-- Feature mixing
-- Dynamic routing across layers
+- **Feature re-weighting:** the network can learn to amplify important features and diminish less relevant ones at each layer
+- **Feature mixing:** information from different neurons can be combined in learned proportions, enabling richer representations
+- **Dynamic routing across layers:** different layers can implement different skip behaviors tailored to their depth in the network
 
 Conceptually, it's **learning how to skip**.
 
@@ -183,11 +200,15 @@ Why? Identity is stable, training starts safely, and the model behaves like ResN
 
 For our 2×2 case, we initialize near identity with small noise:
 
-$$H = \begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix} + \epsilon = \begin{bmatrix} 1.01 & -0.02 \\ 0.01 & 0.98 \end{bmatrix}$$
+$$
+H = \begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix} + \epsilon = \begin{bmatrix} 1.01 & -0.02 \\ 0.01 & 0.98 \end{bmatrix}
+$$
 
 Applied to $x = \begin{bmatrix} 10 \\ 20 \end{bmatrix}$:
 
-$$Hx = \begin{bmatrix} 1.01(10) + (-0.02)(20) \\ 0.01(10) + 0.98(20) \end{bmatrix} = \begin{bmatrix} 9.7 \\ 19.7 \end{bmatrix}$$
+$$
+Hx = \begin{bmatrix} 1.01(10) + (-0.02)(20) \\ 0.01(10) + 0.98(20) \end{bmatrix} = \begin{bmatrix} 9.7 \\ 19.7 \end{bmatrix}
+$$
 
 Close to the original—good starting point.
 
@@ -213,7 +234,9 @@ Each derivative answers: "If I slightly change this number, does the loss go up 
 
 The gradient is written as a matrix to match the shape of $H$:
 
-$$\nabla_H \mathcal{L} = \begin{bmatrix} \frac{\partial \mathcal{L}}{\partial h_{11}} & \frac{\partial \mathcal{L}}{\partial h_{12}} \\ \frac{\partial \mathcal{L}}{\partial h_{21}} & \frac{\partial \mathcal{L}}{\partial h_{22}} \end{bmatrix}$$
+$$
+\nabla_H \mathcal{L} = \begin{bmatrix} \frac{\partial \mathcal{L}}{\partial h_{11}} & \frac{\partial \mathcal{L}}{\partial h_{12}} \\ \frac{\partial \mathcal{L}}{\partial h_{21}} & \frac{\partial \mathcal{L}}{\partial h_{22}} \end{bmatrix}
+$$
 
 We subtract the gradient because it points uphill, and we want to go downhill (minimize loss).
 
@@ -228,27 +251,31 @@ Hyper-Connections replace the identity skip with a learned matrix $H$, but repea
 ### What Matrices Are Safe to Repeat?
 
 We want a matrix $H$ such that:
-- It does not amplify values
-- It does not shrink values
-- Repeating it many times stays stable
+- **No amplification:** repeated multiplication should not cause exponential growth (exploding activations)
+- **No decay:** repeated multiplication should not cause exponential shrinkage (vanishing signals)
+- **Stable under composition:** applying $H$ hundreds of times should produce bounded, predictable behavior
 
 The safest operation on numbers is **averaging**. For example, $\text{avg}(10, 20) = 15$. Averaging never explodes, never vanishes—it just redistributes.
 
 ### Averaging with Matrices
 
 A matrix can perform averaging if:
-- All entries are non-negative
-- Each output is a weighted average of inputs
+- **All entries are non-negative:** weights must be valid (no negative contributions that could cause cancellation)
+- **Each output is a weighted average of inputs:** the weights for each row sum to 1, ensuring outputs stay bounded
 
 This happens when **rows sum to 1**. Our example matrix has this property:
 
-$$H = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}$$
+$$
+H = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}
+$$
 
 Row 1: $0.7 + 0.3 = 1$. Row 2: $0.3 + 0.7 = 1$.
 
 Applied to $x = \begin{bmatrix} 10 \\ 20 \end{bmatrix}$:
 
-$$Hx = \begin{bmatrix} 0.7(10) + 0.3(20) \\ 0.3(10) + 0.7(20) \end{bmatrix} = \begin{bmatrix} 13 \\ 17 \end{bmatrix}$$
+$$
+Hx = \begin{bmatrix} 0.7(10) + 0.3(20) \\ 0.3(10) + 0.7(20) \end{bmatrix} = \begin{bmatrix} 13 \\ 17 \end{bmatrix}
+$$
 
 Each output is a weighted average of the inputs—no scaling occurs. The total "mass" is preserved: $10 + 20 = 30$ and $13 + 17 = 30$.
 
@@ -256,7 +283,9 @@ Each output is a weighted average of the inputs—no scaling occurs. The total "
 
 The forward pass uses $H$, but the backward pass uses $H^T$:
 
-$$H^T = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}$$
+$$
+H^T = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}
+$$
 
 In our example, $H = H^T$ (the matrix is symmetric), so both directions are stable. But in general:
 - Row sums = 1 ensures stable forward pass
@@ -267,9 +296,9 @@ To protect both directions, we need rows AND columns to sum to 1.
 ### Doubly Stochastic Matrices
 
 A matrix is **doubly stochastic** if:
-- All entries are greater than or equal to 0
-- Each row sums to 1
-- Each column sums to 1
+- **Non-negativity:** all entries are greater than or equal to 0, ensuring valid probability-like weights
+- **Row normalization:** each row sums to 1, meaning each output is a weighted average of all inputs
+- **Column normalization:** each column sums to 1, ensuring the backward pass also performs averaging
 
 Our example matrix $H = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}$ is doubly stochastic:
 - Row 1: $0.7 + 0.3 = 1$
@@ -282,9 +311,9 @@ This provides perfect averaging with forward and backward stability.
 ### Why Doubly Stochastic Matrices Behave Like Identity
 
 Key properties:
-- Largest eigenvalue = 1
-- All other eigenvalues are less than or equal to 1
-- Closed under multiplication
+- **Largest eigenvalue = 1:** this ensures the dominant mode neither grows nor shrinks, maintaining signal magnitude across layers
+- **All other eigenvalues ≤ 1:** secondary modes decay or stay stable, preventing any component from exploding
+- **Closed under multiplication:** the product of two doubly stochastic matrices is also doubly stochastic, so composing layers remains safe
 
 For our $H$, the eigenvalues are $\lambda_1 = 1$ and $\lambda_2 = 0.4$. Since both are at most 1, $H^L$ does not explode. Repeated application behaves like identity plus smoothing—exactly what we need for skip paths.
 
@@ -304,21 +333,29 @@ A permutation matrix just reorders neurons. For our 2 neurons, there are only tw
 
 **Identity permutation (do nothing):**
 
-$$P_1 = \begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix}$$
+$$
+P_1 = \begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix}
+$$
 
 Applied to $x = \begin{bmatrix} 10 \\ 20 \end{bmatrix}$:
 
-$$P_1 x = \begin{bmatrix} 10 \\ 20 \end{bmatrix}$$
+$$
+P_1 x = \begin{bmatrix} 10 \\ 20 \end{bmatrix}
+$$
 
 Neuron 1 stays as neuron 1, neuron 2 stays as neuron 2.
 
 **Swap permutation:**
 
-$$P_2 = \begin{bmatrix} 0 & 1 \\ 1 & 0 \end{bmatrix}$$
+$$
+P_2 = \begin{bmatrix} 0 & 1 \\ 1 & 0 \end{bmatrix}
+$$
 
 Applied to $x = \begin{bmatrix} 10 \\ 20 \end{bmatrix}$:
 
-$$P_2 x = \begin{bmatrix} 20 \\ 10 \end{bmatrix}$$
+$$
+P_2 x = \begin{bmatrix} 20 \\ 10 \end{bmatrix}
+$$
 
 Neuron 1 and neuron 2 are swapped.
 
@@ -332,7 +369,13 @@ $$H = 0.7 P_1 + 0.3 P_2$$
 
 Let's verify:
 
-$$0.7 \begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix} + 0.3 \begin{bmatrix} 0 & 1 \\ 1 & 0 \end{bmatrix} = \begin{bmatrix} 0.7 & 0 \\ 0 & 0.7 \end{bmatrix} + \begin{bmatrix} 0 & 0.3 \\ 0.3 & 0 \end{bmatrix} = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}$$
+$$
+0.7 \begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix} + 0.3 \begin{bmatrix} 0 & 1 \\ 1 & 0 \end{bmatrix}
+$$
+
+$$
+= \begin{bmatrix} 0.7 & 0 \\ 0 & 0.7 \end{bmatrix} + \begin{bmatrix} 0 & 0.3 \\ 0.3 & 0 \end{bmatrix} = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}
+$$
 
 This means: **every safe $H$ is a soft permutation of features**. Our $H$ is "70% keep in place, 30% swap"—a probabilistic mixture of routing decisions.
 
@@ -347,8 +390,8 @@ mHC does not change backpropagation. Instead, it changes **where $H$ is allowed 
 *"Learn freely, then project back to a safe space."*
 
 Mathematically:
-1. Perform an unconstrained gradient step
-2. Project onto doubly stochastic matrices
+1. **Unconstrained gradient step:** update $H$ using standard gradient descent without worrying about constraints
+2. **Project onto doubly stochastic matrices:** use Sinkhorn normalization to find the nearest valid matrix
 
 ### The Modified Update Rule
 
@@ -368,13 +411,17 @@ This is the entire mathematical change.
 
 Suppose gradient descent produces an invalid matrix:
 
-$$\tilde{H} = \begin{bmatrix} 0.8 & 0.4 \\ 0.2 & 0.9 \end{bmatrix}$$
+$$
+\tilde{H} = \begin{bmatrix} 0.8 & 0.4 \\ 0.2 & 0.9 \end{bmatrix}
+$$
 
 This is not doubly stochastic (rows sum to 1.2 and 1.1, columns sum to 1.0 and 1.3).
 
 Projection means: "Take this matrix and gently push it back so it obeys the constraints." The result might be:
 
-$$H = \begin{bmatrix} 0.65 & 0.35 \\ 0.35 & 0.65 \end{bmatrix}$$
+$$
+H = \begin{bmatrix} 0.65 & 0.35 \\ 0.35 & 0.65 \end{bmatrix}
+$$
 
 Now rows and columns all sum to 1. This push is accomplished using **Sinkhorn normalization**.
 
@@ -392,7 +439,9 @@ $$A_{ij} = e^{\tilde{H}_{ij}}$$
 
 For our running example, suppose we start with:
 
-$$A = \begin{bmatrix} 2 & 1 \\ 1 & 2 \end{bmatrix}$$
+$$
+A = \begin{bmatrix} 2 & 1 \\ 1 & 2 \end{bmatrix}
+$$
 
 All entries are positive (good), but row sums are 3 and column sums are 3 (not 1).
 
@@ -400,7 +449,9 @@ All entries are positive (good), but row sums are 3 and column sums are 3 (not 1
 
 Divide each row by its sum:
 
-$$A' = \begin{bmatrix} 2/3 & 1/3 \\ 1/3 & 2/3 \end{bmatrix} = \begin{bmatrix} 0.667 & 0.333 \\ 0.333 & 0.667 \end{bmatrix}$$
+$$
+A' = \begin{bmatrix} 2/3 & 1/3 \\ 1/3 & 2/3 \end{bmatrix} = \begin{bmatrix} 0.667 & 0.333 \\ 0.333 & 0.667 \end{bmatrix}
+$$
 
 Now rows sum to 1. Check columns: $0.667 + 0.333 = 1$ and $0.333 + 0.667 = 1$.
 
@@ -414,14 +465,16 @@ In general, you alternate row and column normalization until convergence. For ou
 
 The final result:
 
-$$H = \begin{bmatrix} 0.667 & 0.333 \\ 0.333 & 0.667 \end{bmatrix}$$
+$$
+H = \begin{bmatrix} 0.667 & 0.333 \\ 0.333 & 0.667 \end{bmatrix}
+$$
 
 This is doubly stochastic and can be written as $0.667 P_1 + 0.333 P_2$—a soft permutation.
 
 The algorithm is:
-- Fast to converge (typically 5-10 iterations)
-- Fully differentiable
-- Computationally efficient
+- **Fast to converge:** typically reaches doubly stochastic form within 5-10 iterations, making it practical for training loops
+- **Fully differentiable:** gradients flow through the normalization steps, enabling end-to-end backpropagation
+- **Computationally efficient:** only requires simple row and column divisions, adding minimal overhead to each training step
 
 ---
 
@@ -429,11 +482,11 @@ The algorithm is:
 
 Putting it all together, the mHC pipeline for each training step is:
 
-1. Compute gradient $\nabla_H \mathcal{L}$
-2. Take gradient step: $\tilde{H} = H - \eta \nabla_H \mathcal{L}$
-3. Exponentiate to ensure positivity
-4. Apply Sinkhorn normalization to project onto Birkhoff polytope
-5. Use this stable $H$ in the network
+1. **Compute gradient:** calculate $\nabla_H \mathcal{L}$ via standard backpropagation through the network
+2. **Take gradient step:** update the unconstrained matrix as $\tilde{H} = H - \eta \nabla_H \mathcal{L}$
+3. **Exponentiate to ensure positivity:** apply element-wise $\exp(\cdot)$ so all entries become strictly positive
+4. **Apply Sinkhorn normalization:** alternate row and column normalization to project onto the Birkhoff polytope
+5. **Use stable $H$ in network:** the projected matrix is now doubly stochastic and safe for the next forward pass
 
 Mathematically:
 
@@ -458,10 +511,10 @@ The network learns while staying in the stable region.
 ### Why This Stabilizes Hyper-Connections
 
 With mHC:
-- Skip paths become weighted averages
-- Forward signals are preserved
-- Backward gradients are preserved
-- Repeated depth causes redistribution, not scaling
+- **Skip paths become weighted averages:** instead of arbitrary linear combinations, each output is a convex combination of inputs
+- **Forward signals are preserved:** the total magnitude of activations stays bounded, preventing explosion in deep networks
+- **Backward gradients are preserved:** column normalization ensures gradients flow stably during backpropagation
+- **Repeated depth causes redistribution, not scaling:** applying the matrix many times mixes features rather than amplifying them
 
 **The identity is no longer fixed—but its stability is preserved.**
 
