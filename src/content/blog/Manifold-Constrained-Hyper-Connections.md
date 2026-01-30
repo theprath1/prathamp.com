@@ -1,541 +1,374 @@
 ---
 title: "Manifold-Constrained Hyper-Connections: Stabilizing Deep Networks Beyond ResNets"
-description: "A deep dive into mHC - how doubly stochastic matrices and the Birkhoff polytope solve the instability problem in learned skip connections, from ResNets to Hyper-Connections."
-date: 2025-01-30
-tags: [deep-learning, neural-networks, optimization, linear-algebra, transformers]
+description: "A deep dive into why residual connections work, how Hyper-Connections generalize them, and why constraining learned skip paths to doubly stochastic matrices solves the instability problem"
+date: 2024-01-30
+tags: ["deep-learning", "neural-networks", "linear-algebra", "transformers", "architecture", "optimization"]
 ---
 
-Deep neural networks have revolutionized machine learning, but training them effectively remains a nuanced challenge. This article explores the evolution from Residual Networks (ResNets) to Hyper-Connections, and finally to Manifold-Constrained Hyper-Connections (mHC)—a mathematically elegant solution to a fundamental instability problem.
+In this article, we'll trace the evolution from basic neural networks to residual networks, then to Hyper-Connections, and finally to manifold-constrained Hyper-Connections (mHC). The goal is to understand not just *what* these techniques do, but *why* each step was necessary and what problems it solves.
 
-Throughout this article, we will use a single consistent example: **a network with two neurons and an input vector $x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}$**. This allows us to trace the same numbers through every concept.
+## 1. The Signal Propagation Problem in Deep Networks
 
----
+Before diving into residual connections, let's understand the fundamental problem they were designed to solve.
 
-## Part 1: Understanding ResNets and the Identity Path
+### 1.1 A Simple Deep Network
 
-### The Problem with Deep Networks
+Consider the simplest possible neural network where each layer multiplies the input by a weight:
 
-Consider a simple neural network where each layer multiplies the input by a weight. For a single neuron with weight $w = 0.9$:
+$$x_{l+1} = w_l \cdot x_l$$
 
-$$x_{l+1} = w \cdot x_l$$
-
-Starting with $x_0 = 10$ (the first component of our example vector):
+Let's trace what happens with an input $x_0 = 10$ and weights $w = 0.9$ across three layers.
 
 **Forward pass (layer by layer):**
+
 - Layer 1: $x_1 = 0.9 \times 10 = 9$
 - Layer 2: $x_2 = 0.9 \times 9 = 8.1$
 - Layer 3: $x_3 = 0.9 \times 8.1 = 7.29$
 
-The signal shrinks with every layer. After many layers, it approaches zero—this is the **vanishing gradient problem**.
+The signal shrinks at every layer. After many layers, it approaches zero—this is the **vanishing signal problem**.
 
-**What if the weight is slightly larger?**
+### 1.2 The Opposite Problem: Exploding Signals
 
-With $w = 1.1$:
+What if the weight is slightly larger? With $w = 1.1$:
+
 - Layer 1: $x_1 = 1.1 \times 10 = 11$
 - Layer 2: $x_2 = 1.1 \times 11 = 12.1$
 - Layer 3: $x_3 = 1.1 \times 12.1 = 13.31$
 
-The signal explodes—this is the **exploding gradient problem**.
+The signal explodes—this is the **exploding signal problem**.
 
-### The Residual Solution
+The key insight here is that any weight not exactly equal to 1 will cause problems when applied repeatedly across many layers. This makes training very deep networks extremely difficult—you're essentially trying to balance on a knife's edge where weights need to be *exactly* right to maintain signal magnitude.
 
-ResNets introduce a simple but profound change:
+## 2. Residual Networks: The Identity Path Solution
 
-$$x_{l+1} = x_l + w \cdot x_l$$
+ResNets introduced an elegantly simple fix: add a skip connection that preserves the original input.
 
-Using the same $x_0 = 10$ and $w = 0.9$:
+### 2.1 The Residual Connection Formula
 
-**Forward pass:**
+Instead of $x_{l+1} = w \cdot x_l$, ResNets use:
+
+$$x_{l+1} = x_l + F(x_l)$$
+
+Where $F(x_l)$ represents any transformation (convolution, MLP, etc.). The critical addition is the $x_l$ term—the **identity path**.
+
+### 2.2 Why the Identity Path Works
+
+Let's trace through with the same setup: $x_0 = 10$, $w = 0.9$, using the residual form $x_{l+1} = x_l + w \cdot x_l$.
+
+**Forward pass (layer by layer):**
+
 - Layer 1: $x_1 = 10 + 0.9 \times 10 = 19$
 - Layer 2: $x_2 = 19 + 0.9 \times 19 = 36.1$
 - Layer 3: $x_3 = 36.1 + 0.9 \times 36.1 = 68.59$
 
-This is controlled growth, not collapse. The identity path ensures the original signal is always present.
+This looks like growth, but it's **controlled growth**, not collapse. The identity path ensures the original signal is always present. Even if the learned transformation $F(x)$ produces small or noisy outputs, the core information flows through unchanged.
 
-### Visualizing the Identity Path
+### 2.3 The Two-Path Architecture
+
+A residual block has two parallel paths:
 
 ```
         ┌─────────────┐
 x_l ───►│ identity (x)│──┐
         └─────────────┘  │
-                          ├──► x_{l+1}
+                         ├──► x_{l+1}
         ┌─────────────┐  │
-x_l ───►│ weight (wx) │──┘
+x_l ───►│  F(x)       │──┘
         └─────────────┘
 ```
 
-The straight line at the top is the identity path—it passes information unchanged. In a standard network without this path, our original 10 becomes 9 after one layer, and the original value is lost forever. The residual connection preserves it.
+Path 1 (Identity) sends $x_l \rightarrow x_l$ with no change. Path 2 (Residual) applies the learned transformation $x_l \rightarrow F(x_l)$. The outputs are summed. That straight line at the top is the identity path—it's what makes deep training stable.
 
----
+### 2.4 Why Information is Preserved
 
-## Part 2: The Rise (and Problem) of Hyper-Connections
+In a network without skip connections, when $x_0 = 10$ becomes $x_1 = 9$, the original 10 is **gone forever**. The signal is replaced by a transformed version. With skip connections, the original information flows through unchanged while the residual path learns what to add. The network learns *corrections* rather than *replacements*. This is a subtle but profound shift in how we think about what each layer does.
 
-### Why Hyper-Connections Were Introduced
+## 3. Hyper-Connections: Learning the Skip Path
+
+ResNets made a fixed choice: always add the full identity. But what if different features should be passed with different strengths? What if the optimal "skip behavior" varies across the network?
+
+### 3.1 The Motivation
 
 In very deep transformers, each layer has multiple residual streams:
-- **Attention stream:** carries information processed by self-attention mechanisms, capturing long-range dependencies
-- **MLP stream:** processes features through feed-forward networks, adding non-linear transformations
-- **Skip connections across blocks:** allow gradients and information to flow directly between non-adjacent layers
-- **Sometimes dozens of paths:** modern architectures like mixture-of-experts can have many parallel information routes
 
-Standard ResNet architecture only allows:
+- Attention streams
+- MLP streams
+- Skip connections across blocks
+- Sometimes dozens of interacting paths ResNet's fixed identity $x_{l+1} = x_l + F(x_l)$ treats all features equally. Hyper-Connections ask a natural question: *What if we could learn how much each previous stream contributes?*
 
-$$x_{l+1} = x_l + F(x_l)$$
+### 3.2 The Hyper-Connection Formula
 
-Hyper-Connections generalize this by asking: *What if we could learn how much each previous stream contributes?*
+Instead of a fixed identity, Hyper-Connections introduce a **learned mixing matrix** $H$:
 
-### The Hyper-Connection Formulation
+$$x_{l+1} = H \cdot x_l + W \cdot x_l$$
 
-Instead of hard-coding the identity, Hyper-Connections introduce a learnable mixing matrix $H$. Now we move to our full two-neuron example with $x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}$.
+Here $H$ replaces the identity path (which was previously just $I$), and $W$ is the usual learned transformation.
 
-The update becomes:
+### 3.3 What is $H$?
 
-$$x_{l+1} = Hx_l + Wx_l$$
+$H$ is a **learned matrix that replaces the identity path**. In ResNet, identity equals $I$ and is fixed. In Hyper-Connections, identity becomes $H$ and is learned. When $H = I$, you get exact ResNet behavior. When $H \neq I$, you get learned routing.
 
-Here, $H$ is a learned matrix that replaces the identity path:
-- When $H = I$: exact ResNet behavior
-- When $H \neq I$: learned routing
+For a 2-neuron example, $H$ might look like:
 
-Consider our example matrix:
+$$H = \begin{bmatrix} 0.8 & 0.2 \\\\ 0.1 & 0.9 \end{bmatrix}$$
 
-$$
-H = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}
-$$
+This means neuron 1 mostly keeps its value (0.8) with some mixing from neuron 2 (0.2), and neuron 2 mostly keeps its value (0.9) with some mixing from neuron 1 (0.1). The network can now learn cross-feature interactions in the skip path itself.
 
-This means neuron 1 keeps 70% of its value and mixes in 30% from neuron 2, and vice versa.
+### 3.4 Why $H$ is Learnable
 
-Applied to our input:
+In a neural network, anything multiplied with the input can be learned through backpropagation. For two neurons, we have $x_{l+1} = H \cdot x_l$ where:
 
-$$
-Hx = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix} \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}
-$$
+$$H = \begin{bmatrix} h_{11} & h_{12} \\\\ h_{21} & h_{22} \end{bmatrix}$$
 
-$$
-= \begin{bmatrix} 0.7(10) + 0.3(20) \\\\ 0.3(10) + 0.7(20) \end{bmatrix} = \begin{bmatrix} 13 \\\\ 17 \end{bmatrix}
-$$
+Each $h_{ij}$ is just a scalar parameter—stored like any other weight, updated by gradient descent. There's nothing special about it; it's simply another weight matrix that happens to sit in the skip path.
 
-The values are mixed but preserved—no explosion, no vanishing.
+### 3.5 How $H$ is Initialized
 
-### The Appeal of Hyper-Connections
+At the start of training, we want $H \approx I$. Why?
+
+- Identity is stable
+- Training starts safely
+- The model behaves like ResNet initially A common initialization strategy is:
+
+$$H = \begin{bmatrix} 1 & 0 \\\\ 0 & 1 \end{bmatrix} + \epsilon$$
+
+Where $\epsilon$ is small random noise, giving something like:
+
+$$H = \begin{bmatrix} 1.01 & -0.02 \\\\ 0.01 & 0.98 \end{bmatrix}$$
+
+The matrix starts very close to identity, then learning adjusts it based on what the task requires.
+
+**Why not initialize randomly?** If you start with something like:
+
+$$H = \begin{bmatrix} 0.7 & 0.4 \\\\ 0.3 & 0.6 \end{bmatrix}$$
+
+Then even before training begins, $H^{20}$ will cause explosion or collapse. The eigenvalues of this matrix aren't equal to 1, so repeated multiplication across 20 layers amplifies small deviations into catastrophic instability. This is why HC initialization must be identity-biased.
+
+### 3.6 The Appeal of Hyper-Connections
 
 Hyper-Connections allow:
-- **Adaptive routing:** the network can learn to emphasize or suppress different feature channels based on task requirements
-- **Dynamic information flow:** skip connection weights can vary depending on the learned representations, not fixed at 1
-- **Richer expressiveness:** the model gains additional learnable parameters that can capture complex inter-neuron relationships
 
-The idea is elegant: let the network decide how identity should behave.
+- **Adaptive routing**: Different features can take different paths
+- **Dynamic information flow**: The network decides what to preserve
+- **Richer expressiveness**: More flexibility than fixed skip connections The idea is compelling: *let the network decide how identity should behave* rather than hard-coding it.
 
-### The Hidden Instability
+## 4. The Hidden Problem: Why Hyper-Connections Are Unstable
 
-Here's the critical insight that motivates the paper. With ResNets:
+Here's where things get interesting. Despite the appealing flexibility, Hyper-Connections have a fundamental mathematical problem.
 
-$$I^n = I$$
+### 4.1 The Core Issue
 
-The identity matrix raised to any power remains the identity. But with Hyper-Connections:
+Residual connections work because $I^n = I$. The identity matrix raised to any power is still the identity. Applying it across 100 layers changes nothing.
 
-$$H^n \neq H$$
+But with Hyper-Connections, $H^n \neq H$. After many layers, even if $H$ starts close to identity, repeated multiplication causes one dimension to dominate while another vanishes, and gradients explode or die. This happens even with just 2 neurons.
 
-Let's see what happens when we apply our $H$ matrix repeatedly. After two layers:
+### 4.2 Why ResNet Doesn't Have This Problem
 
-$$
-H^2 = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}^2 = \begin{bmatrix} 0.58 & 0.42 \\\\ 0.42 & 0.58 \end{bmatrix}
-$$
+ResNet **never learns the identity**. It's fixed: $x \rightarrow x$. Hyper-Connections learn it: $x \rightarrow Hx$. Learning identity is **numerically dangerous** when repeated across many layers because any deviation from perfect identity gets amplified exponentially.
 
-The mixing increases. After 20 layers:
+### 4.3 What Goes Wrong During Training
 
-$$
-H^{20} \approx \begin{bmatrix} 0.5 & 0.5 \\\\ 0.5 & 0.5 \end{bmatrix}
-$$
-
-All information about which neuron had which value is lost—both neurons converge to the average.
-
-Now consider a slightly different matrix where one eigenvalue exceeds 1:
-
-$$
-H' = \begin{bmatrix} 0.8 & 0.3 \\\\ 0.3 & 0.8 \end{bmatrix}
-$$
-
-After many layers, $(H')^{20} x$ explodes because the dominant eigenvalue is $1.1 > 1$.
-
-**Why didn't ResNet have this problem?** Because ResNet never learns the identity—it is fixed as $x \rightarrow x$. Hyper-Connections learn it as $x \rightarrow Hx$. Learning identity is numerically dangerous when repeated across many layers.
-
----
-
-## Part 3: Understanding the Learnable Matrix H
-
-### What Does "Learnable" Mean?
-
-In neural networks, anything multiplied with the input can be learned through backpropagation. For our two neurons:
-
-$$x_{l+1} = Hx_l$$
-
-Where:
-
-$$
-H = \begin{bmatrix} h_{11} & h_{12} \\\\ h_{21} & h_{22} \end{bmatrix}
-$$
-
-Each $h_{ij}$ is a scalar parameter stored like any other weight and updated by backpropagation.
-
-### Motivation for Learning H
-
-ResNet hard-codes the identity, assuming every layer should pass exactly the same information forward. Hyper-Connections ask: *What if some features should pass more strongly, others less, or be mixed?*
-
-This allows:
-- **Feature re-weighting:** the network can learn to amplify important features and diminish less relevant ones at each layer
-- **Feature mixing:** information from different neurons can be combined in learned proportions, enabling richer representations
-- **Dynamic routing across layers:** different layers can implement different skip behaviors tailored to their depth in the network
-
-Conceptually, it's **learning how to skip**.
-
-### Initialization Strategy
-
-The goal at initialization is:
-
-$$H \approx I$$
-
-Why? Identity is stable, training starts safely, and the model behaves like ResNet initially.
-
-For our 2×2 case, we initialize near identity with small noise:
-
-$$
-H = \begin{bmatrix} 1 & 0 \\\\ 0 & 1 \end{bmatrix} + \epsilon = \begin{bmatrix} 1.01 & -0.02 \\\\ 0.01 & 0.98 \end{bmatrix}
-$$
-
-Applied to $x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}$:
-
-$$
-Hx = \begin{bmatrix} 1.01(10) + (-0.02)(20) \\\\ 0.01(10) + 0.98(20) \end{bmatrix} = \begin{bmatrix} 9.7 \\\\ 19.7 \end{bmatrix}
-$$
-
-Close to the original—good starting point.
-
-### What Goes Wrong During Training
-
-Even with $H_0 \approx I$, training updates the matrix:
+Even if $H_0 \approx I$ at initialization, training updates the matrix:
 
 $$H \leftarrow H - \eta \nabla_H \mathcal{L}$$
 
-Small updates can make eigenvalues slightly greater than 1 or slightly less than 1. After many layers:
+Let me break down what this gradient notation means. The term $\nabla_H \mathcal{L}$ represents the derivative of the loss $\mathcal{L}$ with respect to the matrix $H$. Since $H$ is a matrix of numbers:
 
-$$H^L x \Rightarrow \text{explodes or vanishes}$$
+$$H = \begin{bmatrix} h_{11} & h_{12} \\\\ h_{21} & h_{22} \end{bmatrix}$$
 
-This is not a training bug—it's mathematics.
+We have four derivatives: $\frac{\partial \mathcal{L}}{\partial h_{11}}$, $\frac{\partial \mathcal{L}}{\partial h_{12}}$, $\frac{\partial \mathcal{L}}{\partial h_{21}}$, $\frac{\partial \mathcal{L}}{\partial h_{22}}$
 
-### Understanding the Gradient
+Each derivative answers a simple question: *If I slightly change this number, does the loss go up or down?* For example, if $\frac{\partial \mathcal{L}}{\partial h_{12}} = -0.1$, it means increasing $h_{12}$ decreases the loss—a good direction to move.
 
-The notation $\nabla_H \mathcal{L}$ means the derivative of the loss $\mathcal{L}$ with respect to matrix $H$. For our two neurons, this means four derivatives:
+We write this as a matrix to match the shape of $H$:
 
-$$\frac{\partial \mathcal{L}}{\partial h_{11}}, \frac{\partial \mathcal{L}}{\partial h_{12}}, \frac{\partial \mathcal{L}}{\partial h_{21}}, \frac{\partial \mathcal{L}}{\partial h_{22}}$$
+$$\nabla_H \mathcal{L} = \begin{bmatrix} \frac{\partial \mathcal{L}}{\partial h_{11}} & \frac{\partial \mathcal{L}}{\partial h_{12}} \\\\ \frac{\partial \mathcal{L}}{\partial h_{21}} & \frac{\partial \mathcal{L}}{\partial h_{22}} \end{bmatrix}$$
 
-Each derivative answers: "If I slightly change this number, does the loss go up or down?"
+We subtract because the gradient points uphill, and we want to go downhill to minimize loss.
 
-The gradient is written as a matrix to match the shape of $H$:
+### 4.4 The Eigenvalue Problem
 
-$$
-\nabla_H \mathcal{L} = \begin{bmatrix} \frac{\partial \mathcal{L}}{\partial h_{11}} & \frac{\partial \mathcal{L}}{\partial h_{12}} \\\\ \frac{\partial \mathcal{L}}{\partial h_{21}} & \frac{\partial \mathcal{L}}{\partial h_{22}} \end{bmatrix}
-$$
+Small updates from gradient descent can nudge eigenvalues slightly above 1 or slightly below 1. After $L$ layers, $H^L x$ either explodes or vanishes. This isn't a training bug—it's math. Any matrix with eigenvalues not exactly equal to 1 will cause problems when raised to large powers. The instability is baked into the structure of the problem.
 
-We subtract the gradient because it points uphill, and we want to go downhill (minimize loss).
+## 5. Manifold-Constrained Hyper-Connections (mHC)
 
----
+The solution isn't to abandon learned skip paths, but to constrain them to a "safe space" of matrices that remain stable under repeated multiplication.
 
-## Part 4: The mHC Solution
+### 5.1 The Core Idea
 
-### Core Problem Statement
+mHC doesn't change backpropagation. Instead, it changes **where $H$ is allowed to live**. The principle is simple: *Learn freely, then project back to a safe space.*
 
-Hyper-Connections replace the identity skip with a learned matrix $H$, but repeated multiplication of an unconstrained matrix across many layers causes explosion or vanishing. Everything in mHC exists to fix this single problem.
+Mathematically, this means (1) taking an unconstrained gradient step, then (2) projecting onto the set of safe matrices.
 
-### What Matrices Are Safe to Repeat?
+### 5.2 What Matrices Are "Safe" to Repeat?
 
 We want a matrix $H$ such that:
-- **No amplification:** repeated multiplication should not cause exponential growth (exploding activations)
-- **No decay:** repeated multiplication should not cause exponential shrinkage (vanishing signals)
-- **Stable under composition:** applying $H$ hundreds of times should produce bounded, predictable behavior
 
-The safest operation on numbers is **averaging**. For example, $\text{avg}(10, 20) = 15$. Averaging never explodes, never vanishes—it just redistributes.
+- It doesn't amplify values
+- It doesn't shrink values
+- Repeating it many times stays stable The safest operation on numbers is **averaging**. Consider $\text{avg}(10, 20) = 15$. Averaging never explodes, never vanishes—it just redistributes.
 
-### Averaging with Matrices
+### 5.3 Averaging with Matrices
 
-A matrix can perform averaging if:
-- **All entries are non-negative:** weights must be valid (no negative contributions that could cause cancellation)
-- **Each output is a weighted average of inputs:** the weights for each row sum to 1, ensuring outputs stay bounded
+A matrix performs averaging if all entries are non-negative and each output is a weighted average of inputs. This happens when **rows sum to 1**. For example:
 
-This happens when **rows sum to 1**. Our example matrix has this property:
+$$H = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.4 & 0.6 \end{bmatrix}$$
 
-$$
-H = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}
-$$
+Apply this to $x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}$:
 
-Row 1: $0.7 + 0.3 = 1$. Row 2: $0.3 + 0.7 = 1$.
+$$Hx = \begin{bmatrix} 0.7(10) + 0.3(20) \\\\ 0.4(10) + 0.6(20) \end{bmatrix} = \begin{bmatrix} 13 \\\\ 16 \end{bmatrix}$$
 
-Applied to $x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}$:
+Each output is a weighted average—no scaling, no explosion. The total "mass" of information is preserved.
 
-$$
-Hx = \begin{bmatrix} 0.7(10) + 0.3(20) \\\\ 0.3(10) + 0.7(20) \end{bmatrix} = \begin{bmatrix} 13 \\\\ 17 \end{bmatrix}
-$$
+### 5.4 Why Rows Alone Aren't Enough
 
-Each output is a weighted average of the inputs—no scaling occurs. The total "mass" is preserved: $10 + 20 = 30$ and $13 + 17 = 30$.
+The forward pass uses $H$, but the backward pass (for computing gradients) uses $H^T$. So row sums equaling 1 gives us a stable forward pass, but we also need column sums equaling 1 for a stable backward pass. To protect both directions, we need **both constraints**.
 
-### Why Row Constraints Alone Are Insufficient
+## 6. Doubly Stochastic Matrices
 
-The forward pass uses $H$, but the backward pass uses $H^T$:
-
-$$
-H^T = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}
-$$
-
-In our example, $H = H^T$ (the matrix is symmetric), so both directions are stable. But in general:
-- Row sums = 1 ensures stable forward pass
-- Column sums = 1 ensures stable backward pass
-
-To protect both directions, we need rows AND columns to sum to 1.
-
-### Doubly Stochastic Matrices
+### 6.1 Definition
 
 A matrix is **doubly stochastic** if:
-- **Non-negativity:** all entries are greater than or equal to 0, ensuring valid probability-like weights
-- **Row normalization:** each row sums to 1, meaning each output is a weighted average of all inputs
-- **Column normalization:** each column sums to 1, ensuring the backward pass also performs averaging
 
-Our example matrix $H = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}$ is doubly stochastic:
-- Row 1: $0.7 + 0.3 = 1$
-- Row 2: $0.3 + 0.7 = 1$
-- Column 1: $0.7 + 0.3 = 1$
-- Column 2: $0.3 + 0.7 = 1$
+1. All entries are greater than or equal to zero
+2. Each row sums to 1
+3. Each column sums to 1
 
-This provides perfect averaging with forward and backward stability.
+A simple example:
 
-### Why Doubly Stochastic Matrices Behave Like Identity
+$$D = \begin{bmatrix} 0.5 & 0.5 \\\\ 0.5 & 0.5 \end{bmatrix}$$
 
-Key properties:
-- **Largest eigenvalue = 1:** this ensures the dominant mode neither grows nor shrinks, maintaining signal magnitude across layers
-- **All other eigenvalues ≤ 1:** secondary modes decay or stay stable, preventing any component from exploding
-- **Closed under multiplication:** the product of two doubly stochastic matrices is also doubly stochastic, so composing layers remains safe
+This is perfect averaging—forward stable and backward stable.
 
-For our $H$, the eigenvalues are $\lambda_1 = 1$ and $\lambda_2 = 0.4$. Since both are at most 1, $H^L$ does not explode. Repeated application behaves like identity plus smoothing—exactly what we need for skip paths.
+### 6.2 Why Doubly Stochastic Matrices Behave Like Identity
 
----
+These matrices have remarkable properties:
 
-## Part 5: The Birkhoff Polytope and Permutation Matrices
+- The largest eigenvalue equals 1
+- All other eigenvalues are at most 1
+- The set is closed under multiplication (the product of two doubly stochastic matrices is itself doubly stochastic)
 
-### The Birkhoff Polytope
+This means $D^L$ does not explode or vanish regardless of how large $L$ becomes. Repeated application behaves like identity plus smoothing—exactly what we want for skip paths.
+
+### 6.3 The Birkhoff Polytope
 
 The **Birkhoff polytope** is simply the set of all doubly stochastic matrices. For 2×2 matrices, it forms a diamond-shaped region in parameter space.
 
-A fundamental theorem states: *Every doubly stochastic matrix is a weighted average of permutation matrices.*
+A beautiful fact from linear algebra is that **every doubly stochastic matrix is a weighted average of permutation matrices**. This gives us deep intuition about what these matrices actually do.
 
-### What Is a Permutation Matrix?
+### 6.4 What Are Permutation Matrices?
 
-A permutation matrix just reorders neurons. For our 2 neurons, there are only two possibilities:
+A permutation matrix just reorders neurons without changing magnitudes. For 2 neurons, there are only two possibilities.
 
-**Identity permutation (do nothing):**
+The identity permutation does nothing:
 
-$$
-P_1 = \begin{bmatrix} 1 & 0 \\\\ 0 & 1 \end{bmatrix}
-$$
+$$P_1 = \begin{bmatrix} 1 & 0 \\\\ 0 & 1 \end{bmatrix}$$
 
-Applied to $x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}$:
+This sends Neuron 1 to Neuron 1 and Neuron 2 to Neuron 2.
 
-$$
-P_1 x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}
-$$
+The swap permutation exchanges them:
 
-Neuron 1 stays as neuron 1, neuron 2 stays as neuron 2.
+$$P_2 = \begin{bmatrix} 0 & 1 \\\\ 1 & 0 \end{bmatrix}$$
 
-**Swap permutation:**
+This sends Neuron 1 to Neuron 2 and Neuron 2 to Neuron 1.
 
-$$
-P_2 = \begin{bmatrix} 0 & 1 \\\\ 1 & 0 \end{bmatrix}
-$$
+Permutation matrices never change magnitude—they only move information around. This is why they're perfectly stable.
 
-Applied to $x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}$:
+### 6.5 Doubly Stochastic = Soft Permutation
 
-$$
-P_2 x = \begin{bmatrix} 20 \\\\ 10 \end{bmatrix}
-$$
+Take the two permutation matrices and compute a weighted average with $\alpha = 0.7$:
 
-Neuron 1 and neuron 2 are swapped.
+$$0.7 P_1 + 0.3 P_2 = 0.7 \begin{bmatrix} 1 & 0 \\\\ 0 & 1 \end{bmatrix} + 0.3 \begin{bmatrix} 0 & 1 \\\\ 1 & 0 \end{bmatrix}$$
 
-Permutation matrices never change magnitude—they only move information around.
+$$= \begin{bmatrix} 0.7 & 0 \\\\ 0 & 0.7 \end{bmatrix} + \begin{bmatrix} 0 & 0.3 \\\\ 0.3 & 0 \end{bmatrix} = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}$$
 
-### Constructing Our Example Matrix from Permutations
+This is doubly stochastic. The beautiful intuition is that **every safe $H$ is a soft permutation of features**. It's not doing hard routing (this neuron goes there), but soft routing (70% of this neuron stays here, 30% goes there).
 
-Here's the beautiful insight. Our matrix $H = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}$ can be written as:
+## 7. The Projection Algorithm: Sinkhorn-Knopp
 
-$$H = 0.7 P_1 + 0.3 P_2$$
+### 7.1 The Problem
 
-Let's verify:
+Gradient descent gives us $\tilde{H} = H - \eta \nabla_H \mathcal{L}$, but $\tilde{H}$ is not doubly stochastic. Entries may be negative, and row/column sums are wrong. We need to push it back into the Birkhoff polytope. That push is accomplished by the **Sinkhorn-Knopp algorithm**.
 
-$$
-0.7 \begin{bmatrix} 1 & 0 \\\\ 0 & 1 \end{bmatrix} + 0.3 \begin{bmatrix} 0 & 1 \\\\ 1 & 0 \end{bmatrix}
-$$
+### 7.2 The Modified Update Rule
 
-$$
-= \begin{bmatrix} 0.7 & 0 \\\\ 0 & 0.7 \end{bmatrix} + \begin{bmatrix} 0 & 0.3 \\\\ 0.3 & 0 \end{bmatrix} = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}
-$$
-
-This means: **every safe $H$ is a soft permutation of features**. Our $H$ is "70% keep in place, 30% swap"—a probabilistic mixture of routing decisions.
-
----
-
-## Part 6: The mHC Algorithm
-
-### The Core Idea
-
-mHC does not change backpropagation. Instead, it changes **where $H$ is allowed to live**:
-
-*"Learn freely, then project back to a safe space."*
-
-Mathematically:
-1. **Unconstrained gradient step:** update $H$ using standard gradient descent without worrying about constraints
-2. **Project onto doubly stochastic matrices:** use Sinkhorn normalization to find the nearest valid matrix
-
-### The Modified Update Rule
-
-Instead of:
-
-$$H \leftarrow H - \eta \nabla_H \mathcal{L}$$
-
-mHC performs:
+Instead of the standard update $H \leftarrow H - \eta \nabla_H \mathcal{L}$, mHC uses:
 
 $$\boxed{H \leftarrow \Pi_{\mathcal{D}}\left(H - \eta \nabla_H \mathcal{L}\right)}$$
 
-Where $\Pi_{\mathcal{D}}$ denotes projection onto the set of doubly stochastic matrices $\mathcal{D}$.
+Where $\Pi_{\mathcal{D}}$ represents projection onto doubly stochastic matrices. This is the entire mathematical change—everything else remains standard.
 
-This is the entire mathematical change.
+### 7.3 Sinkhorn-Knopp: Step by Step
 
-### What Projection Means
+The algorithm turns any positive matrix into a doubly stochastic one through iterative normalization.
 
-Suppose gradient descent produces an invalid matrix:
+**Step 0** makes entries positive using exponentiation: $A_{ij} = e^{\tilde{H}_{ij}}$. Now all entries are greater than 0.
 
-$$
-\tilde{H} = \begin{bmatrix} 0.8 & 0.4 \\\\ 0.2 & 0.9 \end{bmatrix}
-$$
+**Step 1** normalizes rows by dividing each row by its sum.
 
-This is not doubly stochastic (rows sum to 1.2 and 1.1, columns sum to 1.0 and 1.3).
+**Step 2** normalizes columns by dividing each column by its sum.
 
-Projection means: "Take this matrix and gently push it back so it obeys the constraints." The result might be:
+**Step 3** repeats steps 1 and 2, alternating between row and column normalization until convergence.
 
-$$
-H = \begin{bmatrix} 0.65 & 0.35 \\\\ 0.35 & 0.65 \end{bmatrix}
-$$
+After a few iterations, rows sum to approximately 1 and columns sum to approximately 1. The algorithm:
 
-Now rows and columns all sum to 1. This push is accomplished using **Sinkhorn normalization**.
+- Converges fast
+- Is differentiable (so we can backpropagate through it)
+- Is computationally efficient
 
----
+### 7.4 Numeric Example
 
-## Part 7: The Sinkhorn-Knopp Algorithm
+Start with:
 
-The Sinkhorn-Knopp algorithm transforms any positive matrix into a doubly stochastic one.
+$$A = \begin{bmatrix} 2 & 1 \\\\ 1 & 2 \end{bmatrix}$$
 
-### Step 0: Ensure Positivity
+Row normalize to get:
 
-Start with gradient descent output. Use exponentiation to ensure all entries are positive:
+$$\begin{bmatrix} 2/3 & 1/3 \\\\ 1/3 & 2/3 \end{bmatrix}$$
 
-$$A_{ij} = e^{\tilde{H}_{ij}}$$
+Now check column sums: Column 1 sums to $2/3 + 1/3 = 1$, and Column 2 sums to $1/3 + 2/3 = 1$. We're already doubly stochastic after one iteration. In practice, it usually takes just a handful of iterations to converge to machine precision.
 
-For our running example, suppose we start with:
+## 8. The Complete mHC Pipeline
 
-$$
-A = \begin{bmatrix} 2 & 1 \\\\ 1 & 2 \end{bmatrix}
-$$
+Putting it all together, the full stabilization pipeline works as follows:
 
-All entries are positive (good), but row sums are 3 and column sums are 3 (not 1).
-
-### Step 1: Normalize Rows
-
-Divide each row by its sum:
-
-$$
-A' = \begin{bmatrix} 2/3 & 1/3 \\\\ 1/3 & 2/3 \end{bmatrix} = \begin{bmatrix} 0.667 & 0.333 \\\\ 0.333 & 0.667 \end{bmatrix}
-$$
-
-Now rows sum to 1. Check columns: $0.667 + 0.333 = 1$ and $0.333 + 0.667 = 1$.
-
-### Step 2: Normalize Columns
-
-Divide each column by its sum. In this case, columns already sum to 1, so we're done.
-
-### Convergence
-
-In general, you alternate row and column normalization until convergence. For our symmetric example, one iteration sufficed.
-
-The final result:
-
-$$
-H = \begin{bmatrix} 0.667 & 0.333 \\\\ 0.333 & 0.667 \end{bmatrix}
-$$
-
-This is doubly stochastic and can be written as $0.667 P_1 + 0.333 P_2$—a soft permutation.
-
-The algorithm is:
-- **Fast to converge:** typically reaches doubly stochastic form within 5-10 iterations, making it practical for training loops
-- **Fully differentiable:** gradients flow through the normalization steps, enabling end-to-end backpropagation
-- **Computationally efficient:** only requires simple row and column divisions, adding minimal overhead to each training step
-
----
-
-## Part 8: The Complete Stabilization Pipeline
-
-Putting it all together, the mHC pipeline for each training step is:
-
-1. **Compute gradient:** calculate $\nabla_H \mathcal{L}$ via standard backpropagation through the network
-2. **Take gradient step:** update the unconstrained matrix as $\tilde{H} = H - \eta \nabla_H \mathcal{L}$
-3. **Exponentiate to ensure positivity:** apply element-wise $\exp(\cdot)$ so all entries become strictly positive
-4. **Apply Sinkhorn normalization:** alternate row and column normalization to project onto the Birkhoff polytope
-5. **Use stable $H$ in network:** the projected matrix is now doubly stochastic and safe for the next forward pass
+1. Learn $H$ via standard gradient descent
+2. Exponentiate to ensure positivity
+3. Apply Sinkhorn normalization to project onto doubly stochastic matrices
+4. Use the projected $H$ in the network's forward pass
 
 Mathematically:
 
-$$H \leftarrow \text{Sinkhorn}(H - \eta \nabla_H \mathcal{L})$$
+$$H \leftarrow \text{Sinkhorn}\left(e^{H - \eta \nabla_H \mathcal{L}}\right)$$
 
-### Complete Numerical Example
+This single line captures the essence of the approach: take a gradient step in unconstrained space, then project back to the manifold of safe matrices.
 
-Let's trace through with our consistent example.
+## 9. Why This Works?
 
-**Start:** $H = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}$, $x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}$
+The key insight is that we've separated two concerns. 
 
-**Forward pass:** $Hx = \begin{bmatrix} 13 \\\\ 17 \end{bmatrix}$
+- **Expressiveness**: $H$ can still learn—it's not fixed like in ResNets. 
+- **Stability**: The doubly stochastic constraint ensures safe repeated multiplication.
 
-**After gradient update:** Suppose $\tilde{H} = \begin{bmatrix} 0.75 & 0.35 \\\\ 0.28 & 0.72 \end{bmatrix}$ (rows sum to 1.1 and 1.0—invalid)
+Because doubly stochastic matrices:
 
-**After Sinkhorn projection:** $H_{new} = \begin{bmatrix} 0.68 & 0.32 \\\\ 0.32 & 0.68 \end{bmatrix}$ (doubly stochastic)
+- Have bounded eigenvalues
+- Preserve signal magnitude on average
+- Are stable in both forward and backward passes
 
-**Next forward pass:** $H_{new} x = \begin{bmatrix} 13.2 \\\\ 16.8 \end{bmatrix}$
+The network gains the flexibility of Hyper-Connections without the instability.
 
-The network learns while staying in the stable region.
+Skip paths become **learned weighted averages**. Forward signals are preserved, backward gradients are preserved, and repeated depth produces redistribution rather than scaling. The identity is no longer fixed—but its stability properties are preserved through geometric constraints on the parameter space.
 
-### Why This Stabilizes Hyper-Connections
+## 10. Summary
 
-With mHC:
-- **Skip paths become weighted averages:** instead of arbitrary linear combinations, each output is a convex combination of inputs
-- **Forward signals are preserved:** the total magnitude of activations stays bounded, preventing explosion in deep networks
-- **Backward gradients are preserved:** column normalization ensures gradients flow stably during backpropagation
-- **Repeated depth causes redistribution, not scaling:** applying the matrix many times mixes features rather than amplifying them
+| Architecture | Skip Path | Stability | Flexibility |
+|-------------|-----------|-----------|-------------|
+| Plain Network | None | Unstable | N/A |
+| ResNet | Fixed $I$ | Stable | None |
+| Hyper-Connections | Learned $H$ | Unstable | High |
+| mHC | Learned $H$ ∈ Birkhoff | Stable | High |
 
-**The identity is no longer fixed—but its stability is preserved.**
+The progression tells a clear story. Plain networks suffer from vanishing/exploding signals—the fundamental problem. ResNets fix this with identity skip paths, but sacrifice flexibility by hard-coding the skip behavior. Hyper-Connections learn the skip path, gaining flexibility but reintroducing instability. Finally, mHC constrains learned skip paths to doubly stochastic matrices, achieving both stability and flexibility.
 
----
-
-## Conclusion
-
-Manifold-Constrained Hyper-Connections represent an elegant mathematical solution to a fundamental problem in deep learning. By constraining the learned routing matrices to lie on the manifold of doubly stochastic matrices, mHC achieves the expressiveness of Hyper-Connections while maintaining the stability guarantees that made ResNets successful.
-
-The key insight is that stability in deep networks requires more than good initialization—it requires constraining the optimization trajectory to remain in a mathematically safe region. The Birkhoff polytope of doubly stochastic matrices provides exactly this: a space where learned routing behaves like "soft permutations" that redistribute information without amplification or decay.
-
-As we traced through our example with $x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}$ and the matrix $H = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}$, we saw how the same values flow through ResNets, Hyper-Connections, and finally mHC—each building on the last to achieve greater expressiveness without sacrificing stability.
-
-This approach opens new possibilities for designing very deep architectures with learned skip connections, potentially enabling more sophisticated information routing in future transformer and neural network architectures.
-
----
-
-## References
-
-1. He, K., Zhang, X., Ren, S., & Sun, J. (2015). Deep Residual Learning for Image Recognition. [arXiv:1512.03385](https://arxiv.org/abs/1512.03385)
-
-2. He, K., Zhang, X., Ren, S., & Sun, J. (2016). Identity Mappings in Deep Residual Networks. [arXiv:1603.05027](https://arxiv.org/abs/1603.05027)
-
-3. Zhu, Y., et al. (2024). Hyper-Connections. [arXiv:2409.19606](https://arxiv.org/abs/2409.19606)
-
-4. Zhang, K., et al. (2024). Manifold-Constrained Hyper-Connections for Stable Deep Learning. [arXiv:2512.24880](https://arxiv.org/abs/2512.24880)
+The mathematical elegance lies in recognizing that by constraining $H$ to lie on the manifold of doubly stochastic matrices (the Birkhoff polytope), we get the best of both worlds—learned routing that remains numerically stable across arbitrary depth.

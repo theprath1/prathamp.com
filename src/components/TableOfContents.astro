@@ -17,7 +17,7 @@ const toc = headings.filter((h) => h.depth >= 2 && h.depth <= 3);
 
 {toc.length > 0 && (
   <nav class="toc hidden lg:block">
-    <div class="sticky top-24">
+    <div class="sticky top-24  max-h-[calc(100vh-8rem)] overflow-y-auto">
       <h2 class="text-sm font-semibold text-gray-900 dark:text-white mb-4">
         On this page
       </h2>
