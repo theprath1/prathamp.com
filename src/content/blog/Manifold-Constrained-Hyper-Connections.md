@@ -5,8 +5,6 @@ date: 2025-01-30
 tags: [deep-learning, neural-networks, optimization, linear-algebra, transformers]
 ---
 
-# Manifold-Constrained Hyper-Connections: Stabilizing Deep Networks Beyond ResNets
-
 Deep neural networks have revolutionized machine learning, but training them effectively remains a nuanced challenge. This article explores the evolution from Residual Networks (ResNets) to Hyper-Connections, and finally to Manifold-Constrained Hyper-Connections (mHC)—a mathematically elegant solution to a fundamental instability problem.
 
 Throughout this article, we will use a single consistent example: **a network with two neurons and an input vector $x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}$**. This allows us to trace the same numbers through every concept.
