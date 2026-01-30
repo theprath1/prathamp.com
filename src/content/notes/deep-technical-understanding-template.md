@@ -4,8 +4,6 @@ date: 2025-12-27
 topic: "Systems"
 ---
 
-# Deep Technical Understanding Template
-
 Understand Any Tool, Library, or System — From Abstraction to Bedrock
 
 ## 1. Purpose & Problem
