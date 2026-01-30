@@ -9,7 +9,7 @@ tags: [deep-learning, neural-networks, optimization, linear-algebra, transformer
 
 Deep neural networks have revolutionized machine learning, but training them effectively remains a nuanced challenge. This article explores the evolution from Residual Networks (ResNets) to Hyper-Connections, and finally to Manifold-Constrained Hyper-Connections (mHC)—a mathematically elegant solution to a fundamental instability problem.
 
-Throughout this article, we will use a single consistent example: **a network with two neurons and an input vector $x = \begin{bmatrix} 10 \\ 20 \end{bmatrix}$**. This allows us to trace the same numbers through every concept.
+Throughout this article, we will use a single consistent example: **a network with two neurons and an input vector $x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}$**. This allows us to trace the same numbers through every concept.
 
 ---
 
@@ -88,7 +88,7 @@ Hyper-Connections generalize this by asking: *What if we could learn how much ea
 
 ### The Hyper-Connection Formulation
 
-Instead of hard-coding the identity, Hyper-Connections introduce a learnable mixing matrix $H$. Now we move to our full two-neuron example with $x = \begin{bmatrix} 10 \\ 20 \end{bmatrix}$.
+Instead of hard-coding the identity, Hyper-Connections introduce a learnable mixing matrix $H$. Now we move to our full two-neuron example with $x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}$.
 
 The update becomes:
 
@@ -101,7 +101,7 @@ Here, $H$ is a learned matrix that replaces the identity path:
 Consider our example matrix:
 
 $$
-H = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}
+H = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}
 $$
 
 This means neuron 1 keeps 70% of its value and mixes in 30% from neuron 2, and vice versa.
@@ -109,11 +109,11 @@ This means neuron 1 keeps 70% of its value and mixes in 30% from neuron 2, and v
 Applied to our input:
 
 $$
-Hx = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix} \begin{bmatrix} 10 \\ 20 \end{bmatrix}
+Hx = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix} \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}
 $$
 
 $$
-= \begin{bmatrix} 0.7(10) + 0.3(20) \\ 0.3(10) + 0.7(20) \end{bmatrix} = \begin{bmatrix} 13 \\ 17 \end{bmatrix}
+= \begin{bmatrix} 0.7(10) + 0.3(20) \\\\ 0.3(10) + 0.7(20) \end{bmatrix} = \begin{bmatrix} 13 \\\\ 17 \end{bmatrix}
 $$
 
 The values are mixed but preserved—no explosion, no vanishing.
@@ -140,13 +140,13 @@ $$H^n \neq H$$
 Let's see what happens when we apply our $H$ matrix repeatedly. After two layers:
 
 $$
-H^2 = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}^2 = \begin{bmatrix} 0.58 & 0.42 \\ 0.42 & 0.58 \end{bmatrix}
+H^2 = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}^2 = \begin{bmatrix} 0.58 & 0.42 \\\\ 0.42 & 0.58 \end{bmatrix}
 $$
 
 The mixing increases. After 20 layers:
 
 $$
-H^{20} \approx \begin{bmatrix} 0.5 & 0.5 \\ 0.5 & 0.5 \end{bmatrix}
+H^{20} \approx \begin{bmatrix} 0.5 & 0.5 \\\\ 0.5 & 0.5 \end{bmatrix}
 $$
 
 All information about which neuron had which value is lost—both neurons converge to the average.
@@ -154,7 +154,7 @@ All information about which neuron had which value is lost—both neurons conver
 Now consider a slightly different matrix where one eigenvalue exceeds 1:
 
 $$
-H' = \begin{bmatrix} 0.8 & 0.3 \\ 0.3 & 0.8 \end{bmatrix}
+H' = \begin{bmatrix} 0.8 & 0.3 \\\\ 0.3 & 0.8 \end{bmatrix}
 $$
 
 After many layers, $(H')^{20} x$ explodes because the dominant eigenvalue is $1.1 > 1$.
@@ -174,7 +174,7 @@ $$x_{l+1} = Hx_l$$
 Where:
 
 $$
-H = \begin{bmatrix} h_{11} & h_{12} \\ h_{21} & h_{22} \end{bmatrix}
+H = \begin{bmatrix} h_{11} & h_{12} \\\\ h_{21} & h_{22} \end{bmatrix}
 $$
 
 Each $h_{ij}$ is a scalar parameter stored like any other weight and updated by backpropagation.
@@ -201,13 +201,13 @@ Why? Identity is stable, training starts safely, and the model behaves like ResN
 For our 2×2 case, we initialize near identity with small noise:
 
 $$
-H = \begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix} + \epsilon = \begin{bmatrix} 1.01 & -0.02 \\ 0.01 & 0.98 \end{bmatrix}
+H = \begin{bmatrix} 1 & 0 \\\\ 0 & 1 \end{bmatrix} + \epsilon = \begin{bmatrix} 1.01 & -0.02 \\\\ 0.01 & 0.98 \end{bmatrix}
 $$
 
-Applied to $x = \begin{bmatrix} 10 \\ 20 \end{bmatrix}$:
+Applied to $x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}$:
 
 $$
-Hx = \begin{bmatrix} 1.01(10) + (-0.02)(20) \\ 0.01(10) + 0.98(20) \end{bmatrix} = \begin{bmatrix} 9.7 \\ 19.7 \end{bmatrix}
+Hx = \begin{bmatrix} 1.01(10) + (-0.02)(20) \\\\ 0.01(10) + 0.98(20) \end{bmatrix} = \begin{bmatrix} 9.7 \\\\ 19.7 \end{bmatrix}
 $$
 
 Close to the original—good starting point.
@@ -235,7 +235,7 @@ Each derivative answers: "If I slightly change this number, does the loss go up 
 The gradient is written as a matrix to match the shape of $H$:
 
 $$
-\nabla_H \mathcal{L} = \begin{bmatrix} \frac{\partial \mathcal{L}}{\partial h_{11}} & \frac{\partial \mathcal{L}}{\partial h_{12}} \\ \frac{\partial \mathcal{L}}{\partial h_{21}} & \frac{\partial \mathcal{L}}{\partial h_{22}} \end{bmatrix}
+\nabla_H \mathcal{L} = \begin{bmatrix} \frac{\partial \mathcal{L}}{\partial h_{11}} & \frac{\partial \mathcal{L}}{\partial h_{12}} \\\\ \frac{\partial \mathcal{L}}{\partial h_{21}} & \frac{\partial \mathcal{L}}{\partial h_{22}} \end{bmatrix}
 $$
 
 We subtract the gradient because it points uphill, and we want to go downhill (minimize loss).
@@ -266,15 +266,15 @@ A matrix can perform averaging if:
 This happens when **rows sum to 1**. Our example matrix has this property:
 
 $$
-H = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}
+H = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}
 $$
 
 Row 1: $0.7 + 0.3 = 1$. Row 2: $0.3 + 0.7 = 1$.
 
-Applied to $x = \begin{bmatrix} 10 \\ 20 \end{bmatrix}$:
+Applied to $x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}$:
 
 $$
-Hx = \begin{bmatrix} 0.7(10) + 0.3(20) \\ 0.3(10) + 0.7(20) \end{bmatrix} = \begin{bmatrix} 13 \\ 17 \end{bmatrix}
+Hx = \begin{bmatrix} 0.7(10) + 0.3(20) \\\\ 0.3(10) + 0.7(20) \end{bmatrix} = \begin{bmatrix} 13 \\\\ 17 \end{bmatrix}
 $$
 
 Each output is a weighted average of the inputs—no scaling occurs. The total "mass" is preserved: $10 + 20 = 30$ and $13 + 17 = 30$.
@@ -284,7 +284,7 @@ Each output is a weighted average of the inputs—no scaling occurs. The total "
 The forward pass uses $H$, but the backward pass uses $H^T$:
 
 $$
-H^T = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}
+H^T = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}
 $$
 
 In our example, $H = H^T$ (the matrix is symmetric), so both directions are stable. But in general:
@@ -300,7 +300,7 @@ A matrix is **doubly stochastic** if:
 - **Row normalization:** each row sums to 1, meaning each output is a weighted average of all inputs
 - **Column normalization:** each column sums to 1, ensuring the backward pass also performs averaging
 
-Our example matrix $H = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}$ is doubly stochastic:
+Our example matrix $H = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}$ is doubly stochastic:
 - Row 1: $0.7 + 0.3 = 1$
 - Row 2: $0.3 + 0.7 = 1$
 - Column 1: $0.7 + 0.3 = 1$
@@ -334,13 +334,13 @@ A permutation matrix just reorders neurons. For our 2 neurons, there are only tw
 **Identity permutation (do nothing):**
 
 $$
-P_1 = \begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix}
+P_1 = \begin{bmatrix} 1 & 0 \\\\ 0 & 1 \end{bmatrix}
 $$
 
-Applied to $x = \begin{bmatrix} 10 \\ 20 \end{bmatrix}$:
+Applied to $x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}$:
 
 $$
-P_1 x = \begin{bmatrix} 10 \\ 20 \end{bmatrix}
+P_1 x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}
 $$
 
 Neuron 1 stays as neuron 1, neuron 2 stays as neuron 2.
@@ -348,13 +348,13 @@ Neuron 1 stays as neuron 1, neuron 2 stays as neuron 2.
 **Swap permutation:**
 
 $$
-P_2 = \begin{bmatrix} 0 & 1 \\ 1 & 0 \end{bmatrix}
+P_2 = \begin{bmatrix} 0 & 1 \\\\ 1 & 0 \end{bmatrix}
 $$
 
-Applied to $x = \begin{bmatrix} 10 \\ 20 \end{bmatrix}$:
+Applied to $x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}$:
 
 $$
-P_2 x = \begin{bmatrix} 20 \\ 10 \end{bmatrix}
+P_2 x = \begin{bmatrix} 20 \\\\ 10 \end{bmatrix}
 $$
 
 Neuron 1 and neuron 2 are swapped.
@@ -363,18 +363,18 @@ Permutation matrices never change magnitude—they only move information around.
 
 ### Constructing Our Example Matrix from Permutations
 
-Here's the beautiful insight. Our matrix $H = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}$ can be written as:
+Here's the beautiful insight. Our matrix $H = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}$ can be written as:
 
 $$H = 0.7 P_1 + 0.3 P_2$$
 
 Let's verify:
 
 $$
-0.7 \begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix} + 0.3 \begin{bmatrix} 0 & 1 \\ 1 & 0 \end{bmatrix}
+0.7 \begin{bmatrix} 1 & 0 \\\\ 0 & 1 \end{bmatrix} + 0.3 \begin{bmatrix} 0 & 1 \\\\ 1 & 0 \end{bmatrix}
 $$
 
 $$
-= \begin{bmatrix} 0.7 & 0 \\ 0 & 0.7 \end{bmatrix} + \begin{bmatrix} 0 & 0.3 \\ 0.3 & 0 \end{bmatrix} = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}
+= \begin{bmatrix} 0.7 & 0 \\\\ 0 & 0.7 \end{bmatrix} + \begin{bmatrix} 0 & 0.3 \\\\ 0.3 & 0 \end{bmatrix} = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}
 $$
 
 This means: **every safe $H$ is a soft permutation of features**. Our $H$ is "70% keep in place, 30% swap"—a probabilistic mixture of routing decisions.
@@ -412,7 +412,7 @@ This is the entire mathematical change.
 Suppose gradient descent produces an invalid matrix:
 
 $$
-\tilde{H} = \begin{bmatrix} 0.8 & 0.4 \\ 0.2 & 0.9 \end{bmatrix}
+\tilde{H} = \begin{bmatrix} 0.8 & 0.4 \\\\ 0.2 & 0.9 \end{bmatrix}
 $$
 
 This is not doubly stochastic (rows sum to 1.2 and 1.1, columns sum to 1.0 and 1.3).
@@ -420,7 +420,7 @@ This is not doubly stochastic (rows sum to 1.2 and 1.1, columns sum to 1.0 and 1
 Projection means: "Take this matrix and gently push it back so it obeys the constraints." The result might be:
 
 $$
-H = \begin{bmatrix} 0.65 & 0.35 \\ 0.35 & 0.65 \end{bmatrix}
+H = \begin{bmatrix} 0.65 & 0.35 \\\\ 0.35 & 0.65 \end{bmatrix}
 $$
 
 Now rows and columns all sum to 1. This push is accomplished using **Sinkhorn normalization**.
@@ -440,7 +440,7 @@ $$A_{ij} = e^{\tilde{H}_{ij}}$$
 For our running example, suppose we start with:
 
 $$
-A = \begin{bmatrix} 2 & 1 \\ 1 & 2 \end{bmatrix}
+A = \begin{bmatrix} 2 & 1 \\\\ 1 & 2 \end{bmatrix}
 $$
 
 All entries are positive (good), but row sums are 3 and column sums are 3 (not 1).
@@ -450,7 +450,7 @@ All entries are positive (good), but row sums are 3 and column sums are 3 (not 1
 Divide each row by its sum:
 
 $$
-A' = \begin{bmatrix} 2/3 & 1/3 \\ 1/3 & 2/3 \end{bmatrix} = \begin{bmatrix} 0.667 & 0.333 \\ 0.333 & 0.667 \end{bmatrix}
+A' = \begin{bmatrix} 2/3 & 1/3 \\\\ 1/3 & 2/3 \end{bmatrix} = \begin{bmatrix} 0.667 & 0.333 \\\\ 0.333 & 0.667 \end{bmatrix}
 $$
 
 Now rows sum to 1. Check columns: $0.667 + 0.333 = 1$ and $0.333 + 0.667 = 1$.
@@ -466,7 +466,7 @@ In general, you alternate row and column normalization until convergence. For ou
 The final result:
 
 $$
-H = \begin{bmatrix} 0.667 & 0.333 \\ 0.333 & 0.667 \end{bmatrix}
+H = \begin{bmatrix} 0.667 & 0.333 \\\\ 0.333 & 0.667 \end{bmatrix}
 $$
 
 This is doubly stochastic and can be written as $0.667 P_1 + 0.333 P_2$—a soft permutation.
@@ -496,15 +496,15 @@ $$H \leftarrow \text{Sinkhorn}(H - \eta \nabla_H \mathcal{L})$$
 
 Let's trace through with our consistent example.
 
-**Start:** $H = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}$, $x = \begin{bmatrix} 10 \\ 20 \end{bmatrix}$
+**Start:** $H = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}$, $x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}$
 
-**Forward pass:** $Hx = \begin{bmatrix} 13 \\ 17 \end{bmatrix}$
+**Forward pass:** $Hx = \begin{bmatrix} 13 \\\\ 17 \end{bmatrix}$
 
-**After gradient update:** Suppose $\tilde{H} = \begin{bmatrix} 0.75 & 0.35 \\ 0.28 & 0.72 \end{bmatrix}$ (rows sum to 1.1 and 1.0—invalid)
+**After gradient update:** Suppose $\tilde{H} = \begin{bmatrix} 0.75 & 0.35 \\\\ 0.28 & 0.72 \end{bmatrix}$ (rows sum to 1.1 and 1.0—invalid)
 
-**After Sinkhorn projection:** $H_{new} = \begin{bmatrix} 0.68 & 0.32 \\ 0.32 & 0.68 \end{bmatrix}$ (doubly stochastic)
+**After Sinkhorn projection:** $H_{new} = \begin{bmatrix} 0.68 & 0.32 \\\\ 0.32 & 0.68 \end{bmatrix}$ (doubly stochastic)
 
-**Next forward pass:** $H_{new} x = \begin{bmatrix} 13.2 \\ 16.8 \end{bmatrix}$
+**Next forward pass:** $H_{new} x = \begin{bmatrix} 13.2 \\\\ 16.8 \end{bmatrix}$
 
 The network learns while staying in the stable region.
 
@@ -526,7 +526,7 @@ Manifold-Constrained Hyper-Connections represent an elegant mathematical solutio
 
 The key insight is that stability in deep networks requires more than good initialization—it requires constraining the optimization trajectory to remain in a mathematically safe region. The Birkhoff polytope of doubly stochastic matrices provides exactly this: a space where learned routing behaves like "soft permutations" that redistribute information without amplification or decay.
 
-As we traced through our example with $x = \begin{bmatrix} 10 \\ 20 \end{bmatrix}$ and the matrix $H = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}$, we saw how the same values flow through ResNets, Hyper-Connections, and finally mHC—each building on the last to achieve greater expressiveness without sacrificing stability.
+As we traced through our example with $x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}$ and the matrix $H = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}$, we saw how the same values flow through ResNets, Hyper-Connections, and finally mHC—each building on the last to achieve greater expressiveness without sacrificing stability.
 
 This approach opens new possibilities for designing very deep architectures with learned skip connections, potentially enabling more sophisticated information routing in future transformer and neural network architectures.
 
