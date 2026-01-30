@@ -1,3 +1,9 @@
+---
+title: "Manifold-Constrained Hyper-Connections: Stabilizing Deep Networks Beyond ResNets"
+description: "A deep dive into mHC - how doubly stochastic matrices and the Birkhoff polytope solve the instability problem in learned skip connections, from ResNets to Hyper-Connections."
+date: 2025-01-30
+---
+
 # Manifold-Constrained Hyper-Connections: Stabilizing Deep Networks Beyond ResNets
 
 Deep neural networks have revolutionized machine learning, but training them effectively remains a nuanced challenge. This article explores the evolution from Residual Networks (ResNets) to Hyper-Connections, and finally to Manifold-Constrained Hyper-Connections (mHC)—a mathematically elegant solution to a fundamental instability problem.
