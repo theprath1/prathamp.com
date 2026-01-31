@@ -6,9 +6,9 @@ export const siteConfig = {
   author: {
     name: "Pratham Patel",
     email: "prathammpatel@outlook.com",
-    twitter: "@prathamthepatel",
-    github: "prathamthepatel",
-    linkedin: "prathamthepatel",
+    twitter: "@ThePrathPatel",
+    github: "theprathpatel",
+    linkedin: "ThePrathPatel",
   },
   nav: [
     { name: "Home", href: "/" },

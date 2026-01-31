@@ -3,7 +3,7 @@ title: "ForesightBench"
 description: "A benchmark framework for evaluating how well language models can create structured plans and faithfully execute them step-by-step."
 tech: [Python, OpenAI API, Anthropic API, SQLite]
 featured: true
-github: "https://github.com/prathamthepatel/foresightbench"
+github: "https://github.com/theprathpatel/foresightbench"
 ---
 
 ## Overview
