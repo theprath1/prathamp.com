@@ -8,7 +8,7 @@ export const siteConfig = {
     email: "prathammpatel@outlook.com",
     twitter: "@ThePrathPatel",
     github: "theprathpatel",
-    linkedin: "ThePrathPatel",
+    linkedin: "theprathpatel",
   },
   nav: [
     { name: "Home", href: "/" },
