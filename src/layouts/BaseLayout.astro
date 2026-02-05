@@ -57,7 +57,7 @@ const ogImage = image ? new URL(image, siteConfig.url).href : new URL("/og/defau
         tex: {
           inlineMath: [['$', '$'], ['\\(', '\\)']],
           displayMath: [['$$', '$$'], ['\\[', '\\]']],
-          processEscapes: false
+          processEscapes: true
         },
         options: {
           skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
