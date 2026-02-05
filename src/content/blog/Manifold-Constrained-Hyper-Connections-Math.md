@@ -9,8 +9,6 @@ In my previous version of this post, I focused on intuition: why residual connec
 
 This update fills that gap. I'll go from basics all the way to the exact multi-layer expansion equation in the paper, and I'll explain every term with concrete examples.
 
-Paper: [mHC: Manifold-Constrained Hyper-Connections](https://arxiv.org/abs/2512.24880)
-
 ## 1. Residual Connection (Paper Eq. 1)
 
 The paper writes a residual block as:
