@@ -39,11 +39,30 @@
     scroll-margin-top: 6rem;
   }
 
+  /* Prevent content overflow on mobile */
+  article {
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  .prose {
+    min-width: 0;
+    overflow-wrap: break-word;
+  }
+
   /* Make MathJax equations horizontally scrollable on overflow */
   mjx-container[display="true"] {
+    display: block !important;
     overflow-x: auto;
     overflow-y: hidden;
-    max-width: 100%;
+    max-width: 100% !important;
     padding: 0.5rem 0;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Ensure prose container doesn't break equation scrolling */
+  .prose mjx-container[display="true"] {
+    margin-left: 0;
+    margin-right: 0;
   }
 }
