@@ -52,6 +52,7 @@
 
   /* Make ALL MathJax equations horizontally scrollable on overflow */
   mjx-container {
+    display: inline-block;
     max-width: 100% !important;
     overflow-x: auto;
     overflow-y: hidden;
@@ -61,6 +62,7 @@
   /* Display math (block equations) need special handling */
   mjx-container[display="true"] {
     display: block !important;
+    width: 100%;
     padding: 0.5rem 0;
   }
 
