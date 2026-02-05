@@ -251,7 +251,7 @@ That's Eq. (4) with all indices removed and every term written explicitly. You c
 
 Look at the carry term again:
 
-$$H^{res}_{L-1} H^{res}_{L-2} \cdots H^{res}_l \; x_l$$
+$$H^{\text{res}}_{L-1} H^{\text{res}}_{L-2} \cdots H^{\text{res}}_l \; x_l$$
 
 If $H^{res}$ is unconstrained, then this product of matrices can behave in pathological ways. When matrices have eigenvalues greater than 1, repeated multiplication causes exponential growth—the signal explodes. When eigenvalues are less than 1, repeated multiplication causes exponential decay—the signal vanishes.
 
