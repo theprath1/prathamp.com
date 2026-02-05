@@ -153,7 +153,9 @@ In HC, this beautiful property is destroyed. The identity is replaced by a produ
 
 The paper expands Eq. (3) across depth and derives the central equation:
 
-$$x_L = \left(\prod_{i=1}^{L-l} H^{res}_{L-i}\right) x_l + \sum_{i=l}^{L-1} \left(\prod_{j=1}^{L-1-i} H^{res}_{L-j}\right) H^{post\top}_i F(H^{pre}_i x_i, W_i) \tag{4}$$
+$$
+x_L = \left(\prod_{i=1}^{L-l} H^{res}_{L-i}\right) x_l + \sum_{i=l}^{L-1} \left(\prod_{j=1}^{L-1-i} H^{res}_{L-j}\right) H^{post\top}_i F(H^{pre}_i x_i, W_i) \tag{4}
+$$
 
 This equation is the mathematical heart of the paper, and understanding it is essential for grasping why HC becomes unstable. It shows that the output at layer $L$ depends on products of all the residual mixing matrices encountered along the way. Let's break it into two parts to understand what each term represents.
 
