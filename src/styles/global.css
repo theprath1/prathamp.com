@@ -28,6 +28,7 @@
   body {
     @apply bg-gray-50 text-gray-900 antialiased;
     @apply dark:bg-gray-950 dark:text-gray-100;
+    overflow-x: hidden;
   }
 
   ::selection {
@@ -39,11 +40,29 @@
     scroll-margin-top: 6rem;
   }
 
+  /* Prevent flex/grid items from expanding beyond container */
+  article {
+    min-width: 0;
+  }
+
+  .prose {
+    min-width: 0;
+    overflow-wrap: break-word;
+  }
+
   /* Make MathJax equations horizontally scrollable on overflow */
   mjx-container[display="true"] {
+    display: block !important;
     overflow-x: auto;
     overflow-y: hidden;
-    max-width: 100%;
+    max-width: 100% !important;
     padding: 0.5rem 0;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Ensure prose container doesn't break equation scrolling */
+  .prose mjx-container[display="true"] {
+    margin-left: 0;
+    margin-right: 0;
   }
 }
