@@ -382,3 +382,7 @@ The mathematical elegance lies in recognizing that by constraining $H$ to lie on
 3. Zhu, D., Huang, H., Huang, Z., Zeng, Y., Mao, Y., Wu, B., Min, Q., & Zhou, X. (2024). *Hyper-Connections*. [arXiv:2409.19606](https://arxiv.org/abs/2409.19606)
 
 4. Xie, Z., Wei, Y., Cao, H., Zhao, C., Deng, C., Li, J., Dai, D., Gao, H., et al. (2025). *mHC: Manifold-Constrained Hyper-Connections*. [arXiv:2512.24880](https://arxiv.org/abs/2512.24880)
+
+5. Sinkhorn, R., & Knopp, P. (1967). *Concerning nonnegative matrices and doubly stochastic matrices*. [Pacific Journal of Mathematics](https://msp.org/pjm/1967/21-2/p14.xhtml)
+
+6. LeetArxiv. (2024). *Sinkhorn-Knopp Algorithm*. [Substack](https://leetarxiv.substack.com/p/sinkhorn-knopp-algorithm-24d)
