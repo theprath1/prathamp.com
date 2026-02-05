@@ -13,7 +13,9 @@ This update fills that gap. I'll go from basics all the way to the exact multi-l
 
 The paper writes a residual block as:
 
-$$x_{l+1} = x_l + F(x_l, W_l) \tag{1}$$
+$$
+x_{l+1} = x_l + F(x_l, W_l) \tag{1}
+$$
 
 Here $x_l \in \mathbb{R}^{C}$ represents the hidden state at layer $l$, where $C$ is the dimension of the feature vector. The function $F(\cdot)$ denotes whatever transformation the layer performs—this could be a self-attention mechanism, an MLP block, or any other differentiable operation. The parameters $W_l$ are the learnable weights of that specific layer.
 
@@ -23,7 +25,9 @@ The critical insight is the literal $x_l$ term on the right-hand side. This term
 
 If you expand Eq. (1) across multiple layers, the paper gets:
 
-$$x_L = x_l + \sum_{i=l}^{L-1} F(x_i, W_i) \tag{2}$$
+$$
+x_L = x_l + \sum_{i=l}^{L-1} F(x_i, W_i) \tag{2}
+$$
 
 This expansion reveals why ResNets and Transformers remain trainable even at depths of hundreds or thousands of layers. The term $x_l$ survives unchanged all the way to depth $L$—it doesn't get multiplied, transformed, or attenuated by any intermediate layer. The network's output at layer $L$ is simply the original input $x_l$ plus a sum of corrections from each intermediate layer.
 
@@ -43,7 +47,9 @@ to $x_l \in \mathbb{R}^{n \times C}$
 
 So for n = 2, we literally have:
 
-$$x_l = \begin{bmatrix} x_{l,0} \\\\ x_{l,1} \end{bmatrix}, \quad x_{l,0}, x_{l,1} \in \mathbb{R}^C$$
+$$
+x_l = \begin{bmatrix} x_{l,0} \\ x_{l,1} \end{bmatrix}, \quad x_{l,0}, x_{l,1} \in \mathbb{R}^C
+$$
 
 Think of this as two parallel residual "lanes" running through the network. Each lane carries a $C$-dimensional feature vector, and the lanes can exchange information with each other at every layer. This is fundamentally different from simply making the hidden dimension larger—we're creating structured parallelism where streams maintain separate identities while being able to communicate.
 
@@ -51,7 +57,9 @@ Think of this as two parallel residual "lanes" running through the network. Each
 
 The paper defines one HC layer as:
 
-$$x_{l+1} = H^{res}_l x_l + H^{post\top}_l F(H^{pre}_l x_l, W_l) \tag{3}$$
+$$
+x_{l+1} = H^{res}_l x_l + H^{post\top}_l F(H^{pre}_l x_l, W_l) \tag{3}
+$$
 
 This equation looks intimidating at first glance, but it becomes clear once you understand the shape of each component. The key is that HC introduces three separate learnable mappings that control how information flows: one for reading from streams, one for writing back to streams, and one for mixing streams directly.
 
@@ -65,7 +73,9 @@ So HC has three learnable mappings: pre (how to read), post (how to write), and 
 
 Let's work through Eq. (3) with concrete numbers to see exactly what happens. We'll use two streams (n = 2) where each stream has two features (C = 2):
 
-$$x_l = \begin{bmatrix} 1 & 2 \\\\ 3 & 4 \end{bmatrix}$$
+$$
+x_l = \begin{bmatrix} 1 & 2 \\ 3 & 4 \end{bmatrix}
+$$
 
 In this matrix, stream 0 is $[1,2]$ (the first row) and stream 1 is $[3,4]$ (the second row). Each stream carries a 2-dimensional feature vector representing some learned representation of the input.
 
@@ -73,15 +83,21 @@ In this matrix, stream 0 is $[1,2]$ (the first row) and stream 1 is $[3,4]$ (the
 
 The pre-mapping takes multiple streams and combines them into a single vector that the transformer block can process. For n = 2, this is simply a weighted combination:
 
-$$H^{pre}_l = [\alpha, \; 1-\alpha]$$
+$$
+H^{pre}_l = [\alpha, \; 1-\alpha]
+$$
 
 Let's pick specific values to make this concrete:
 
-$$H^{pre}_l = [0.6, \; 0.4]$$
+$$
+H^{pre}_l = [0.6, \; 0.4]
+$$
 
 Applying this to our streams computes a weighted average:
 
-$$H^{pre}_l x_l = 0.6[1,2] + 0.4[3,4] = [1.8, 2.8]$$
+$$
+H^{pre}_l x_l = 0.6[1,2] + 0.4[3,4] = [1.8, 2.8]
+$$
 
 The result is a single $C$-dimensional vector that blends information from both streams. Stream 0 contributes 60% and stream 1 contributes 40%. Now the Transformer block can run on this normal $C$-dim vector using standard attention and MLP operations, completely unaware that multiple streams exist.
 
@@ -89,7 +105,9 @@ The result is a single $C$-dimensional vector that blends information from both 
 
 For this example, we'll simply choose an output value to illustrate the mechanics:
 
-$$F([1.8, 2.8]) = [10, 20]$$
+$$
+F([1.8, 2.8]) = [10, 20]
+$$
 
 In practice, $F$ would be a full transformer layer with self-attention and feed-forward networks. The specific values don't matter for understanding the HC mechanism—what matters is that $F$ takes a $C$-dimensional input and produces a $C$-dimensional output representing the "new information" this layer has computed.
 
@@ -97,15 +115,21 @@ In practice, $F$ would be a full transformer layer with self-attention and feed-
 
 The post-mapping takes the layer's single output vector and distributes it back into all streams. For n = 2:
 
-$$H^{post}_l = [\beta, \; 1-\beta]$$
+$$
+H^{post}_l = [\beta, \; 1-\beta]
+$$
 
 Let's pick:
 
-$$H^{post}_l = [0.7, \; 0.3]$$
+$$
+H^{post}_l = [0.7, \; 0.3]
+$$
 
 The transpose operation turns this row vector into a column vector, which then multiplies the layer output:
 
-$$H^{post\top}_l F(\cdot) = \begin{bmatrix} 0.7[10,20] \\\\ 0.3[10,20] \end{bmatrix} = \begin{bmatrix} [7,14] \\\\ [3,6] \end{bmatrix}$$
+$$
+H^{post\top}_l F(\cdot) = \begin{bmatrix} 0.7[10,20] \\ 0.3[10,20] \end{bmatrix} = \begin{bmatrix} [7,14] \\ [3,6] \end{bmatrix}
+$$
 
 This is literally "copy the same layer output into both streams with different weights". Stream 0 receives 70% of the new information while stream 1 receives 30%. The network can learn to route new features preferentially to certain streams, creating specialized pathways through the architecture.
 
@@ -113,11 +137,15 @@ This is literally "copy the same layer output into both streams with different w
 
 The residual mixing matrix $H^{res}$ controls how the existing stream contents blend together before adding the new features. For n = 2, this is a 2×2 matrix:
 
-$$H^{res}_l = \begin{bmatrix} a & b \\\\ c & d \end{bmatrix}$$
+$$
+H^{res}_l = \begin{bmatrix} a & b \\ c & d \end{bmatrix}
+$$
 
 In unconstrained HC, these entries can be any real numbers—and this is precisely where the danger lies. Let's pick values that illustrate the problem:
 
-$$H^{res}_l = \begin{bmatrix} 2 & -1 \\\\ 1 & 1 \end{bmatrix}$$
+$$
+H^{res}_l = \begin{bmatrix} 2 & -1 \\ 1 & 1 \end{bmatrix}
+$$
 
 Computing the matrix-vector product:
 
@@ -127,7 +155,9 @@ new stream 1 = $1\cdot[1,2] + 1\cdot[3,4] = [4,6]$
 
 So:
 
-$$H^{res}_l x_l = \begin{bmatrix} -1 & 0 \\\\ 4 & 6 \end{bmatrix}$$
+$$
+H^{res}_l x_l = \begin{bmatrix} -1 & 0 \\ 4 & 6 \end{bmatrix}
+$$
 
 Notice what happened: the matrix amplified some values and flipped the sign of others. The entry "2" in position (1,1) doubled stream 0's contribution to itself, while the "-1" subtracted stream 1's values. This kind of unconstrained mixing can cause signals to grow or shrink rapidly across layers.
 
@@ -135,11 +165,15 @@ Notice what happened: the matrix amplified some values and flipped the sign of o
 
 Putting it all together, Eq. (3) says:
 
-$$x_{l+1} = H^{res}_l x_l + H^{post\top}_l F(H^{pre}_l x_l, W_l)$$
+$$
+x_{l+1} = H^{res}_l x_l + H^{post\top}_l F(H^{pre}_l x_l, W_l)
+$$
 
 Substituting our computed values:
 
-$$x_{l+1} = \begin{bmatrix} -1 & 0 \\\\ 4 & 6 \end{bmatrix} + \begin{bmatrix} 7 & 14 \\\\ 3 & 6 \end{bmatrix} = \begin{bmatrix} 6 & 14 \\\\ 7 & 12 \end{bmatrix}$$
+$$
+x_{l+1} = \begin{bmatrix} -1 & 0 \\ 4 & 6 \end{bmatrix} + \begin{bmatrix} 7 & 14 \\ 3 & 6 \end{bmatrix} = \begin{bmatrix} 6 & 14 \\ 7 & 12 \end{bmatrix}
+$$
 
 That's HC in action. The final output combines the mixed residual streams with the newly computed features. Each stream's new value depends on a learned combination of all previous streams plus a learned fraction of the layer's output.
 
@@ -153,7 +187,9 @@ In HC, this beautiful property is destroyed. The identity is replaced by a produ
 
 The paper expands Eq. (3) across depth and derives the central equation:
 
-$$x\_L = \left(\prod\_{i=1}^{L-l} H^{\text{res}}\_{L-i}\right) x\_l + \sum\_{i=l}^{L-1} \left(\prod\_{j=1}^{L-1-i} H^{\text{res}}\_{L-j}\right) H^{\text{post}\top}\_i F(H^{\text{pre}}\_i x\_i, W\_i) \tag{4}$$
+$$
+x_L = \left(\prod_{i=1}^{L-l} H^{\text{res}}_{L-i}\right) x_l + \sum_{i=l}^{L-1} \left(\prod_{j=1}^{L-1-i} H^{\text{res}}_{L-j}\right) H^{\text{post}\top}_i F(H^{\text{pre}}_i x_i, W_i) \tag{4}
+$$
 
 This equation is the mathematical heart of the paper, and understanding it is essential for grasping why HC becomes unstable. It shows that the output at layer $L$ depends on products of all the residual mixing matrices encountered along the way. Let's break it into two parts to understand what each term represents.
 
@@ -161,7 +197,9 @@ This equation is the mathematical heart of the paper, and understanding it is es
 
 ### 5.1 The "identity / carry" term
 
-$$\left(\prod_{i=1}^{L-l} H^{res}_{L-i}\right) x_l$$
+$$
+\left(\prod_{i=1}^{L-l} H^{res}_{L-i}\right) x_l
+$$
 
 This term represents what happened to the "identity mapping" in HC. In ResNet, the corresponding term would simply be $x_l$—the original input preserved unchanged. But in HC, the original input $x_l$ gets multiplied by the product of every residual mixing matrix from layer $l$ all the way to layer $L-1$.
 
@@ -169,7 +207,9 @@ Start with $x_l$, apply $H^{res}_l$, then apply $H^{res}_{l+1}$, and so on until
 
 ### 5.2 The "injection" term (what every layer adds)
 
-$$\sum_{i=l}^{L-1} \left(\prod_{j=1}^{L-1-i} H^{res}_{L-j}\right) H^{post\top}_i F(H^{pre}_i x_i, W_i)$$
+$$
+\sum_{i=l}^{L-1} \left(\prod_{j=1}^{L-1-i} H^{res}_{L-j}\right) H^{post\top}_i F(H^{pre}_i x_i, W_i)
+$$
 
 This term captures how each layer's computed features propagate to the final output. Each layer $i$ produces new features through $F(\cdot)$, which get injected into the streams via $H^{post\top}_i$. But these features don't stay put—they must pass through all subsequent residual mixing matrices before reaching the output at layer $L$.
 
@@ -191,7 +231,9 @@ The term for i = 1 means "features created at layer 1".
 
 The product indexed by $j$ computes how many residual mixing matrices must be applied to transport features from their creation point to the final layer:
 
-$$\prod_{j=1}^{L-1-i} H^{res}_{L-j}$$
+$$
+\prod_{j=1}^{L-1-i} H^{res}_{L-j}
+$$
 
 This product takes features injected at layer $i$ and applies every subsequent residual mixing matrix until reaching layer $L$. The number of matrices in the product depends on how far layer $i$ is from the output—earlier layers have their features mixed more times.
 
@@ -217,7 +259,9 @@ $H^{res}_2$ governs the transition from layer 2 to layer 3
 
 ### 7.1 Identity/carry term becomes
 
-$$\left(\prod_{i=1}^{3} H^{res}_{3-i}\right) x_0 = H^{res}_2 H^{res}_1 H^{res}_0 x_0$$
+$$
+\left(\prod_{i=1}^{3} H^{res}_{3-i}\right) x_0 = H^{res}_2 H^{res}_1 H^{res}_0 x_0
+$$
 
 The input $x_0$ gets multiplied by all three residual matrices in sequence. In ResNet, this would just be $x_0$. In HC, the input has been transformed three times before reaching the output—and each transformation can amplify, shrink, or rotate the signal in ways that compound dangerously.
 
@@ -225,25 +269,33 @@ The input $x_0$ gets multiplied by all three residual matrices in sequence. In R
 
 From layer 0 (features must pass through all subsequent mixing matrices):
 
-$$H^{res}_2 H^{res}_1 H^{post\top}_0 F(H^{pre}_0 x_0)$$
+$$
+H^{res}_2 H^{res}_1 H^{post\top}_0 F(H^{pre}_0 x_0)
+$$
 
 Features computed at layer 0 get injected via $H^{post\top}_0$, then must traverse $H^{res}_1$ and $H^{res}_2$ before reaching the output.
 
 From layer 1 (features must pass through two subsequent mixing matrices):
 
-$$H^{res}_2 H^{post\top}_1 F(H^{pre}_1 x_1)$$
+$$
+H^{res}_2 H^{post\top}_1 F(H^{pre}_1 x_1)
+$$
 
 Features computed at layer 1 get injected via $H^{post\top}_1$, then traverse only $H^{res}_2$ before reaching the output.
 
 From layer 2 (features go directly to output, no mixing left):
 
-$$H^{post\top}_2 F(H^{pre}_2 x_2)$$
+$$
+H^{post\top}_2 F(H^{pre}_2 x_2)
+$$
 
 Features computed at the second-to-last layer go straight to the output with no additional residual mixing.
 
 So the total is:
 
-$$x_3 = H^{res}_2 H^{res}_1 H^{res}_0 x_0 + H^{res}_2 H^{res}_1 H^{post\top}_0 F(\cdot) + H^{res}_2 H^{post\top}_1 F(\cdot) + H^{post\top}_2 F(\cdot)$$
+$$
+x_3 = H^{res}_2 H^{res}_1 H^{res}_0 x_0 + H^{res}_2 H^{res}_1 H^{post\top}_0 F(\cdot) + H^{res}_2 H^{post\top}_1 F(\cdot) + H^{post\top}_2 F(\cdot)
+$$
 
 That's Eq. (4) with all indices removed and every term written explicitly. You can now see exactly how the original input and each layer's features flow through the network.
 
@@ -251,7 +303,9 @@ That's Eq. (4) with all indices removed and every term written explicitly. You c
 
 Look at the carry term again:
 
-$$H^{\text{res}}\_{L-1} H^{\text{res}}\_{L-2} \cdots H^{\text{res}}\_l \ x\_l$$
+$$
+H^{\text{res}}_{L-1} H^{\text{res}}_{L-2} \cdots H^{\text{res}}_l \ x_l
+$$
 
 If $H^{res}$ is unconstrained, then this product of matrices can behave in pathological ways. When matrices have eigenvalues greater than 1, repeated multiplication causes exponential growth—the signal explodes. When eigenvalues are less than 1, repeated multiplication causes exponential decay—the signal vanishes.
 
@@ -267,7 +321,9 @@ mHC keeps the same HC structure—multiple streams, learned pre/post mappings, r
 
 The paper constrains $H^{res}_l$ to the Birkhoff polytope, the set of all doubly stochastic matrices:
 
-$$\mathcal{P}_{\mathcal{M}^{res}}(H^{res}_l) = \{H^{res}_l \in \mathbb{R}^{n \times n} \;|\; H^{res}_l \mathbf{1}_n = \mathbf{1}_n, \; \mathbf{1}_n^\top H^{res}_l = \mathbf{1}_n^\top, \; H^{res}_l \geq 0\} \tag{6}$$
+$$
+\mathcal{P}_{\mathcal{M}^{res}}(H^{res}_l) = \{H^{res}_l \in \mathbb{R}^{n \times n} \;|\; H^{res}_l \mathbf{1}_n = \mathbf{1}_n, \; \mathbf{1}_n^\top H^{res}_l = \mathbf{1}_n^\top, \; H^{res}_l \geq 0\} \tag{6}
+$$
 
 This formal definition encodes three requirements: all entries must be non-negative (no sign flips), each row must sum to 1 (outputs are convex combinations of inputs), and each column must sum to 1 (information is neither created nor destroyed). Together, these constraints ensure that residual mixing becomes convex averaging rather than amplification or attenuation.
 
@@ -275,17 +331,23 @@ This formal definition encodes three requirements: all entries must be non-negat
 
 For n = 2, the doubly stochastic constraint dramatically simplifies what matrices are allowed. Any valid $H^{res}$ must have the form:
 
-$$H^{res} = \begin{bmatrix} p & 1-p \\\\ 1-p & p \end{bmatrix} \quad 0 \leq p \leq 1$$
+$$
+H^{res} = \begin{bmatrix} p & 1-p \\ 1-p & p \end{bmatrix} \quad 0 \leq p \leq 1
+$$
 
 This is a one-parameter family of matrices, controlled entirely by the mixing coefficient $p$. When $p = 1$, you get identity (no mixing). When $p = 0$, you get the swap matrix (complete exchange). When $p = 0.5$, you get perfect averaging.
 
 Let's pick $p = 0.75$ and apply it to our earlier example:
 
-$$H^{res} = \begin{bmatrix} 0.75 & 0.25 \\\\ 0.25 & 0.75 \end{bmatrix}$$
+$$
+H^{res} = \begin{bmatrix} 0.75 & 0.25 \\ 0.25 & 0.75 \end{bmatrix}
+$$
 
 Apply to our C=2 streams:
 
-$$x_l = \begin{bmatrix} [1,2] \\\\ [3,4] \end{bmatrix}$$
+$$
+x_l = \begin{bmatrix} [1,2] \\ [3,4] \end{bmatrix}
+$$
 
 Result:
 
@@ -304,9 +366,9 @@ HC learns $H^{pre}$, $H^{post}$, and $H^{res}$ dynamically from the input, allow
 The paper flattens $x_l \in \mathbb{R}^{n\times C}$ into a vector and computes unconstrained mappings:
 
 $$\begin{aligned}
-\bar{x}_l &= \text{RMSNorm}(\text{vec}(x_l)) \\\\
-\tilde{H}^{pre}_l &= \alpha^{pre}_l (\bar{x}_l \phi^{pre}_l) + b^{pre}_l \\\\
-\tilde{H}^{post}_l &= \alpha^{post}_l (\bar{x}_l \phi^{post}_l) + b^{post}_l \\\\
+\bar{x}_l &= \text{RMSNorm}(\text{vec}(x_l)) \\
+\tilde{H}^{pre}_l &= \alpha^{pre}_l (\bar{x}_l \phi^{pre}_l) + b^{pre}_l \\
+\tilde{H}^{post}_l &= \alpha^{post}_l (\bar{x}_l \phi^{post}_l) + b^{post}_l \\
 \tilde{H}^{res}_l &= \alpha^{res}_l \text{mat}(\bar{x}_l \phi^{res}_l) + b^{res}_l
 \end{aligned} \tag{7}$$
 
@@ -319,8 +381,8 @@ At this stage, $\tilde{H}^{res}_l$ is still unconstrained—it's just the raw ou
 mHC enforces constraints by projecting the unconstrained outputs onto valid manifolds:
 
 $$\begin{aligned}
-H^{pre}_l &= \sigma(\tilde{H}^{pre}_l) \\\\
-H^{post}_l &= 2\sigma(\tilde{H}^{post}_l) \\\\
+H^{pre}_l &= \sigma(\tilde{H}^{pre}_l) \\
+H^{post}_l &= 2\sigma(\tilde{H}^{post}_l) \\
 H^{res}_l &= \text{Sinkhorn-Knopp}(\tilde{H}^{res}_l)
 \end{aligned} \tag{8}$$
 
@@ -332,7 +394,9 @@ The Sinkhorn-Knopp algorithm is the key innovation for $H^{res}$. It takes any r
 
 The algorithm starts with a positive matrix $M^{(0)} = \exp(\tilde{H}^{res})$ and alternates between normalizing columns and normalizing rows:
 
-$$M^{(t)} = T_r(T_c(M^{(t-1)})) \tag{9}$$
+$$
+M^{(t)} = T_r(T_c(M^{(t-1)})) \tag{9}
+$$
 
 Here $T_c$ divides each column by its sum, and $T_r$ divides each row by its sum. After enough iterations, both rows and columns sum to 1, giving an effectively doubly stochastic matrix. The algorithm converges quickly—typically just a few iterations suffice—and the entire process is differentiable, allowing end-to-end training.
 

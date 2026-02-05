@@ -50,28 +50,22 @@
     overflow-wrap: break-word;
   }
 
-  /* Make ALL MathJax equations horizontally scrollable on overflow */
-  mjx-container {
-    max-width: 100% !important;
+  /* KaTeX display math centering and overflow handling */
+  .katex-display {
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
+    text-align: center;
+    margin: 1rem 0;
   }
 
-  /* Display math (block equations) need special handling */
-  mjx-container[display="true"] {
-    display: block !important;
-    padding: 0.5rem 0;
+  .katex-display > .katex {
+    text-align: center;
   }
 
-  /* Ensure prose container doesn't break equation scrolling */
-  .prose mjx-container {
+  /* Ensure prose container works with KaTeX */
+  .prose .katex-display {
     margin-left: 0;
     margin-right: 0;
-  }
-
-  /* Ensure the inner math content doesn't get constrained */
-  mjx-container > mjx-math {
-    max-width: none !important;
   }
 }

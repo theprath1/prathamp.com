@@ -15,7 +15,9 @@ Before diving into residual connections, let's understand the fundamental proble
 
 Consider the simplest possible neural network where each layer multiplies the input by a weight:
 
-$$x_{l+1} = w_l \cdot x_l$$
+$$
+x_{l+1} = w_l \cdot x_l
+$$
 
 Let's trace what happens with an input $x_0 = 10$ and weights $w = 0.9$ across three layers.
 
@@ -47,7 +49,9 @@ ResNets introduced an elegantly simple fix: add a skip connection that preserves
 
 Instead of $x_{l+1} = w \cdot x_l$, ResNets use:
 
-$$x_{l+1} = x_l + F(x_l)$$
+$$
+x_{l+1} = x_l + F(x_l)
+$$
 
 Where $F(x_l)$ represents any transformation (convolution, MLP, etc.). The critical addition is the $x_l$ term—the **identity path**.
 
@@ -100,7 +104,9 @@ In very deep transformers, each layer has multiple residual streams:
 
 Instead of a fixed identity, Hyper-Connections introduce a **learned mixing matrix** $H$:
 
-$$x_{l+1} = H \cdot x_l + W \cdot x_l$$
+$$
+x_{l+1} = H \cdot x_l + W \cdot x_l
+$$
 
 Here $H$ replaces the identity path (which was previously just $I$), and $W$ is the usual learned transformation.
 
@@ -110,7 +116,9 @@ $H$ is a **learned matrix that replaces the identity path**. In ResNet, identity
 
 For a 2-neuron example, $H$ might look like:
 
-$$H = \begin{bmatrix} 0.8 & 0.2 \\\\ 0.1 & 0.9 \end{bmatrix}$$
+$$
+H = \begin{bmatrix} 0.8 & 0.2 \\ 0.1 & 0.9 \end{bmatrix}
+$$
 
 This means neuron 1 mostly keeps its value (0.8) with some mixing from neuron 2 (0.2), and neuron 2 mostly keeps its value (0.9) with some mixing from neuron 1 (0.1). The network can now learn cross-feature interactions in the skip path itself.
 
@@ -118,7 +126,9 @@ This means neuron 1 mostly keeps its value (0.8) with some mixing from neuron 2 
 
 In a neural network, anything multiplied with the input can be learned through backpropagation. For two neurons, we have $x_{l+1} = H \cdot x_l$ where:
 
-$$H = \begin{bmatrix} h_{11} & h_{12} \\\\ h_{21} & h_{22} \end{bmatrix}$$
+$$
+H = \begin{bmatrix} h_{11} & h_{12} \\ h_{21} & h_{22} \end{bmatrix}
+$$
 
 Each $h_{ij}$ is just a scalar parameter—stored like any other weight, updated by gradient descent. There's nothing special about it; it's simply another weight matrix that happens to sit in the skip path.
 
@@ -130,17 +140,23 @@ At the start of training, we want $H \approx I$. Why?
 - Training starts safely
 - The model behaves like ResNet initially A common initialization strategy is:
 
-$$H = \begin{bmatrix} 1 & 0 \\\\ 0 & 1 \end{bmatrix} + \epsilon$$
+$$
+H = \begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix} + \epsilon
+$$
 
 Where $\epsilon$ is small random noise, giving something like:
 
-$$H = \begin{bmatrix} 1.01 & -0.02 \\\\ 0.01 & 0.98 \end{bmatrix}$$
+$$
+H = \begin{bmatrix} 1.01 & -0.02 \\ 0.01 & 0.98 \end{bmatrix}
+$$
 
 The matrix starts very close to identity, then learning adjusts it based on what the task requires.
 
 **Why not initialize randomly?** If you start with something like:
 
-$$H = \begin{bmatrix} 0.7 & 0.4 \\\\ 0.3 & 0.6 \end{bmatrix}$$
+$$
+H = \begin{bmatrix} 0.7 & 0.4 \\ 0.3 & 0.6 \end{bmatrix}
+$$
 
 Then even before training begins, $H^{20}$ will cause explosion or collapse. The eigenvalues of this matrix aren't equal to 1, so repeated multiplication across 20 layers amplifies small deviations into catastrophic instability. This is why HC initialization must be identity-biased.
 
@@ -170,11 +186,15 @@ ResNet **never learns the identity**. It's fixed: $x \rightarrow x$. Hyper-Conne
 
 Even if $H_0 \approx I$ at initialization, training updates the matrix:
 
-$$H \leftarrow H - \eta \nabla_H \mathcal{L}$$
+$$
+H \leftarrow H - \eta \nabla_H \mathcal{L}
+$$
 
 Let me break down what this gradient notation means. The term $\nabla_H \mathcal{L}$ represents the derivative of the loss $\mathcal{L}$ with respect to the matrix $H$. Since $H$ is a matrix of numbers:
 
-$$H = \begin{bmatrix} h_{11} & h_{12} \\\\ h_{21} & h_{22} \end{bmatrix}$$
+$$
+H = \begin{bmatrix} h_{11} & h_{12} \\ h_{21} & h_{22} \end{bmatrix}
+$$
 
 We have four derivatives: $\frac{\partial \mathcal{L}}{\partial h_{11}}$, $\frac{\partial \mathcal{L}}{\partial h_{12}}$, $\frac{\partial \mathcal{L}}{\partial h_{21}}$, $\frac{\partial \mathcal{L}}{\partial h_{22}}$
 
@@ -182,7 +202,9 @@ Each derivative answers a simple question: *If I slightly change this number, do
 
 We write this as a matrix to match the shape of $H$:
 
-$$\nabla_H \mathcal{L} = \begin{bmatrix} \frac{\partial \mathcal{L}}{\partial h_{11}} & \frac{\partial \mathcal{L}}{\partial h_{12}} \\\\ \frac{\partial \mathcal{L}}{\partial h_{21}} & \frac{\partial \mathcal{L}}{\partial h_{22}} \end{bmatrix}$$
+$$
+\nabla_H \mathcal{L} = \begin{bmatrix} \frac{\partial \mathcal{L}}{\partial h_{11}} & \frac{\partial \mathcal{L}}{\partial h_{12}} \\ \frac{\partial \mathcal{L}}{\partial h_{21}} & \frac{\partial \mathcal{L}}{\partial h_{22}} \end{bmatrix}
+$$
 
 We subtract because the gradient points uphill, and we want to go downhill to minimize loss.
 
@@ -212,11 +234,15 @@ We want a matrix $H$ such that:
 
 A matrix performs averaging if all entries are non-negative and each output is a weighted average of inputs. This happens when **rows sum to 1**. For example:
 
-$$H = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.4 & 0.6 \end{bmatrix}$$
+$$
+H = \begin{bmatrix} 0.7 & 0.3 \\ 0.4 & 0.6 \end{bmatrix}
+$$
 
-Apply this to $x = \begin{bmatrix} 10 \\\\ 20 \end{bmatrix}$:
+Apply this to $x = \begin{bmatrix} 10 \\ 20 \end{bmatrix}$:
 
-$$Hx = \begin{bmatrix} 0.7(10) + 0.3(20) \\\\ 0.4(10) + 0.6(20) \end{bmatrix} = \begin{bmatrix} 13 \\\\ 16 \end{bmatrix}$$
+$$
+Hx = \begin{bmatrix} 0.7(10) + 0.3(20) \\ 0.4(10) + 0.6(20) \end{bmatrix} = \begin{bmatrix} 13 \\ 16 \end{bmatrix}
+$$
 
 Each output is a weighted average—no scaling, no explosion. The total "mass" of information is preserved.
 
@@ -236,7 +262,9 @@ A matrix is **doubly stochastic** if:
 
 A simple example:
 
-$$D = \begin{bmatrix} 0.5 & 0.5 \\\\ 0.5 & 0.5 \end{bmatrix}$$
+$$
+D = \begin{bmatrix} 0.5 & 0.5 \\ 0.5 & 0.5 \end{bmatrix}
+$$
 
 This is perfect averaging—forward stable and backward stable.
 
@@ -262,13 +290,17 @@ A permutation matrix just reorders neurons without changing magnitudes. For 2 ne
 
 The identity permutation does nothing:
 
-$$P_1 = \begin{bmatrix} 1 & 0 \\\\ 0 & 1 \end{bmatrix}$$
+$$
+P_1 = \begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix}
+$$
 
 This sends Neuron 1 to Neuron 1 and Neuron 2 to Neuron 2.
 
 The swap permutation exchanges them:
 
-$$P_2 = \begin{bmatrix} 0 & 1 \\\\ 1 & 0 \end{bmatrix}$$
+$$
+P_2 = \begin{bmatrix} 0 & 1 \\ 1 & 0 \end{bmatrix}
+$$
 
 This sends Neuron 1 to Neuron 2 and Neuron 2 to Neuron 1.
 
@@ -278,9 +310,13 @@ Permutation matrices never change magnitude—they only move information around.
 
 Take the two permutation matrices and compute a weighted average with $\alpha = 0.7$:
 
-$$0.7 P_1 + 0.3 P_2 = 0.7 \begin{bmatrix} 1 & 0 \\\\ 0 & 1 \end{bmatrix} + 0.3 \begin{bmatrix} 0 & 1 \\\\ 1 & 0 \end{bmatrix}$$
+$$
+0.7 P_1 + 0.3 P_2 = 0.7 \begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix} + 0.3 \begin{bmatrix} 0 & 1 \\ 1 & 0 \end{bmatrix}
+$$
 
-$$= \begin{bmatrix} 0.7 & 0 \\\\ 0 & 0.7 \end{bmatrix} + \begin{bmatrix} 0 & 0.3 \\\\ 0.3 & 0 \end{bmatrix} = \begin{bmatrix} 0.7 & 0.3 \\\\ 0.3 & 0.7 \end{bmatrix}$$
+$$
+= \begin{bmatrix} 0.7 & 0 \\ 0 & 0.7 \end{bmatrix} + \begin{bmatrix} 0 & 0.3 \\ 0.3 & 0 \end{bmatrix} = \begin{bmatrix} 0.7 & 0.3 \\ 0.3 & 0.7 \end{bmatrix}
+$$
 
 This is doubly stochastic. The beautiful intuition is that **every safe $H$ is a soft permutation of features**. It's not doing hard routing (this neuron goes there), but soft routing (70% of this neuron stays here, 30% goes there).
 
@@ -294,7 +330,9 @@ Gradient descent gives us $\tilde{H} = H - \eta \nabla_H \mathcal{L}$, but $\til
 
 Instead of the standard update $H \leftarrow H - \eta \nabla_H \mathcal{L}$, mHC uses:
 
-$$\boxed{H \leftarrow \Pi_{\mathcal{D}}\left(H - \eta \nabla_H \mathcal{L}\right)}$$
+$$
+\boxed{H \leftarrow \Pi_{\mathcal{D}}\left(H - \eta \nabla_H \mathcal{L}\right)}
+$$
 
 Where $\Pi_{\mathcal{D}}$ represents projection onto doubly stochastic matrices. This is the entire mathematical change—everything else remains standard.
 
@@ -320,11 +358,15 @@ After a few iterations, rows sum to approximately 1 and columns sum to approxima
 
 Start with:
 
-$$A = \begin{bmatrix} 2 & 1 \\\\ 1 & 2 \end{bmatrix}$$
+$$
+A = \begin{bmatrix} 2 & 1 \\ 1 & 2 \end{bmatrix}
+$$
 
 Row normalize to get:
 
-$$\begin{bmatrix} 2/3 & 1/3 \\\\ 1/3 & 2/3 \end{bmatrix}$$
+$$
+\begin{bmatrix} 2/3 & 1/3 \\ 1/3 & 2/3 \end{bmatrix}
+$$
 
 Now check column sums: Column 1 sums to $2/3 + 1/3 = 1$, and Column 2 sums to $1/3 + 2/3 = 1$. We're already doubly stochastic after one iteration. In practice, it usually takes just a handful of iterations to converge to machine precision.
 
@@ -339,7 +381,9 @@ Putting it all together, the full stabilization pipeline works as follows:
 
 Mathematically:
 
-$$H \leftarrow \text{Sinkhorn}\left(e^{H - \eta \nabla_H \mathcal{L}}\right)$$
+$$
+H \leftarrow \text{Sinkhorn}\left(e^{H - \eta \nabla_H \mathcal{L}}\right)
+$$
 
 This single line captures the essence of the approach: take a gradient step in unconstrained space, then project back to the manifold of safe matrices.
 

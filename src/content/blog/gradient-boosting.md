@@ -21,7 +21,9 @@ Here's what makes Gradient Boosting elegant: instead of optimizing parameters di
 
 At each stage $m$, a new tree $h_m(x)$ learns to predict the residual errors:
 
-$$r_{im} = y_i - F_{m-1}(x_i)$$
+$$
+r_{im} = y_i - F_{m-1}(x_i)
+$$
 
 This prediction is then scaled by a learning rate and added to the current model, progressively reducing the overall loss.
 
@@ -74,37 +76,53 @@ By combining many high-bias weak learners (shallow trees) sequentially, Gradient
 
 The pseudo-residuals represent the negative gradient of the loss:
 
-$$r\_{im} = - \left. \frac{\partial L(y\_i, F(x\_i))}{\partial F(x\_i)} \right|\_{F(x)=F\_{m-1}(x)}$$
+$$
+r\_{im} = - \left. \frac{\partial L(y\_i, F(x\_i))}{\partial F(x\_i)} \right|\_{F(x)=F\_{m-1}(x)}
+$$
 
 ### Initialization (Stage 0)
 
 **Regression (MSE):**
-$$F_0(x) = \bar{y} = \frac{1}{n}\sum_{i=1}^{n} y_i$$
+$$
+F_0(x) = \bar{y} = \frac{1}{n}\sum_{i=1}^{n} y_i
+$$
 
 **Classification (Log-Loss):**
-$$F_0(x) = \log\left(\frac{\text{count}(y=1)}{\text{count}(y=0)}\right)$$
+$$
+F_0(x) = \log\left(\frac{\text{count}(y=1)}{\text{count}(y=0)}\right)
+$$
 
 ### Leaf Output Values
 
 **Regression (MSE):**
-$$\gamma_{jm} = \text{mean}(r_{im} \text{ for } x_i \in R_{jm})$$
+$$
+\gamma_{jm} = \text{mean}(r_{im} \text{ for } x_i \in R_{jm})
+$$
 
 **Classification (Log-Loss):**
-$$\gamma_{jm} = \frac{\sum_{x_i \in R_{jm}} r_{im}}{\sum_{x_i \in R_{jm}} p_i(1 - p_i)}$$
+$$
+\gamma_{jm} = \frac{\sum_{x_i \in R_{jm}} r_{im}}{\sum_{x_i \in R_{jm}} p_i(1 - p_i)}
+$$
 
 *This formula comes from a Newton-Raphson step approximating the loss minimum.*
 
 ### Update Rule
 
-$$F_m(x) = F_{m-1}(x) + \nu \cdot \gamma_{jm} \quad \text{for } x \in R_{jm}$$
+$$
+F_m(x) = F_{m-1}(x) + \nu \cdot \gamma_{jm} \quad \text{for } x \in R_{jm}
+$$
 
 ### Final Prediction
 
 **Regression:**
-$$\hat{y} = F_M(x)$$
+$$
+\hat{y} = F_M(x)
+$$
 
 **Classification (Probability):**
-$$P(y=1|x) = \sigma(F_M(x)) = \frac{1}{1 + e^{-F_M(x)}}$$
+$$
+P(y=1|x) = \sigma(F_M(x)) = \frac{1}{1 + e^{-F_M(x)}}
+$$
 
 ---
 
