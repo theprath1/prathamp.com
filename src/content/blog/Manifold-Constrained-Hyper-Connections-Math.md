@@ -1,7 +1,7 @@
 ---
 title: "Manifold-Constrained Hyper-Connections: Stabilizing Deep Networks Beyond ResNets (with the actual math)"
 description: "From residual identity paths to Hyper-Connections and mHC — now with the paper's exact equations, fully unrolled products, and concrete numeric examples"
-date: 2026-02-04
+date: 2026-02-05
 tags: ["deep-learning", "neural-networks", "linear-algebra", "transformers", "architecture", "optimization"]
 ---
 
