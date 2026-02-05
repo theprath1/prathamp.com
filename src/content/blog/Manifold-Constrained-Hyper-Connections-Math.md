@@ -153,18 +153,7 @@ In HC, this beautiful property is destroyed. The identity is replaced by a produ
 
 The paper expands Eq. (3) across depth and derives the central equation:
 
-$$
-x_L
-=
-\left(\prod_{i=1}^{L-1} H^{res}_{L-i}\right)x_1
-+
-\sum_{i=1}^{L-1}
-\left(\prod_{j=1}^{L-1-i} H^{res}_{L-j}\right)
-H^{post\top}_i\,
-F\!\left(H^{pre}_i x_i,\; W_i\right)
-\tag{4}
-$$
-
+$$x_L = \left(\prod_{i=1}^{L-l} H^{\text{res}}{L-i}\right) x_l + \sum{i=l}^{L-1} \left(\prod_{j=1}^{L-1-i} H^{\text{res}}_{L-j}\right) H^{\text{post}\top}_i F(H^{\text{pre}}_i x_i, W_i) \tag{4}$$
 
 This equation is the mathematical heart of the paper, and understanding it is essential for grasping why HC becomes unstable. It shows that the output at layer $L$ depends on products of all the residual mixing matrices encountered along the way. Let's break it into two parts to understand what each term represents.
 
@@ -262,7 +251,13 @@ That's Eq. (4) with all indices removed and every term written explicitly. You c
 
 Look at the carry term again:
 
-$$H^{res}_{L-1} H^{res}_{L-2} \cdots H^{res}_l \; x_l$$
+$$
+H^{\text{res}}_{L-1}\,
+H^{\text{res}}_{L-2}\,
+\cdots\,
+H^{\text{res}}_{l}\,
+x_{l}
+$$
 
 If $H^{res}$ is unconstrained, then this product of matrices can behave in pathological ways. When matrices have eigenvalues greater than 1, repeated multiplication causes exponential growth—the signal explodes. When eigenvalues are less than 1, repeated multiplication causes exponential decay—the signal vanishes.
 
