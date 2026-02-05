@@ -1,13 +1,13 @@
 ---
 title: "Manifold-Constrained Hyper-Connections: Stabilizing Deep Networks Beyond ResNets (with the actual math)"
-description: "From residual identity paths to Hyper-Connections and mHC — now with the paper's exact equations, fully unrolled products, and n=2,C=2 numeric examples"
+description: "From residual identity paths to Hyper-Connections and mHC — now with the paper's exact equations, fully unrolled products, and concrete numeric examples"
 date: 2026-02-04
 tags: ["deep-learning", "neural-networks", "linear-algebra", "transformers", "architecture", "optimization"]
 ---
 
-In my previous version of this post, I focused on intuition: why residual connections work, why Hyper-Connections (HC) are appealing, and why they become unstable. That intuition is still correct — but I didn't explain the actual equations from the mHC paper.
+In my previous version of this post, I focused on intuition: why residual connections work, why Hyper-Connections (HC) are appealing, and why they become unstable. Now, in this article, I'll be diving into the actual equations from the mHC paper.
 
-This update fills that gap. We'll go from basics all the way to the exact multi-layer expansion equation in the paper, and we'll explain every term with concrete examples (especially n = 2, C = 2).
+This update fills that gap. I'll go from basics all the way to the exact multi-layer expansion equation in the paper, and I'll explain every term with concrete examples.
 
 Paper: [mHC: Manifold-Constrained Hyper-Connections](https://arxiv.org/abs/2512.24880)
 
