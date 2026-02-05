@@ -361,3 +361,7 @@ The mathematical elegance lies in recognizing that doubly stochastic matrices fo
 ## References
 
 1. Xie, Z., Wei, Y., Cao, H., et al. (2026). *mHC: Manifold-Constrained Hyper-Connections*. [arXiv:2512.24880](https://arxiv.org/abs/2512.24880)
+
+2. Sinkhorn, R., & Knopp, P. (1967). *Concerning nonnegative matrices and doubly stochastic matrices*. [Pacific Journal of Mathematics](https://msp.org/pjm/1967/21-2/p14.xhtml)
+
+3. LeetArxiv. (2024). *Sinkhorn-Knopp Algorithm*. [Substack](https://leetarxiv.substack.com/p/sinkhorn-knopp-algorithm-24d)

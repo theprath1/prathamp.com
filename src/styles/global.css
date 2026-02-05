@@ -38,4 +38,12 @@
   h1, h2, h3, h4, h5, h6 {
     scroll-margin-top: 6rem;
   }
+
+  /* Make MathJax equations horizontally scrollable on overflow */
+  mjx-container[display="true"] {
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 100%;
+    padding: 0.5rem 0;
+  }
 }
