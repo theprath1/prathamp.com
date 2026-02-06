@@ -68,4 +68,11 @@
     margin-left: 0;
     margin-right: 0;
   }
+
+  /* Prevent equation tags from overlapping equations on small screens */
+  @media (max-width: 768px) {
+    .katex-display > .katex > .katex-html > .tag {
+      position: relative;
+    }
+  }
 }
