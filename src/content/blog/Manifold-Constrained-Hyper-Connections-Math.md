@@ -365,12 +365,14 @@ HC learns $H^{pre}$, $H^{post}$, and $H^{res}$ dynamically from the input, allow
 
 The paper flattens $x_l \in \mathbb{R}^{n\times C}$ into a vector and computes unconstrained mappings:
 
-$$\begin{aligned}
+$$
+\begin{aligned}
 \bar{x}_l &= \text{RMSNorm}(\text{vec}(x_l)) \\
 \tilde{H}^{pre}_l &= \alpha^{pre}_l (\bar{x}_l \phi^{pre}_l) + b^{pre}_l \\
 \tilde{H}^{post}_l &= \alpha^{post}_l (\bar{x}_l \phi^{post}_l) + b^{post}_l \\
 \tilde{H}^{res}_l &= \alpha^{res}_l \text{mat}(\bar{x}_l \phi^{res}_l) + b^{res}_l
-\end{aligned} \tag{7}$$
+\end{aligned} \tag{7}
+$$
 
 The gating scalars $\alpha$ are initialized to small values, ensuring the network starts near safe, default behavior before learning to deviate. The projections $\phi$ are learnable weight matrices that map the normalized input to the space of routing parameters. The biases $b$ provide learned offsets that don't depend on the input.
 
@@ -380,11 +382,13 @@ At this stage, $\tilde{H}^{res}_l$ is still unconstrained—it's just the raw ou
 
 mHC enforces constraints by projecting the unconstrained outputs onto valid manifolds:
 
-$$\begin{aligned}
+$$
+\begin{aligned}
 H^{pre}_l &= \sigma(\tilde{H}^{pre}_l) \\
 H^{post}_l &= 2\sigma(\tilde{H}^{post}_l) \\
 H^{res}_l &= \text{Sinkhorn-Knopp}(\tilde{H}^{res}_l)
-\end{aligned} \tag{8}$$
+\end{aligned} \tag{8}
+$$
 
 The sigmoid function $\sigma$ squashes pre and post mappings to be non-negative and bounded, ensuring they represent valid mixing weights. The factor of 2 on $H^{post}$ allows it to amplify slightly, giving the network more expressive range.
 
