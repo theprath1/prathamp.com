@@ -14,7 +14,7 @@ This update fills that gap. I'll go from basics all the way to the exact multi-l
 The paper writes a residual block as:
 
 $$
-x_{l+1} = x_l + F(x_l, W_l) \tag{1}
+x_{l+1} = x_l + F(x_l, W_l)
 $$
 
 Here $x_l \in \mathbb{R}^{C}$ represents the hidden state at layer $l$, where $C$ is the dimension of the feature vector. The function $F(\cdot)$ denotes whatever transformation the layer performs—this could be a self-attention mechanism, an MLP block, or any other differentiable operation. The parameters $W_l$ are the learnable weights of that specific layer.
@@ -26,7 +26,7 @@ The critical insight is the literal $x_l$ term on the right-hand side. This term
 If you expand Eq. (1) across multiple layers, the paper gets:
 
 $$
-x_L = x_l + \sum_{i=l}^{L-1} F(x_i, W_i) \tag{2}
+x_L = x_l + \sum_{i=l}^{L-1} F(x_i, W_i)
 $$
 
 This expansion reveals why ResNets and Transformers remain trainable even at depths of hundreds or thousands of layers. The term $x_l$ survives unchanged all the way to depth $L$—it doesn't get multiplied, transformed, or attenuated by any intermediate layer. The network's output at layer $L$ is simply the original input $x_l$ plus a sum of corrections from each intermediate layer.
@@ -58,7 +58,7 @@ Think of this as two parallel residual "lanes" running through the network. Each
 The paper defines one HC layer as:
 
 $$
-x_{l+1} = H^{res}_l x_l + H^{post\top}_l F(H^{pre}_l x_l, W_l) \tag{3}
+x_{l+1} = H^{res}_l x_l + H^{post\top}_l F(H^{pre}_l x_l, W_l)
 $$
 
 This equation looks intimidating at first glance, but it becomes clear once you understand the shape of each component. The key is that HC introduces three separate learnable mappings that control how information flows: one for reading from streams, one for writing back to streams, and one for mixing streams directly.
@@ -188,7 +188,7 @@ In HC, this beautiful property is destroyed. The identity is replaced by a produ
 The paper expands Eq. (3) across depth and derives the central equation:
 
 $$
-x_L = \left(\prod_{i=1}^{L-l} H^{\text{res}}_{L-i}\right) x_l + \sum_{i=l}^{L-1} \left(\prod_{j=1}^{L-1-i} H^{\text{res}}_{L-j}\right) H^{\text{post}\top}_i F(H^{\text{pre}}_i x_i, W_i) \tag{4}
+x_L = \left(\prod_{i=1}^{L-l} H^{\text{res}}_{L-i}\right) x_l + \sum_{i=l}^{L-1} \left(\prod_{j=1}^{L-1-i} H^{\text{res}}_{L-j}\right) H^{\text{post}\top}_i F(H^{\text{pre}}_i x_i, W_i)
 $$
 
 This equation is the mathematical heart of the paper, and understanding it is essential for grasping why HC becomes unstable. It shows that the output at layer $L$ depends on products of all the residual mixing matrices encountered along the way. Let's break it into two parts to understand what each term represents.
@@ -322,7 +322,7 @@ mHC keeps the same HC structure—multiple streams, learned pre/post mappings, r
 The paper constrains $H^{res}_l$ to the Birkhoff polytope, the set of all doubly stochastic matrices:
 
 $$
-\mathcal{P}_{\mathcal{M}^{res}}(H^{res}_l) = \{H^{res}_l \in \mathbb{R}^{n \times n} \;|\; H^{res}_l \mathbf{1}_n = \mathbf{1}_n, \; \mathbf{1}_n^\top H^{res}_l = \mathbf{1}_n^\top, \; H^{res}_l \geq 0\} \tag{6}
+\mathcal{P}_{\mathcal{M}^{res}}(H^{res}_l) = \{H^{res}_l \in \mathbb{R}^{n \times n} \;|\; H^{res}_l \mathbf{1}_n = \mathbf{1}_n, \; \mathbf{1}_n^\top H^{res}_l = \mathbf{1}_n^\top, \; H^{res}_l \geq 0\}
 $$
 
 This formal definition encodes three requirements: all entries must be non-negative (no sign flips), each row must sum to 1 (outputs are convex combinations of inputs), and each column must sum to 1 (information is neither created nor destroyed). Together, these constraints ensure that residual mixing becomes convex averaging rather than amplification or attenuation.
@@ -371,7 +371,7 @@ $$
 \tilde{H}^{pre}_l &= \alpha^{pre}_l (\bar{x}_l \phi^{pre}_l) + b^{pre}_l \\
 \tilde{H}^{post}_l &= \alpha^{post}_l (\bar{x}_l \phi^{post}_l) + b^{post}_l \\
 \tilde{H}^{res}_l &= \alpha^{res}_l \text{mat}(\bar{x}_l \phi^{res}_l) + b^{res}_l
-\end{aligned} \tag{7}
+\end{aligned}
 $$
 
 The gating scalars $\alpha$ are initialized to small values, ensuring the network starts near safe, default behavior before learning to deviate. The projections $\phi$ are learnable weight matrices that map the normalized input to the space of routing parameters. The biases $b$ provide learned offsets that don't depend on the input.
@@ -387,7 +387,7 @@ $$
 H^{pre}_l &= \sigma(\tilde{H}^{pre}_l) \\
 H^{post}_l &= 2\sigma(\tilde{H}^{post}_l) \\
 H^{res}_l &= \text{Sinkhorn-Knopp}(\tilde{H}^{res}_l)
-\end{aligned} \tag{8}
+\end{aligned}
 $$
 
 The sigmoid function $\sigma$ squashes pre and post mappings to be non-negative and bounded, ensuring they represent valid mixing weights. The factor of 2 on $H^{post}$ allows it to amplify slightly, giving the network more expressive range.
@@ -399,7 +399,7 @@ The Sinkhorn-Knopp algorithm is the key innovation for $H^{res}$. It takes any r
 The algorithm starts with a positive matrix $M^{(0)} = \exp(\tilde{H}^{res})$ and alternates between normalizing columns and normalizing rows:
 
 $$
-M^{(t)} = T_r(T_c(M^{(t-1)})) \tag{9}
+M^{(t)} = T_r(T_c(M^{(t-1)}))
 $$
 
 Here $T_c$ divides each column by its sum, and $T_r$ divides each row by its sum. After enough iterations, both rows and columns sum to 1, giving an effectively doubly stochastic matrix. The algorithm converges quickly—typically just a few iterations suffice—and the entire process is differentiable, allowing end-to-end training.
