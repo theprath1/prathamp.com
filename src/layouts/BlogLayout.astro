@@ -28,8 +28,8 @@ const ogImage = `/og/blog/${slug}.png`;
 ---
 
 <BaseLayout title={frontmatter.title} description={frontmatter.description} type="article" image={ogImage}>
-  <div class="max-w-6xl mx-auto px-4 py-16 lg:grid lg:grid-cols-[1fr_220px] lg:gap-12">
-    <article>
+  <div class="max-w-6xl mx-auto px-4 py-16 overflow-x-clip lg:grid lg:grid-cols-[1fr_220px] lg:gap-12">
+    <article class="min-w-0">
     <header class="mb-12">
       <div class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-4">
         <time datetime={frontmatter.date.toISOString()}>
@@ -38,10 +38,10 @@ const ogImage = `/og/blog/${slug}.png`;
         <span>&middot;</span>
         <span>{readingTime(body)} min read</span>
       </div>
-      <h1 class="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
+      <h1 class="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4 break-words [overflow-wrap:anywhere]">
         {frontmatter.title}
       </h1>
-      <p class="text-xl text-gray-600 dark:text-gray-400 mb-6">{frontmatter.description}</p>
+      <p class="text-xl text-gray-600 dark:text-gray-400 mb-6 break-words [overflow-wrap:anywhere]">{frontmatter.description}</p>
       {
         frontmatter.tags && (
           <div class="flex flex-wrap gap-2">
