@@ -23,12 +23,24 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-x: clip;
   }
 
   body {
     @apply bg-gray-50 text-gray-900 antialiased;
     @apply dark:bg-gray-950 dark:text-gray-100;
+    max-width: 100%;
     overflow-x: hidden;
+    overflow-x: clip;
+  }
+
+  main {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-x: clip;
   }
 
   ::selection {
@@ -43,10 +55,13 @@
   /* Prevent flex/grid items from expanding beyond container */
   article {
     min-width: 0;
+    max-width: 100%;
   }
 
   .prose {
     min-width: 0;
+    width: 100%;
+    max-width: 100%;
     overflow-wrap: break-word;
   }
 
@@ -56,8 +71,13 @@
     word-break: break-word;
   }
 
+  .prose :where(a, :not(pre) > code) {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
   /* Ensure embedded/content blocks can never exceed viewport width */
-  .prose :where(pre, table, img, video, iframe, svg, canvas) {
+  .prose :where(pre, table, img, video, iframe, svg, canvas, .katex-display) {
     max-width: 100%;
   }
 
@@ -68,23 +88,33 @@
 
   /* KaTeX display math centering and overflow handling */
   .katex-display {
+    width: 100%;
     max-width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
     text-align: center;
     margin: 1rem 0;
+    box-sizing: border-box;
+    padding-bottom: 0.25rem;
   }
 
   /* Scale display math slightly down on narrow screens to reduce overflow */
   @media (max-width: 640px) {
     .katex-display > .katex {
-      font-size: 0.95em;
+      font-size: 0.92em;
+    }
+  }
+
+  @media (max-width: 420px) {
+    .katex-display > .katex {
+      font-size: 0.88em;
     }
   }
 
   .katex-display > .katex {
     text-align: center;
+    min-width: max-content;
   }
 
   /* Ensure prose container works with KaTeX */
@@ -96,7 +126,14 @@
   /* Make tables horizontally scrollable on small screens */
   .prose :where(table) {
     display: block;
+    width: 100%;
+    max-width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .prose :where(th, td) {
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 }

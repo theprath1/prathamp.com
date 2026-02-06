@@ -406,13 +406,6 @@ Skip paths become **learned weighted averages**. Forward signals are preserved, 
 
 ## 10. Summary
 
-| Architecture | Skip Path | Stability | Flexibility |
-|-------------|-----------|-----------|-------------|
-| Plain Network | None | Unstable | N/A |
-| ResNet | Fixed $I$ | Stable | None |
-| Hyper-Connections | Learned $H$ | Unstable | High |
-| mHC | Learned $H$ ∈ Birkhoff | Stable | High |
-
 The progression tells a clear story. Plain networks suffer from vanishing/exploding signals—the fundamental problem. ResNets fix this with identity skip paths, but sacrifice flexibility by hard-coding the skip behavior. Hyper-Connections learn the skip path, gaining flexibility but reintroducing instability. Finally, mHC constrains learned skip paths to doubly stochastic matrices, achieving both stability and flexibility.
 
 The mathematical elegance lies in recognizing that by constraining $H$ to lie on the manifold of doubly stochastic matrices (the Birkhoff polytope), we get the best of both worlds—learned routing that remains numerically stable across arbitrary depth.

@@ -77,7 +77,7 @@ By combining many high-bias weak learners (shallow trees) sequentially, Gradient
 The pseudo-residuals represent the negative gradient of the loss:
 
 $$
-r\_{im} = - \left. \frac{\partial L(y\_i, F(x\_i))}{\partial F(x\_i)} \right|\_{F(x)=F\_{m-1}(x)}
+r_{im} = - \left. \frac{\partial L(y_i, F(x_i))}{\partial F(x_i)} \right|_{F(x)=F_{m-1}(x)}
 $$
 
 ### Initialization (Stage 0)

@@ -416,12 +416,6 @@ This is exactly the design goal stated by the paper: restore identity mapping be
 
 ## 12. Summary
 
-| Architecture | Residual Stream | Carry/Skip Mapping | Multi-layer Product | Stability |
-|-------------|-----------------|-------------------|---------------------|-----------|
-| ResNet/Transformer | 1 stream ($x_l \in \mathbb{R}^C$) | Fixed identity $I$ | $I^L = I$ | Stable |
-| HC | n streams ($x_l \in \mathbb{R}^{n \times C}$) | Learned $H^{res}$ (unconstrained) | $\prod H^{res}$ can explode/vanish | Unstable at scale |
-| mHC | n streams ($x_l \in \mathbb{R}^{n \times C}$) | Learned $H^{res}$ ∈ Birkhoff polytope | Product stays doubly stochastic | Stable + expressive |
-
 The progression from ResNet to mHC tells a clear mathematical story. ResNets achieve stability through the trivial observation that $I^L = I$, but sacrifice flexibility by hard-coding the skip path. Hyper-Connections gain flexibility by learning the skip path, but the product $\prod H^{res}$ can grow or shrink exponentially, reintroducing the instability that residual connections were designed to solve. mHC threads the needle by constraining $H^{res}$ to doubly stochastic matrices, ensuring that products remain well-behaved while still allowing learned, input-dependent routing.
 
 The mathematical elegance lies in recognizing that doubly stochastic matrices form a convex set closed under multiplication—a "safe manifold" where learned skip paths can live without causing the pathologies that plague unconstrained HC.
