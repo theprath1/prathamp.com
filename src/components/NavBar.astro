@@ -1,5 +1,6 @@
 ---
 import { siteConfig } from "../config/site";
+import { isNavItemActive } from "../utils/isNavItemActive";
 
 const currentPath = Astro.url.pathname;
 ---
@@ -11,7 +12,7 @@ const currentPath = Astro.url.pathname;
         href={item.href}
         class:list={[
           "text-sm font-medium transition-colors",
-          currentPath === item.href || (item.href !== "/" && currentPath.startsWith(item.href))
+          isNavItemActive(currentPath, item.href)
             ? "text-primary-600 dark:text-primary-400"
             : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100",
         ]}
@@ -33,4 +34,3 @@ const currentPath = Astro.url.pathname;
     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
   </svg>
 </button>
-

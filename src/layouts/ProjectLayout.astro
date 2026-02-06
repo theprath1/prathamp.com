@@ -11,12 +11,14 @@ interface Props {
     live?: string;
     image?: string;
   };
+  slug: string;
 }
 
-const { frontmatter } = Astro.props;
+const { frontmatter, slug } = Astro.props;
+const ogImage = `/og/projects/${slug}.png`;
 ---
 
-<BaseLayout title={frontmatter.title} description={frontmatter.description}>
+<BaseLayout title={frontmatter.title} description={frontmatter.description} image={ogImage} type="article">
   <article class="max-w-4xl mx-auto px-4 py-16">
     <header class="mb-12">
       <h1 class="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
