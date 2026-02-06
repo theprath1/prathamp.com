@@ -69,11 +69,6 @@
     margin-right: 0;
   }
 
-  /* Keep equation tags inside the scrollable area */
-  .katex-display > .katex > .katex-html > .tag {
-    position: relative !important;
-  }
-
   /* Make tables horizontally scrollable on small screens */
   .prose :where(table) {
     display: block;
