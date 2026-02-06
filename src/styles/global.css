@@ -50,13 +50,37 @@
     overflow-wrap: break-word;
   }
 
+  /* Keep long titles/content from forcing horizontal overflow on mobile */
+  .prose :where(h1, h2, h3, h4, h5, h6, p, li) {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  /* Ensure embedded/content blocks can never exceed viewport width */
+  .prose :where(pre, table, img, video, iframe, svg, canvas) {
+    max-width: 100%;
+  }
+
+  .prose :where(pre) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   /* KaTeX display math centering and overflow handling */
   .katex-display {
+    max-width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
     text-align: center;
     margin: 1rem 0;
+  }
+
+  /* Scale display math slightly down on narrow screens to reduce overflow */
+  @media (max-width: 640px) {
+    .katex-display > .katex {
+      font-size: 0.95em;
+    }
   }
 
   .katex-display > .katex {
