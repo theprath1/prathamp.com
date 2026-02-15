@@ -257,15 +257,97 @@ $$
 \nabla_\theta \log P_\theta(\tau) = \sum_t \nabla_\theta \log \pi_\theta(a_t \mid s_t)
 $$
 
-**Step 5 — Final result.** Substituting back:
+**Step 5 — Substituting back.** This gives us:
 
 $$
-\boxed{\nabla_\theta J = \mathbb{E}_\tau \left[ R(\tau) \sum_t \nabla_\theta \log \pi_\theta(a_t \mid s_t) \right]}
+\nabla_\theta J = \mathbb{E}_\tau \left[ R(\tau) \sum_t \nabla_\theta \log \pi_\theta(a_t \mid s_t) \right]
 $$
 
-This is the **policy gradient theorem**. Compare it with the single-step formula: the structure is identical, but now we have a sum over time steps inside the expectation. Each time step contributes a $\nabla \log \pi$ term, and the whole thing is weighted by the total trajectory reward $R(\tau)$.
+This is already a valid policy gradient formula — it is correct and you could use it as-is. But it has a problem: every action in the trajectory is weighted by the *total* reward $R(\tau)$, including rewards that happened *before* that action was taken. An action at time step $t$ cannot possibly have caused a reward at time step $k < t$, so those past rewards are adding noise to the gradient without providing useful signal. We can do better.
 
-The key insight from this derivation is that we never needed to know the environment's transition dynamics. The environment terms dropped out when we took the derivative. This is what makes policy gradient methods so general — they work even when you have no model of the environment, as long as you can run episodes and observe rewards.
+### From total reward to per-time-step credit
+
+Recall that $R(\tau) = \sum_{k=0}^{T} r_k$. Substituting this into the gradient:
+
+$$
+\nabla_\theta J = \mathbb{E}_\tau \left[ \left(\sum_{k=0}^{T} r_k\right) \left(\sum_{t=0}^{T} \nabla_\theta \log \pi_\theta(a_t \mid s_t)\right) \right]
+$$
+
+Expanding the product of these two sums gives a double sum — every reward term $r_k$ multiplies every gradient term $\nabla \log \pi_\theta(a_t \mid s_t)$:
+
+$$
+= \mathbb{E}_\tau \left[ \sum_{t=0}^{T} \sum_{k=0}^{T} r_k \nabla_\theta \log \pi_\theta(a_t \mid s_t) \right]
+$$
+
+For each time step $t$, we can split the inner sum over $k$ into past rewards ($k < t$) and present-or-future rewards ($k \geq t$):
+
+$$
+\nabla_\theta J = \mathbb{E}_\tau \left[ \sum_{t=0}^{T} \left(\sum_{k < t} r_k + \sum_{k \geq t} r_k \right) \nabla_\theta \log \pi_\theta(a_t \mid s_t) \right]
+$$
+
+Now comes the key observation: for a fixed time step $t$, the rewards $r_k$ with $k < t$ happened in the past. They were determined by earlier actions and do not depend on the action $a_t$ at all. So the past-reward terms can be factored out of the expectation over $a_t$, leaving only $\mathbb{E}_{a_t}[\nabla_\theta \log \pi_\theta(a_t \mid s_t)]$ behind. We need to show that this expectation is zero.
+
+### The score function identity
+
+For any probability distribution, the expected value of the gradient of its log-probability is zero:
+
+$$
+\mathbb{E}_{a \sim \pi_\theta}\left[ \nabla_\theta \log \pi_\theta(a) \right] = 0
+$$
+
+The proof is short. Start from the fact that probabilities sum to 1:
+
+$$
+\sum_a \pi_\theta(a) = 1
+$$
+
+Differentiate both sides with respect to $\theta$:
+
+$$
+\sum_a \nabla_\theta \pi_\theta(a) = 0
+$$
+
+Now apply the log trick — replace $\nabla \pi$ with $\pi \nabla \log \pi$:
+
+$$
+\sum_a \pi_\theta(a) \nabla_\theta \log \pi_\theta(a) = 0
+$$
+
+But the left side is exactly $\mathbb{E}_{a \sim \pi_\theta}[\nabla_\theta \log \pi_\theta(a)]$. So the identity holds. This is pure calculus — it follows directly from the constraint that probabilities must sum to 1.
+
+### Applying the identity
+
+Consider the past-reward contribution to the gradient at time step $t$:
+
+$$
+\mathbb{E}_\tau \left[ \sum_{k < t} r_k \cdot \nabla_\theta \log \pi_\theta(a_t \mid s_t) \right]
+$$
+
+The rewards $r_k$ for $k < t$ are already determined by the time we reach step $t$ — they depend on earlier states and actions, not on $a_t$. So with respect to the expectation over $a_t$, the past rewards are constants that can be factored out:
+
+$$
+= \mathbb{E}_{\tau \setminus a_t} \left[ \sum_{k < t} r_k \cdot \mathbb{E}_{a_t \sim \pi_\theta(\cdot \mid s_t)} \left[ \nabla_\theta \log \pi_\theta(a_t \mid s_t) \right] \right]
+$$
+
+By the score function identity we just proved, the inner expectation is zero. So the entire expression vanishes:
+
+$$
+\mathbb{E}_\tau \left[ \sum_{k < t} r_k \cdot \nabla_\theta \log \pi_\theta(a_t \mid s_t) \right] = 0
+$$
+
+Past rewards contribute nothing to the gradient. Only future rewards matter.
+
+### The refined policy gradient theorem
+
+Dropping the past-reward terms and defining $R_t := \sum_{k \geq t} r_k$ as the **reward-to-go** from time step $t$ onward, we obtain:
+
+$$
+\boxed{\nabla_\theta J = \mathbb{E}_\tau \left[ \sum_{t=0}^{T} R_t \nabla_\theta \log \pi_\theta(a_t \mid s_t) \right]}
+$$
+
+This is the refined form of the **policy gradient theorem**. Each action at time $t$ is weighted only by the rewards that occur at or after time $t$ — never by rewards from the past. Compared to the total-reward version, this form has the same expected value (it is still unbiased) but lower variance, because we have removed the noise contributed by past rewards that the action could not have influenced.
+
+The key insight from the full derivation is that we never needed to know the environment's transition dynamics. The environment terms dropped out when we took the derivative. This is what makes policy gradient methods so general — they work even when you have no model of the environment, as long as you can run episodes and observe rewards.
 
 ---
 
@@ -277,10 +359,10 @@ The policy gradient formula tells us the direction to update $\theta$, but it is
 
 The idea is to **sample** trajectories by actually running the policy, then use those samples to estimate the gradient. The procedure, known as **REINFORCE**, works as follows.
 
-First, fix the current policy parameters $\theta$. Then generate $N$ trajectories by running the policy in the environment: $\tau_1, \tau_2, \ldots, \tau_N$. For each trajectory, compute the total reward $R(\tau_i)$ and the gradient terms $\nabla_\theta \log \pi_\theta(a_t^{(i)} \mid s_t^{(i)})$ at every time step. The gradient estimate is:
+First, fix the current policy parameters $\theta$. Then generate $N$ trajectories by running the policy in the environment: $\tau_1, \tau_2, \ldots, \tau_N$. For each trajectory and each time step $t$, compute the reward-to-go $R_t^{(i)} = \sum_{k \geq t} r_k^{(i)}$ and the gradient term $\nabla_\theta \log \pi_\theta(a_t^{(i)} \mid s_t^{(i)})$. The gradient estimate is:
 
 $$
-\widehat{\nabla J} = \frac{1}{N} \sum_{i=1}^{N} R(\tau_i) \sum_t \nabla_\theta \log \pi_\theta(a_t^{(i)} \mid s_t^{(i)})
+\widehat{\nabla J} = \frac{1}{N} \sum_{i=1}^{N} \sum_t R_t^{(i)} \nabla_\theta \log \pi_\theta(a_t^{(i)} \mid s_t^{(i)})
 $$
 
 Finally, update the parameters using gradient ascent: $\theta \leftarrow \theta + \alpha \widehat{\nabla J}$, where $\alpha$ is the learning rate. Then repeat the whole process — fix the new $\theta$, sample fresh trajectories, estimate the gradient, update.
@@ -299,7 +381,7 @@ This means that even though any single estimate might be noisy (because we only 
 
 ### Intuition
 
-Each sampled trajectory contributes the term $R(\tau_i) \cdot \nabla_\theta \log P_\theta(\tau_i)$ to the gradient estimate. If a trajectory earned a high reward, this term pushes the parameters $\theta$ in a direction that makes that trajectory more probable under the policy. If a trajectory earned zero reward, it contributes nothing — the policy is not pushed towards or away from it. Over many samples, trajectories that led to good outcomes get reinforced (made more likely), while trajectories that led to poor outcomes are effectively ignored. This is the fundamental mechanism of policy gradient methods, and it is why the field is called *reinforcement* learning — good behaviour is reinforced through probability increases.
+For each action in a sampled trajectory, the gradient estimate includes the term $R_t \cdot \nabla_\theta \log \pi_\theta(a_t \mid s_t)$. If the reward-to-go from that point onward is large, this term pushes the parameters $\theta$ in a direction that makes that action more probable in that state. If the reward-to-go is zero, the action contributes nothing to the gradient. Over many samples, trajectories that led to good outcomes get reinforced (made more likely), while trajectories that led to poor outcomes are effectively ignored. This is the fundamental mechanism of policy gradient methods, and it is why the field is called *reinforcement* learning — good behaviour is reinforced through probability increases.
 
 ---
 
