@@ -3,9 +3,16 @@ import NavBar from "./NavBar.astro";
 import ThemeToggle from "./ThemeToggle.astro";
 import Search from "./Search.astro";
 import { siteConfig } from "../config/site";
+
+interface Props {
+  showScrollProgress?: boolean;
+  progressTarget?: string;
+}
+
+const { showScrollProgress = false, progressTarget = "article" } = Astro.props;
 ---
 
-<header class="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800">
+<header class="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 relative">
   <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
     <a href="/" class="text-xl font-bold text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
       {siteConfig.name}
@@ -16,4 +23,81 @@ import { siteConfig } from "../config/site";
       <ThemeToggle />
     </div>
   </div>
+  {
+    showScrollProgress && (
+      <div class="absolute inset-x-0 bottom-0 h-0.5 pointer-events-none" aria-hidden="true">
+        <div
+          id="scroll-progress-bar"
+          class="h-full w-0 bg-primary-600 dark:bg-primary-400"
+          data-target={progressTarget}
+        ></div>
+      </div>
+    )
+  }
 </header>
+
+{
+  showScrollProgress && (
+    <script is:inline>
+      (() => {
+        const cleanupKey = "__scrollProgressCleanup";
+
+        function clamp(value, min, max) {
+          return Math.min(Math.max(value, min), max);
+        }
+
+        function resolveProgress(targetSelector) {
+          const target = document.querySelector(targetSelector);
+          if (!target) {
+            const doc = document.documentElement;
+            const maxScroll = doc.scrollHeight - doc.clientHeight;
+            if (maxScroll <= 0) return 0;
+            return (doc.scrollTop / maxScroll) * 100;
+          }
+
+          const targetTop = target.getBoundingClientRect().top + window.scrollY;
+          const maxScrollable = Math.max(target.scrollHeight - window.innerHeight, 1);
+          const consumed = clamp(window.scrollY - targetTop, 0, maxScrollable);
+          return (consumed / maxScrollable) * 100;
+        }
+
+        function setupScrollProgress() {
+          const existingCleanup = window[cleanupKey];
+          if (typeof existingCleanup === "function") {
+            existingCleanup();
+          }
+
+          const bar = document.getElementById("scroll-progress-bar");
+          if (!bar) return;
+
+          const targetSelector = bar.dataset.target || "article";
+          let rafId = 0;
+
+          const update = () => {
+            rafId = 0;
+            const progress = resolveProgress(targetSelector);
+            bar.style.width = `${progress}%`;
+          };
+
+          const onScroll = () => {
+            if (rafId) return;
+            rafId = window.requestAnimationFrame(update);
+          };
+
+          window.addEventListener("scroll", onScroll, { passive: true });
+          window.addEventListener("resize", onScroll);
+          update();
+
+          window[cleanupKey] = () => {
+            if (rafId) window.cancelAnimationFrame(rafId);
+            window.removeEventListener("scroll", onScroll);
+            window.removeEventListener("resize", onScroll);
+          };
+        }
+
+        setupScrollProgress();
+        document.addEventListener("astro:after-swap", setupScrollProgress);
+      })();
+    </script>
+  )
+}

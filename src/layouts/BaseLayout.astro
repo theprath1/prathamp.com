@@ -10,9 +10,18 @@ interface Props {
   description?: string;
   image?: string;
   type?: "website" | "article";
+  showScrollProgress?: boolean;
+  progressTarget?: string;
 }
 
-const { title, description, image, type = "website" } = Astro.props;
+const {
+  title,
+  description,
+  image,
+  type = "website",
+  showScrollProgress = false,
+  progressTarget = "article",
+} = Astro.props;
 const pageTitle = title ? `${title} | ${siteConfig.name}` : siteConfig.title;
 const pageDescription = description || siteConfig.description;
 const canonicalURL = new URL(Astro.url.pathname, siteConfig.url);
@@ -85,7 +94,7 @@ const currentPath = Astro.url.pathname;
     </script>
   </head>
   <body class="min-h-screen flex flex-col">
-    <Header />
+    <Header showScrollProgress={showScrollProgress} progressTarget={progressTarget} />
     <!-- Mobile menu - outside header to avoid stacking context issues -->
     <div
       id="mobile-menu"
