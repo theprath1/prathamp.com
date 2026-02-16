@@ -554,7 +554,11 @@ The estimator $g_N^b(x)$ is unbiased, but it can have high variance — especial
 Define:
 
 $$
-g_N^e(x) = \frac{1}{K} \sum_{i=1}^{N} r_i S_i - \frac{1}{N} \sum_{i=1}^{N} S_i
+g_N^e(x) = g_N^b(x) - \frac{1}{N} \sum_{i=1}^{N} S_i
+= \begin{cases}
+\frac{1}{K} \sum_{i=1}^{N} r_i S_i - \frac{1}{N} \sum_{i=1}^{N} S_i & \text{if } K \geq 1 \\
+- \frac{1}{N} \sum_{i=1}^{N} S_i & \text{if } K = 0
+\end{cases}
 $$
 
 The first term is the original divide-by-$K$ estimator. The second term is the average of all score functions across the entire batch — both successes and failures. This second term is the **control variate**.
@@ -611,11 +615,13 @@ The intuition for why $\frac{1}{N} \sum S_i$ correlates with $\frac{1}{K} \sum r
 
 ### Compact form
 
-The paper also writes the estimator in a combined form:
+The paper also writes the estimator in a combined form (for $K \geq 1$):
 
 $$
 g_N^e(x) = \sum_{i=1}^{N} \left( \frac{r_i}{K} - \frac{1}{N} \right) S_i
 $$
+
+When $K = 0$, use the piecewise definition above (equivalently, adopt the convention $\frac{r_i}{K} := 0$ in that case).
 
 This follows from distributing the sums:
 
