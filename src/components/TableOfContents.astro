@@ -43,6 +43,15 @@ const toc = headings.filter((h) => h.depth >= 2 && h.depth <= 3);
     const tocLinks = document.querySelectorAll('.toc-link');
     if (tocLinks.length === 0) return;
 
+    // Sync TOC text with the rendered headings so math/HTML renders correctly.
+    tocLinks.forEach((link) => {
+      const id = link.getAttribute('data-heading');
+      if (!id) return;
+      const heading = document.getElementById(id);
+      if (!heading) return;
+      link.innerHTML = heading.innerHTML;
+    });
+
     const headings = Array.from(tocLinks).map(link => {
       const id = link.getAttribute('data-heading');
       return document.getElementById(id);
