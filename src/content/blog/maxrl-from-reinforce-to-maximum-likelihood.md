@@ -5,7 +5,7 @@ date: 2026-02-16
 tags: [reinforcement-learning, machine-learning, policy-gradient, mathematics]
 ---
 
-This post explains the core ideas behind the [MaxRL paper](https://arxiv.org/abs/2502.07834) — a surprisingly clean result that connects Reinforcement Learning, maximum likelihood training, and pass@k evaluation through a single mathematical identity. We will derive everything from scratch using one running example, the same way we built RL from the ground up in the previous posts.
+This post explains the core ideas behind the [MaxRL paper](https://arxiv.org/abs/2602.02710) — a surprisingly clean result that connects Reinforcement Learning, maximum likelihood training, and pass@k evaluation through a single mathematical identity. We will derive everything from scratch using one running example, the same way we built RL from the ground up in the previous posts.
 
 If you haven't read [Mathematical Prerequisites for Reinforcement Learning](/blog/math-prerequisites-for-rl) and [Reinforcement Learning from Scratch](/blog/reinforcement-learning-from-scratch), start there — we will use the same tools (expected value, the log trick, Monte Carlo estimation, and the policy gradient) throughout this post.
 
@@ -137,31 +137,53 @@ $$
 \log p_\theta(x) = - \sum_{k=1}^{\infty} \frac{(1-p_\theta(x))^k}{k}
 $$
 
-Focus on one term and differentiate:
+Focus on one term and differentiate. We want:
 
 $$
 \nabla_\theta \left( -\frac{(1 - p_\theta(x))^k}{k} \right)
 $$
 
-Using the chain rule, the derivative of $(1 - p_\theta(x))^k$ is $k(1 - p_\theta(x))^{k-1} \cdot (-\nabla_\theta p_\theta(x))$. Multiplying by $-1/k$:
+First, differentiate the inner expression $(1 - p_\theta(x))^k$ using the chain rule. Let $u = 1 - p_\theta(x)$, so we need $\nabla_\theta u^k$. The chain rule gives:
 
 $$
--\frac{1}{k} \cdot k(1 - p_\theta(x))^{k-1}(-\nabla_\theta p_\theta(x)) = (1 - p_\theta(x))^{k-1} \nabla_\theta p_\theta(x)
+\nabla_\theta (1 - p_\theta(x))^k = k(1 - p_\theta(x))^{k-1} \cdot \nabla_\theta(1 - p_\theta(x)) = k(1 - p_\theta(x))^{k-1} \cdot (-\nabla_\theta p_\theta(x))
 $$
 
-The $k$ in the numerator cancels the $k$ in the denominator. Summing over all $k$:
+Now multiply by the outer factor $-1/k$:
+
+$$
+\nabla_\theta \left( -\frac{(1 - p_\theta(x))^k}{k} \right) = -\frac{1}{k} \cdot k(1 - p_\theta(x))^{k-1} \cdot (-\nabla_\theta p_\theta(x))
+$$
+
+The $k$ in the numerator from the chain rule cancels the $k$ in the denominator from the $1/k$ factor. The two minus signs also cancel. What remains is:
+
+$$
+= (1 - p_\theta(x))^{k-1} \nabla_\theta p_\theta(x)
+$$
+
+Now sum over all $k$ from 1 to $\infty$:
 
 $$
 \nabla_\theta \log p_\theta(x) = \sum_{k=1}^{\infty} (1 - p_\theta(x))^{k-1} \nabla_\theta p_\theta(x)
 $$
 
-Now recall that $\text{pass@}k = 1 - (1 - p_\theta(x))^k$. Differentiating:
+We can connect each term in this sum to pass@$k$. Recall that $\text{pass@}k = 1 - (1 - p_\theta(x))^k$. Differentiating this with the same chain rule approach:
 
 $$
-\nabla_\theta \text{pass@}k = k(1 - p_\theta(x))^{k-1} \nabla_\theta p_\theta(x)
+\nabla_\theta \text{pass@}k = \nabla_\theta \left(1 - (1 - p_\theta(x))^k\right) = -k(1 - p_\theta(x))^{k-1} \cdot (-\nabla_\theta p_\theta(x))
 $$
 
-So $(1 - p_\theta(x))^{k-1} \nabla_\theta p_\theta(x) = \frac{1}{k} \nabla_\theta \text{pass@}k$. Substituting into the gradient:
+$$
+= k(1 - p_\theta(x))^{k-1} \nabla_\theta p_\theta(x)
+$$
+
+From this we can solve for the factor that appears in our gradient sum:
+
+$$
+(1 - p_\theta(x))^{k-1} \nabla_\theta p_\theta(x) = \frac{1}{k} \nabla_\theta \text{pass@}k
+$$
+
+Substituting this into the gradient:
 
 $$
 \boxed{\nabla_\theta \log p_\theta(x) = \sum_{k=1}^{\infty} \frac{1}{k} \nabla_\theta \text{pass@}k}
@@ -201,27 +223,55 @@ $$
 \nabla_\theta p_\theta(x) = \nabla_\theta \sum_{z \in \mathcal{S}} m_\theta(z \mid x) = \sum_{z \in \mathcal{S}} \nabla_\theta m_\theta(z \mid x)
 $$
 
-The gradient passes inside the sum because differentiation is linear. Now apply the log-derivative identity — the same log trick from the previous posts. We derived in Part 1 that $\nabla_\theta m = m \cdot \nabla_\theta \log m$, so:
+The gradient passes inside the sum because differentiation is linear. Now apply the log-derivative identity — the same log trick from the previous posts. For any function $m_\theta$:
+
+$$
+\nabla_\theta \log m_\theta(z \mid x) = \frac{1}{m_\theta(z \mid x)} \nabla_\theta m_\theta(z \mid x)
+$$
+
+Multiply both sides by $m_\theta(z \mid x)$:
+
+$$
+m_\theta(z \mid x) \cdot \nabla_\theta \log m_\theta(z \mid x) = \nabla_\theta m_\theta(z \mid x)
+$$
+
+This lets us replace each $\nabla_\theta m_\theta(z \mid x)$ in the sum:
 
 $$
 \nabla_\theta p_\theta(x) = \sum_{z \in \mathcal{S}} m_\theta(z \mid x) \nabla_\theta \log m_\theta(z \mid x)
 $$
 
-To get the gradient of $\log p_\theta(x)$ rather than $p_\theta(x)$, apply the chain rule for logarithms:
+We want $\nabla_\theta \log p_\theta(x)$, not $\nabla_\theta p_\theta(x)$. The chain rule for logarithms says $\nabla_\theta \log u = \frac{1}{u} \nabla_\theta u$, so:
 
 $$
-\nabla_\theta \log p_\theta(x) = \frac{1}{p_\theta(x)} \nabla_\theta p_\theta(x) = \frac{1}{p_\theta(x)} \sum_{z \in \mathcal{S}} m_\theta(z \mid x) \nabla_\theta \log m_\theta(z \mid x)
+\nabla_\theta \log p_\theta(x) = \frac{1}{p_\theta(x)} \nabla_\theta p_\theta(x)
 $$
 
-Now recognize that $\frac{m_\theta(z \mid x)}{p_\theta(x)}$ is the conditional probability of output $z$ given that it is correct:
+Now substitute the expression for $\nabla_\theta p_\theta(x)$ that we just derived:
+
+$$
+= \frac{1}{p_\theta(x)} \sum_{z \in \mathcal{S}} m_\theta(z \mid x) \nabla_\theta \log m_\theta(z \mid x)
+$$
+
+We can push the $\frac{1}{p_\theta(x)}$ inside the sum and group it with $m_\theta(z \mid x)$:
+
+$$
+= \sum_{z \in \mathcal{S}} \frac{m_\theta(z \mid x)}{p_\theta(x)} \nabla_\theta \log m_\theta(z \mid x)
+$$
+
+Now recognize what $\frac{m_\theta(z \mid x)}{p_\theta(x)}$ means. The definition of conditional probability says:
+
+$$
+\Pr(z \mid \mathcal{S}) = \frac{\Pr(z \text{ and } \mathcal{S})}{\Pr(\mathcal{S})}
+$$
+
+If $z \in \mathcal{S}$, then choosing output $z$ automatically means success, so the event "$z$ and success" is just the event "$z$". Therefore $\Pr(z \text{ and } \mathcal{S}) = m_\theta(z \mid x)$. And $\Pr(\mathcal{S}) = p_\theta(x)$. So:
 
 $$
 m_\theta(z \mid x, \mathcal{S}) = \frac{m_\theta(z \mid x)}{p_\theta(x)} \quad \text{for } z \in \mathcal{S}
 $$
 
-This is just Bayes' rule. If $z \in \mathcal{S}$, then the event "$z$ and success" is the same as the event "$z$" (because choosing this $z$ automatically means success). So $\Pr(z \text{ and } \mathcal{S}) = m_\theta(z \mid x)$, and dividing by $\Pr(\mathcal{S}) = p_\theta(x)$ gives the conditional probability.
-
-Substituting:
+Substituting this into our expression:
 
 $$
 \nabla_\theta \log p_\theta(x) = \sum_{z \in \mathcal{S}} m_\theta(z \mid x, \mathcal{S}) \nabla_\theta \log m_\theta(z \mid x)
@@ -237,7 +287,39 @@ The ML gradient is the expected score function, conditioned on the output being 
 
 ### Numerical check
 
-In our running example, $\mathcal{S} = \{A\}$ and $p_\theta(x) = 0.1$. The conditional distribution given success puts all its mass on $A$: $m_\theta(A \mid x, \mathcal{S}) = 1$. So the conditional expectation is just $\nabla_\theta \log m_\theta(A \mid x)$. Meanwhile, $\nabla_\theta \log p_\theta(x) = \frac{1}{p_\theta(x)} \nabla_\theta p_\theta(x) = \frac{1}{0.1} \nabla_\theta m_\theta(A \mid x)$. Using the log trick, $\nabla_\theta m_\theta(A \mid x) = m_\theta(A \mid x) \nabla_\theta \log m_\theta(A \mid x) = 0.1 \cdot \nabla_\theta \log m_\theta(A \mid x)$. So $\frac{1}{0.1} \cdot 0.1 \cdot \nabla_\theta \log m_\theta(A \mid x) = \nabla_\theta \log m_\theta(A \mid x)$. Both sides match.
+In our running example, $\mathcal{S} = \{A\}$ and $p_\theta(x) = 0.1$. Let's verify both sides of the boxed identity match.
+
+**Right side (conditional expectation).** The conditional distribution given success puts all its mass on $A$, because $A$ is the only correct output:
+
+$$
+m_\theta(A \mid x, \mathcal{S}) = \frac{m_\theta(A \mid x)}{p_\theta(x)} = \frac{0.1}{0.1} = 1
+$$
+
+So the conditional expectation has only one term:
+
+$$
+\mathbb{E}[\nabla_\theta \log m_\theta(z \mid x) \mid \mathcal{S}] = 1 \cdot \nabla_\theta \log m_\theta(A \mid x) = \nabla_\theta \log m_\theta(A \mid x)
+$$
+
+**Left side ($\nabla_\theta \log p_\theta(x)$).** Start from the chain rule:
+
+$$
+\nabla_\theta \log p_\theta(x) = \frac{1}{p_\theta(x)} \nabla_\theta p_\theta(x) = \frac{1}{0.1} \nabla_\theta m_\theta(A \mid x)
+$$
+
+Now apply the log trick to rewrite $\nabla_\theta m_\theta(A \mid x)$:
+
+$$
+\nabla_\theta m_\theta(A \mid x) = m_\theta(A \mid x) \cdot \nabla_\theta \log m_\theta(A \mid x) = 0.1 \cdot \nabla_\theta \log m_\theta(A \mid x)
+$$
+
+Substituting back:
+
+$$
+\nabla_\theta \log p_\theta(x) = \frac{1}{0.1} \cdot 0.1 \cdot \nabla_\theta \log m_\theta(A \mid x) = \nabla_\theta \log m_\theta(A \mid x)
+$$
+
+Both sides give $\nabla_\theta \log m_\theta(A \mid x)$. The identity checks out.
 
 ---
 
@@ -309,10 +391,22 @@ $$
 \mathbb{E}[g_N^b(x)] = N \cdot \mathbb{E}\left[ \frac{r_1 S_1}{K} \right]
 $$
 
-**Step 2 — Condition on sample 1.** If $r_1 = 0$, the numerator $r_1 S_1$ is zero, so only the event $r_1 = 1$ contributes:
+**Step 2 — Condition on sample 1.** We split the expectation into two cases using the law of total expectation:
 
 $$
-\mathbb{E}\left[ \frac{r_1 S_1}{K} \right] = \Pr(r_1 = 1) \cdot \mathbb{E}\left[ \frac{S_1}{K} \ \middle|\ r_1 = 1 \right] = p_\theta(x) \cdot \mathbb{E}\left[ \frac{S_1}{K} \ \middle|\ r_1 = 1 \right]
+\mathbb{E}\left[ \frac{r_1 S_1}{K} \right] = \Pr(r_1 = 1) \cdot \mathbb{E}\left[ \frac{r_1 S_1}{K} \ \middle|\ r_1 = 1 \right] + \Pr(r_1 = 0) \cdot \mathbb{E}\left[ \frac{r_1 S_1}{K} \ \middle|\ r_1 = 0 \right]
+$$
+
+When $r_1 = 0$, the numerator $r_1 S_1 = 0 \cdot S_1 = 0$, so the entire second term vanishes. When $r_1 = 1$, we have $r_1 S_1 = S_1$. So:
+
+$$
+\mathbb{E}\left[ \frac{r_1 S_1}{K} \right] = \Pr(r_1 = 1) \cdot \mathbb{E}\left[ \frac{S_1}{K} \ \middle|\ r_1 = 1 \right]
+$$
+
+Since $\Pr(r_1 = 1) = p_\theta(x)$:
+
+$$
+= p_\theta(x) \cdot \mathbb{E}\left[ \frac{S_1}{K} \ \middle|\ r_1 = 1 \right]
 $$
 
 **Step 3 — Split $K$ into sample 1 and the rest.** When $r_1 = 1$, the total number of successes is $K = 1 + K_{-1}$, where $K_{-1} = \sum_{i=2}^{N} r_i$ counts successes among the other $N - 1$ samples. Since the samples are independent, $S_1$ (which depends only on $z_1$) is independent of $K_{-1}$ (which depends only on $z_2, \ldots, z_N$). So the expectation factors:
@@ -321,19 +415,49 @@ $$
 \mathbb{E}\left[ \frac{S_1}{1 + K_{-1}} \ \middle|\ r_1 = 1 \right] = \mathbb{E}[S_1 \mid r_1 = 1] \cdot \mathbb{E}\left[ \frac{1}{1 + K_{-1}} \right]
 $$
 
-**Step 4 — Recognize $p_\theta(x) \cdot \mathbb{E}[S_1 \mid r_1 = 1] = \nabla_\theta p_\theta(x)$.** This follows from the single-sample policy gradient identity. For one sample $z \sim m_\theta(\cdot \mid x)$ with $r = \mathbf{1}\{z \in \mathcal{S}\}$ and $S = \nabla_\theta \log m_\theta(z \mid x)$:
+**Step 4 — Recognize $p_\theta(x) \cdot \mathbb{E}[S_1 \mid r_1 = 1] = \nabla_\theta p_\theta(x)$.** This follows from the single-sample policy gradient identity, which we derive now. Take one sample $z \sim m_\theta(\cdot \mid x)$ with $r = \mathbf{1}\{z \in \mathcal{S}\}$ and $S = \nabla_\theta \log m_\theta(z \mid x)$. Write out $\mathbb{E}[rS]$ as a sum over all outputs:
 
 $$
-\mathbb{E}[rS] = \sum_{z \in \mathcal{S}} m_\theta(z \mid x) \nabla_\theta \log m_\theta(z \mid x) = \sum_{z \in \mathcal{S}} \nabla_\theta m_\theta(z \mid x) = \nabla_\theta p_\theta(x)
+\mathbb{E}[rS] = \sum_z m_\theta(z \mid x) \cdot r(x, z) \cdot \nabla_\theta \log m_\theta(z \mid x)
 $$
 
-The first equality restricts to successes (since $r = 0$ elsewhere), the second uses the log trick in reverse, and the third uses the definition of $p_\theta(x)$. But also $\mathbb{E}[rS] = \Pr(r=1) \cdot \mathbb{E}[S \mid r=1] = p_\theta(x) \cdot \mathbb{E}[S \mid r=1]$. Combining:
+Since $r(x, z) = 0$ for $z \notin \mathcal{S}$, the sum reduces to correct outputs only:
+
+$$
+= \sum_{z \in \mathcal{S}} m_\theta(z \mid x) \cdot \nabla_\theta \log m_\theta(z \mid x)
+$$
+
+Apply the log trick in reverse — replace $m \cdot \nabla \log m$ with $\nabla m$:
+
+$$
+= \sum_{z \in \mathcal{S}} \nabla_\theta m_\theta(z \mid x)
+$$
+
+Pull the gradient outside the sum:
+
+$$
+= \nabla_\theta \sum_{z \in \mathcal{S}} m_\theta(z \mid x) = \nabla_\theta p_\theta(x)
+$$
+
+So we have established that $\mathbb{E}[rS] = \nabla_\theta p_\theta(x)$. But we can also decompose $\mathbb{E}[rS]$ using the law of total expectation:
+
+$$
+\mathbb{E}[rS] = \Pr(r = 1) \cdot \mathbb{E}[S \mid r = 1] + \Pr(r = 0) \cdot \mathbb{E}[0 \cdot S \mid r = 0]
+$$
+
+The second term vanishes because $r = 0$ zeroes it out. So:
+
+$$
+\mathbb{E}[rS] = p_\theta(x) \cdot \mathbb{E}[S \mid r = 1]
+$$
+
+Combining both expressions for $\mathbb{E}[rS]$:
 
 $$
 p_\theta(x) \cdot \mathbb{E}[S_1 \mid r_1 = 1] = \nabla_\theta p_\theta(x)
 $$
 
-Substituting into our expression:
+Now substitute this, along with the result from Step 3, into our running expression:
 
 $$
 \mathbb{E}[g_N^b(x)] = N \cdot \nabla_\theta p_\theta(x) \cdot \mathbb{E}\left[ \frac{1}{1 + K_{-1}} \right]
@@ -359,16 +483,28 @@ $$
 \mathbb{E}\left[ \frac{1}{1 + K_{-1}} \right] = \int_0^1 \sum_{j=0}^{N-1} \binom{N-1}{j} (p_\theta(x) \cdot t)^j (1 - p_\theta(x))^{N-1-j} \, dt
 $$
 
-The sum inside the integral is a binomial expansion — it equals $((1 - p_\theta(x)) + p_\theta(x) \cdot t)^{N-1}$. So:
+The sum inside the integral has the form $\sum_{j=0}^{n} \binom{n}{j} a^j b^{n-j}$ with $n = N-1$, $a = p_\theta(x) \cdot t$, and $b = 1 - p_\theta(x)$. By the binomial theorem, this equals $(a + b)^n = ((1 - p_\theta(x)) + p_\theta(x) \cdot t)^{N-1}$. So:
 
 $$
 \mathbb{E}\left[ \frac{1}{1 + K_{-1}} \right] = \int_0^1 \left( (1 - p_\theta(x)) + p_\theta(x) \cdot t \right)^{N-1} dt
 $$
 
-To evaluate this integral, substitute $u = (1 - p_\theta(x)) + p_\theta(x) \cdot t$, so $du = p_\theta(x) \, dt$. When $t = 0$, $u = 1 - p_\theta(x)$. When $t = 1$, $u = 1$. The integral becomes:
+To evaluate this integral, substitute $u = (1 - p_\theta(x)) + p_\theta(x) \cdot t$. Then $du = p_\theta(x) \, dt$, which means $dt = \frac{du}{p_\theta(x)}$. The limits change: when $t = 0$, $u = 1 - p_\theta(x)$; when $t = 1$, $u = (1 - p_\theta(x)) + p_\theta(x) = 1$. The integral becomes:
 
 $$
-\frac{1}{p_\theta(x)} \int_{1 - p_\theta(x)}^{1} u^{N-1} \, du = \frac{1}{p_\theta(x)} \left[ \frac{u^N}{N} \right]_{1 - p_\theta(x)}^{1} = \frac{1 - (1 - p_\theta(x))^N}{N \cdot p_\theta(x)}
+\int_0^1 \left( (1 - p_\theta(x)) + p_\theta(x) \cdot t \right)^{N-1} dt = \frac{1}{p_\theta(x)} \int_{1 - p_\theta(x)}^{1} u^{N-1} \, du
+$$
+
+Now integrate $u^{N-1}$:
+
+$$
+= \frac{1}{p_\theta(x)} \left[ \frac{u^N}{N} \right]_{1 - p_\theta(x)}^{1} = \frac{1}{p_\theta(x)} \cdot \frac{1^N - (1 - p_\theta(x))^N}{N}
+$$
+
+Since $1^N = 1$:
+
+$$
+= \frac{1 - (1 - p_\theta(x))^N}{N \cdot p_\theta(x)}
 $$
 
 **Step 6 — Combine everything.** Plugging back:
@@ -383,7 +519,13 @@ $$
 \mathbb{E}[g_N^b(x)] = \frac{1 - (1 - p_\theta(x))^N}{p_\theta(x)} \cdot \nabla_\theta p_\theta(x)
 $$
 
-Now use the geometric series identity. For any $q \neq 1$, $\frac{1 - q^N}{1 - q} = \sum_{k=1}^{N} q^{k-1}$. Here $q = 1 - p_\theta(x)$ and $1 - q = p_\theta(x)$, so:
+Now use the finite geometric series identity. For any $q \neq 1$:
+
+$$
+1 + q + q^2 + \cdots + q^{N-1} = \sum_{k=1}^{N} q^{k-1} = \frac{1 - q^N}{1 - q}
+$$
+
+Set $q = 1 - p_\theta(x)$, so $1 - q = p_\theta(x)$:
 
 $$
 \frac{1 - (1 - p_\theta(x))^N}{p_\theta(x)} = \sum_{k=1}^{N} (1 - p_\theta(x))^{k-1}
@@ -427,13 +569,25 @@ $$
 \mathbb{E}[S] = \sum_z m_\theta(z \mid x) \nabla_\theta \log m_\theta(z \mid x)
 $$
 
-Using the log trick in reverse, $m_\theta(z \mid x) \nabla_\theta \log m_\theta(z \mid x) = \nabla_\theta m_\theta(z \mid x)$. So:
+Now apply the log trick in reverse to each term. Recall that $m \cdot \nabla \log m = \nabla m$:
 
 $$
-\mathbb{E}[S] = \sum_z \nabla_\theta m_\theta(z \mid x) = \nabla_\theta \sum_z m_\theta(z \mid x) = \nabla_\theta(1) = 0
+\mathbb{E}[S] = \sum_z \nabla_\theta m_\theta(z \mid x)
 $$
 
-The key step is that the probabilities $m_\theta(z \mid x)$ sum to 1 for any $\theta$ — this is the normalization constraint of a probability distribution. Differentiating a constant gives zero. This is the same score function identity we used in the REINFORCE derivation: the expected score under any distribution is always zero.
+Pull the gradient outside the sum (differentiation is linear):
+
+$$
+= \nabla_\theta \left( \sum_z m_\theta(z \mid x) \right)
+$$
+
+The sum $\sum_z m_\theta(z \mid x)$ equals 1 for any value of $\theta$ — this is the normalization constraint of a probability distribution. Differentiating a constant gives zero:
+
+$$
+= \nabla_\theta(1) = 0
+$$
+
+So $\mathbb{E}[S] = 0$. This is the same score function identity we used in the REINFORCE derivation: the expected score under any distribution is always zero.
 
 Therefore $\mathbb{E}\left[\frac{1}{N} \sum_{i=1}^{N} S_i\right] = 0$, and:
 
@@ -463,7 +617,13 @@ $$
 g_N^e(x) = \sum_{i=1}^{N} \left( \frac{r_i}{K} - \frac{1}{N} \right) S_i
 $$
 
-This follows from simple algebra: factor $S_i$ out of both terms. The weight $\frac{r_i}{K} - \frac{1}{N}$ is positive for successful samples (they get upweighted) and negative for failed samples (they get slightly downweighted). This is reminiscent of a baseline in REINFORCE — except here the "baseline" is $1/N$ rather than an estimated value function.
+This follows from distributing the sums:
+
+$$
+\frac{1}{K} \sum_{i=1}^{N} r_i S_i - \frac{1}{N} \sum_{i=1}^{N} S_i = \sum_{i=1}^{N} \frac{r_i}{K} S_i - \sum_{i=1}^{N} \frac{1}{N} S_i = \sum_{i=1}^{N} \left( \frac{r_i}{K} - \frac{1}{N} \right) S_i
+$$
+
+The weight $\frac{r_i}{K} - \frac{1}{N}$ is positive for successful samples (they get upweighted) and negative for failed samples (they get slightly downweighted). This is reminiscent of a baseline in REINFORCE — except here the "baseline" is $1/N$ rather than an estimated value function.
 
 ---
 
@@ -480,9 +640,3 @@ MaxRL bridges the gap. By dividing by $K$ (the observed number of successes) ins
 The control variate (subtracting the average score) keeps the estimator unbiased while reducing the variance that comes from the randomness of sampling. The result is a practical algorithm: sample $N$ outputs, check which ones are correct, average the score functions of the correct ones, subtract the average score function of all outputs, and use that as your gradient estimate.
 
 The paper's central message is that REINFORCE and maximum likelihood are not separate training paradigms — they are endpoints of a single spectrum parameterized by $N$. At $N = 1$, you get REINFORCE. At $N = \infty$, you get ML. And for any finite $N$ in between, you get a well-defined objective $J^{(N)}_{\text{MaxRL}}$ with a simple, unbiased gradient estimator. The choice of $N$ lets you smoothly trade off between the computational cost of generating more samples and the richness of the training signal you extract from them.
-
----
-
-## References
-
-1. Blondel, M., Roulet, V., Sessa, P. G., & Thomson, M. (2025). *MaxRL: A Unified Framework for Maximum Likelihood and Reinforcement Learning.* arXiv:2502.07834.
