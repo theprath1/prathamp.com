@@ -1,0 +1,82 @@
+<button
+  id="back-to-top"
+  type="button"
+  aria-label="Back to top"
+  aria-hidden="true"
+  class="fixed right-4 bottom-4 z-40 inline-flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 bg-white/90 text-gray-700 shadow-lg backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:bg-white hover:text-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-gray-700 dark:bg-gray-900/85 dark:text-gray-200 dark:hover:bg-gray-900 dark:hover:text-primary-400 dark:focus-visible:ring-primary-400 dark:focus-visible:ring-offset-gray-900 md:right-6 md:bottom-6 opacity-0 translate-y-3 pointer-events-none"
+>
+  <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M18 15l-6-6-6 6" />
+  </svg>
+</button>
+
+<script is:inline>
+  (() => {
+    const cleanupKey = "__backToTopCleanup";
+    const swapListenerKey = "__backToTopSwapListener";
+    const showAfter = 320;
+
+    function setupBackToTop() {
+      const existingCleanup = window[cleanupKey];
+      if (typeof existingCleanup === "function") {
+        existingCleanup();
+      }
+
+      const button = document.getElementById("back-to-top");
+      if (!button) return;
+
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      let rafId = 0;
+
+      const update = () => {
+        rafId = 0;
+        const visible = window.scrollY > showAfter;
+
+        button.classList.toggle("opacity-100", visible);
+        button.classList.toggle("translate-y-0", visible);
+        button.classList.toggle("pointer-events-auto", visible);
+
+        button.classList.toggle("opacity-0", !visible);
+        button.classList.toggle("translate-y-3", !visible);
+        button.classList.toggle("pointer-events-none", !visible);
+
+        button.setAttribute("aria-hidden", String(!visible));
+        button.tabIndex = visible ? 0 : -1;
+      };
+
+      const onScroll = () => {
+        if (rafId) return;
+        rafId = window.requestAnimationFrame(update);
+      };
+
+      const onClick = () => {
+        window.scrollTo({
+          top: 0,
+          behavior: prefersReducedMotion ? "auto" : "smooth",
+        });
+      };
+
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", onScroll);
+      button.addEventListener("click", onClick);
+      update();
+
+      window[cleanupKey] = () => {
+        if (rafId) window.cancelAnimationFrame(rafId);
+        window.removeEventListener("scroll", onScroll);
+        window.removeEventListener("resize", onScroll);
+        button.removeEventListener("click", onClick);
+      };
+    }
+
+    setupBackToTop();
+
+    const existingSwapListener = window[swapListenerKey];
+    if (typeof existingSwapListener === "function") {
+      document.removeEventListener("astro:after-swap", existingSwapListener);
+    }
+
+    window[swapListenerKey] = setupBackToTop;
+    document.addEventListener("astro:after-swap", setupBackToTop);
+  })();
+</script>
