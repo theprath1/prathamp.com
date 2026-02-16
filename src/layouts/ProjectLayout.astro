@@ -18,7 +18,13 @@ const { frontmatter, slug } = Astro.props;
 const ogImage = `/og/projects/${slug}.png`;
 ---
 
-<BaseLayout title={frontmatter.title} description={frontmatter.description} image={ogImage} type="article">
+<BaseLayout
+  title={frontmatter.title}
+  description={frontmatter.description}
+  image={ogImage}
+  type="article"
+  showScrollProgress={true}
+>
   <article class="max-w-4xl mx-auto px-4 py-16">
     <header class="mb-12">
       <h1 class="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
