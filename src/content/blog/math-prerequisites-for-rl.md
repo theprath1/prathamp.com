@@ -209,9 +209,9 @@ Let's compare behavior. Suppose two prompts:
 - **Prompt A:** $p = 0.8$
 - **Prompt B:** $p = 0.1$
 
-**RL weight.** RL uses $w(p) = 1$, so both prompts are treated equally.
+**RL gradient.** RL computes $\nabla p$, so both prompts get the same gradient weight.
 
-**ML weight.** ML uses $w(p) = \frac{1}{p}$, so:
+**ML gradient.** ML computes $\nabla \log p = \frac{1}{p} \nabla p$, so the effective weight is $\frac{1}{p}$:
 
 - Prompt A: $1/0.8 = 1.25$
 - Prompt B: $1/0.1 = 10$
