@@ -635,15 +635,49 @@ The weight $\frac{r_i}{K} - \frac{1}{N}$ is positive for successful samples (the
 
 ## The Unified Weight Function View
 
-There is another way to see the relationship between REINFORCE, ML, and MaxRL — one that makes the conceptual difference between the three methods completely transparent. All three objectives produce gradients that can be written in the form $\nabla_\theta J = \mathbb{E}_x \left[ w(p_\theta(x)) \cdot \nabla_\theta p_\theta(x) \right]$, where $p_\theta(x)$ is the single-sample pass rate, $\nabla_\theta p_\theta(x)$ is the basic REINFORCE direction that increases success probability, and $w(p)$ is a weight function that depends only on how hard the prompt currently is.
+There is another way to see the relationship between REINFORCE, ML, and MaxRL — one that makes the conceptual difference between the three methods completely transparent. All three objectives produce gradients that can be written in the form:
 
-The gradient direction is the same across all three methods — it is always $\nabla_\theta p_\theta(x)$, the raw signal for improving single-try success. What differs is how strongly each prompt contributes to the overall update, depending on its current difficulty.
+$$
+\nabla_\theta J = \mathbb{E}_x \left[ w(p_\theta(x)) \cdot \nabla_\theta p_\theta(x) \right]
+$$
 
-For REINFORCE, the objective is $J_{RL} = \mathbb{E}_x[p_\theta(x)]$, which differentiates to $\nabla J_{RL} = \mathbb{E}_x[\nabla p_\theta(x)]$. The weight function is $w(p) = 1$ — all prompts contribute equally regardless of whether they are easy or hard.
+Here $p_\theta(x)$ is the single-sample pass rate, $\nabla_\theta p_\theta(x)$ is the basic REINFORCE direction that increases success probability, and $w(p)$ is a weight function that depends only on how hard the prompt currently is. The gradient direction is the same across all three methods — it is always $\nabla_\theta p_\theta(x)$, the raw signal for improving single-try success. What differs is how strongly each prompt contributes to the overall update, depending on its current difficulty.
 
-For maximum likelihood, the objective is $J_{ML} = \mathbb{E}_x[\log p_\theta(x)]$, and differentiating gives $\nabla J_{ML} = \mathbb{E}_x\left[\frac{1}{p_\theta(x)} \nabla p_\theta(x)\right]$, using the chain rule $\nabla \log p = \frac{1}{p} \nabla p$. The weight function is $w(p) = 1/p$, which means a prompt with $p = 0.1$ gets weight 10, while a prompt with $p = 0.01$ gets weight 100. ML aggressively amplifies the gradient signal from hard prompts.
+For REINFORCE, the objective is $J_{RL} = \mathbb{E}_x[p_\theta(x)]$, which differentiates to:
 
-For MaxRL with $N$ samples, we showed in Theorem 2 that $\mathbb{E}[g_N^b(x)] = \frac{1 - (1-p)^N}{p} \nabla_\theta p_\theta(x)$. So the weight function is $w(p) = \frac{1 - (1-p)^N}{p}$. When $N = 1$, this reduces to $w(p) = \frac{1 - (1-p)}{p} = \frac{p}{p} = 1$, recovering REINFORCE. As $N \to \infty$, $(1-p)^N \to 0$, so $w(p) \to 1/p$, recovering ML. For any finite $N$ in between, the weight function interpolates smoothly. Taking our running example with $p = 0.1$ and $N = 10$: $w(0.1) = \frac{1 - 0.9^{10}}{0.1} = \frac{1 - 0.3487}{0.1} \approx 6.5$, compared to REINFORCE's weight of 1 and ML's weight of 10.
+$$
+\nabla J_{RL} = \mathbb{E}_x[\nabla p_\theta(x)]
+$$
+
+The weight function is $w(p) = 1$ — all prompts contribute equally regardless of whether they are easy or hard.
+
+For maximum likelihood, the objective is $J_{ML} = \mathbb{E}_x[\log p_\theta(x)]$, and differentiating using the chain rule $\nabla \log p = \frac{1}{p} \nabla p$ gives:
+
+$$
+\nabla J_{ML} = \mathbb{E}_x\left[\frac{1}{p_\theta(x)} \nabla p_\theta(x)\right]
+$$
+
+The weight function is $w(p) = 1/p$, which means a prompt with $p = 0.1$ gets weight 10, while a prompt with $p = 0.01$ gets weight 100. ML aggressively amplifies the gradient signal from hard prompts.
+
+For MaxRL with $N$ samples, we showed in Theorem 2 that:
+
+$$
+\mathbb{E}[g_N^b(x)] = \frac{1 - (1-p)^N}{p} \nabla_\theta p_\theta(x)
+$$
+
+So the weight function is $w(p) = \frac{1 - (1-p)^N}{p}$. When $N = 1$, this reduces to:
+
+$$
+w(p) = \frac{1 - (1-p)}{p} = \frac{p}{p} = 1
+$$
+
+recovering REINFORCE. As $N \to \infty$, $(1-p)^N \to 0$, so $w(p) \to 1/p$, recovering ML. For any finite $N$ in between, the weight function interpolates smoothly. Taking our running example with $p = 0.1$ and $N = 10$:
+
+$$
+w(0.1) = \frac{1 - 0.9^{10}}{0.1} = \frac{1 - 0.3487}{0.1} \approx 6.5
+$$
+
+Compare this to REINFORCE's weight of 1 and ML's weight of 10.
 
 This unified view reveals that the entire paper reduces to a single question: how aggressively should you emphasize hard examples? REINFORCE treats all prompts uniformly. ML pushes hardest on the prompts the model currently struggles with, which can destabilize training. MaxRL provides a controlled middle ground — the parameter $N$ directly governs how much extra attention hard prompts receive, letting you dial the difficulty emphasis up or down depending on your training needs.
 
