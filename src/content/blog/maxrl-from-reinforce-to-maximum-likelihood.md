@@ -95,7 +95,7 @@ $$
 
 ### The power series identity
 
-There is a standard identity in mathematics:
+There is a standard identity in mathematics known as the **Maclaurin expansion** (Taylor series expanded around 0) of $\log(1 - q)$:
 
 $$
 \log(1 - q) = - \sum_{k=1}^{\infty} \frac{q^k}{k} \quad \text{for } |q| < 1
