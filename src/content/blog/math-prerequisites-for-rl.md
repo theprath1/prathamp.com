@@ -15,7 +15,7 @@ Imagine a coin that is **not** fair. It lands Heads with probability $p$ and Tai
 
 ---
 
-## 1 — Probability Distributions
+## Probability Distributions
 
 A **probability distribution** assigns a probability to every possible outcome. For our coin, the distribution says that Heads occurs with probability $p$ and Tails occurs with probability $1 - p$.
 
@@ -23,7 +23,7 @@ Two rules must hold for any valid distribution. First, every probability must be
 
 ---
 
-## 2 — Expected Value
+## Expected Value
 
 Expected value answers a natural question: **on average, how much do I win per toss?** The formula multiplies each possible value by its probability, then sums everything up:
 
@@ -41,7 +41,7 @@ If $p = 0.3$, then $\mathbb{E}[X] = 10 \times 0.3 = 3$. Notice that you never ac
 
 ---
 
-## 3 — The Sigmoid Function
+## The Sigmoid Function
 
 We need a way to turn any real number into a probability, meaning a number between 0 and 1. The **sigmoid function** does exactly this:
 
@@ -61,9 +61,9 @@ Now we can connect this to our coin. If we define $p = \sigma(\theta)$, then $\t
 
 ---
 
-## 4 — Parameterised Expected Value
+## Parameterised Expected Value
 
-Since $p = \sigma(\theta)$, our expected value from Section 2 now becomes a function of $\theta$:
+Since $p = \sigma(\theta)$, our expected value now becomes a function of $\theta$:
 
 $$
 J(\theta) = 10 \cdot \sigma(\theta)
@@ -75,7 +75,7 @@ But here is the question: how do we know *which direction* to push $\theta$? In 
 
 ---
 
-## 5 — Derivatives
+## Derivatives
 
 The **derivative** of $J$ with respect to $\theta$ answers a precise question: if I nudge $\theta$ up by a tiny amount, does $J$ increase or decrease, and by how much? We write this as:
 
@@ -103,7 +103,7 @@ At $\theta = 0$, the derivative is $10 \times 0.5 \times 0.5 = 2.5$. At $\theta 
 
 ---
 
-## 6 — The Log Trick
+## The Log Trick
 
 This is the key algebraic move that makes Reinforcement Learning work. It looks like a minor rearrangement, but it is what transforms an intractable sum into something we can estimate from samples. Let's derive it carefully using our coin example.
 
@@ -159,7 +159,84 @@ This is the crucial insight. The derivative of the objective is itself an expect
 
 ---
 
-## 7 — Monte Carlo Estimation
+## Maximum Likelihood: A Different Objective
+
+### What is maximum likelihood in general?
+
+Suppose you have data. For example, you observe that for the prompt "2 + 3 = ?" the correct answer is "5." You want your model to assign high probability to that correct answer. **Maximum likelihood** means: choose parameters $\theta$ that maximize the probability of observed correct answers. Formally:
+
+$$
+\max_\theta \log p_\theta(y^*(x) \mid x)
+$$
+
+That is the entire idea — push probability mass toward the correct answer.
+
+### What is that in our coin setting?
+
+In our running example, we can simplify things further. Instead of caring about exact sequence tokens, we reduce everything to **success vs failure**:
+
+- If the coin lands Heads → success
+- If the coin lands Tails → failure
+
+So:
+
+$$
+p_\theta(x) = \Pr(\text{success}) = \sigma(\theta)
+$$
+
+Maximum likelihood becomes:
+
+$$
+\max_\theta \log p_\theta(x)
+$$
+
+ML here literally means: increase the log of the success probability. Nothing more.
+
+### Why log?
+
+Two reasons. First, in statistics, likelihood multiplies probabilities across examples, and log turns products into sums — a computational convenience. But for intuition here, the important part is:
+
+$$
+\nabla \log p = \frac{1}{p} \nabla p
+$$
+
+The log creates a scaling factor of $1/p$. That is what changes behavior.
+
+### Intuitive difference between RL and ML
+
+Let's compare behavior. Suppose two prompts:
+
+- **Prompt A:** $p = 0.8$
+- **Prompt B:** $p = 0.1$
+
+**RL weight.** RL uses $w(p) = 1$, so both prompts are treated equally.
+
+**ML weight.** ML uses $w(p) = \frac{1}{p}$, so:
+
+- Prompt A: $1/0.8 = 1.25$
+- Prompt B: $1/0.1 = 10$
+
+ML gives **8× stronger gradient** to the hard prompt.
+
+**RL says:** improve everything equally. \
+**ML says:** focus heavily on the hard prompts.
+
+That is the intuitive difference.
+
+### Why this feels different from RL
+
+RL optimizes $p$. ML optimizes $\log p$. These are mathematically different objectives — even though they both increase $p$. The difference is in **how strongly they push when $p$ is small**.
+
+Think of it like this. If a model almost never solves a problem ($p$ small):
+
+- **RL** gives it normal effort.
+- **ML** says: "This is very wrong — fix this aggressively."
+
+In Part 3 ([MaxRL: From REINFORCE to Maximum Likelihood](/blog/maxrl-from-reinforce-to-maximum-likelihood)), we will see that RL and ML are actually two endpoints of a single spectrum, connected through a surprising identity involving pass@$k$ and the power series for $\log p$.
+
+---
+
+## Monte Carlo Estimation
 
 ### The problem
 
@@ -226,7 +303,7 @@ Suppose there are only two possible outcomes: outcome A gives value 5 with proba
 
 ---
 
-## 8 — "Sampled from the Same Distribution"
+## "Sampled from the Same Distribution"
 
 This phrase appears constantly in RL proofs, and it is easy to gloss over. But the entire mathematical machinery we just built depends on it, so let's pin down exactly what it means.
 
@@ -240,6 +317,6 @@ This will matter enormously in Reinforcement Learning. The "coin" in RL is the p
 
 ## Summary
 
-Everything in this post was built from one coin-toss example. A **probability distribution** assigns probabilities to outcomes. The **expected value** $\mathbb{E}[X]$ computes the weighted average $\sum (\text{value})(\text{probability})$. The **sigmoid** $\sigma(\theta)$ maps any real number to a probability, which lets us define a parameterised objective $J(\theta)$ — the expected value as a function of parameters. The **derivative** $\frac{dJ}{d\theta}$ tells us how $J$ changes when $\theta$ changes, giving us a direction to improve. The **log trick** — the identity $\frac{dP}{d\theta} = P \cdot \frac{d}{d\theta}\log P$ — converts that derivative into an expectation, and **Monte Carlo estimation** lets us approximate that expectation by sampling and averaging. The key guarantee is **unbiasedness**: on average, the sample estimate equals the truth.
+Everything in this post was built from one coin-toss example. A **probability distribution** assigns probabilities to outcomes. The **expected value** $\mathbb{E}[X]$ computes the weighted average $\sum (\text{value})(\text{probability})$. The **sigmoid** $\sigma(\theta)$ maps any real number to a probability, which lets us define a parameterised objective $J(\theta)$ — the expected value as a function of parameters. The **derivative** $\frac{dJ}{d\theta}$ tells us how $J$ changes when $\theta$ changes, giving us a direction to improve. The **log trick** — the identity $\frac{dP}{d\theta} = P \cdot \frac{d}{d\theta}\log P$ — converts that derivative into an expectation. **Maximum likelihood** offers an alternative objective — maximizing $\log p$ instead of $p$ — whose gradient weights each example by $1/p$, focusing learning aggressively on hard problems where the model currently struggles. This distinction between the RL objective and the ML objective will become central in Part 3. Finally, **Monte Carlo estimation** lets us approximate expected values by sampling and averaging, with the key guarantee of **unbiasedness**: on average, the sample estimate equals the truth.
 
 With these tools in hand, we're ready for [Reinforcement Learning from Scratch](/blog/reinforcement-learning-from-scratch), where we put them all together to derive the REINFORCE algorithm.
