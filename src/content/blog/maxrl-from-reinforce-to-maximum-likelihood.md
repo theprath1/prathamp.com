@@ -337,7 +337,7 @@ This is the main result of the paper. It says that a simple modification to REIN
 
 ### The estimator
 
-Fix a prompt $x$. Sample $N$ outputs independently from the model:
+Fix a prompt $x$. Sample $N$ outputs independently from the model (i.i.d.). All expectations below are over the randomness of this sampled batch.
 
 $$
 z_1, z_2, \ldots, z_N \sim m_\theta(\cdot \mid x)
