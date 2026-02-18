@@ -120,7 +120,7 @@ This is a surprising identity. It says that the log probability of success — w
 Take $p = 0.1$, so $1 - p = 0.9$. The first few terms of the series are:
 
 $$
-k=1: \frac{0.9}{1} = 0.9, \qquad k=2: \frac{0.81}{2} = 0.405
+k=1: \frac{0.9}{1} = 0.9, \qquad k=2: \frac{0.81}{2} = 0.405,
 $$
 
 $$
