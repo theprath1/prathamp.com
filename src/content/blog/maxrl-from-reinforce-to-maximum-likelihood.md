@@ -120,7 +120,11 @@ This is a surprising identity. It says that the log probability of success — w
 Take $p = 0.1$, so $1 - p = 0.9$. The first few terms of the series are:
 
 $$
-k=1: \frac{0.9}{1} = 0.9, \qquad k=2: \frac{0.81}{2} = 0.405, \qquad k=3: \frac{0.729}{3} = 0.243, \qquad k=4: \frac{0.6561}{4} \approx 0.164
+k=1: \frac{0.9}{1} = 0.9, \qquad k=2: \frac{0.81}{2} = 0.405
+$$
+
+$$
+k=3: \frac{0.729}{3} = 0.243, \qquad k=4: \frac{0.6561}{4} \approx 0.164
 $$
 
 The partial sums with the minus sign: $-0.9$, $-1.305$, $-1.548$, $-1.712$, and so on. The true value is $\log(0.1) \approx -2.303$. The series converges slowly because $p$ is small (the model is weak), but it does converge. For stronger models with $p$ closer to 1, the series converges much faster because $(1-p)^k$ shrinks rapidly.
@@ -146,7 +150,11 @@ $$
 First, differentiate the inner expression $(1 - p_\theta(x))^k$ using the chain rule. Let $u = 1 - p_\theta(x)$, so we need $\nabla_\theta u^k$. The chain rule gives:
 
 $$
-\nabla_\theta (1 - p_\theta(x))^k = k(1 - p_\theta(x))^{k-1} \cdot \nabla_\theta(1 - p_\theta(x)) = k(1 - p_\theta(x))^{k-1} \cdot (-\nabla_\theta p_\theta(x))
+\nabla_\theta (1 - p_\theta(x))^k = k(1 - p_\theta(x))^{k-1} \cdot \nabla_\theta(1 - p_\theta(x))
+$$
+
+$$
+= k(1 - p_\theta(x))^{k-1} \cdot (-\nabla_\theta p_\theta(x))
 $$
 
 Now multiply by the outer factor $-1/k$:
