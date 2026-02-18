@@ -3,7 +3,7 @@ import { getCollection } from "astro:content";
 import NoteLayout from "../../layouts/NoteLayout.astro";
 
 export async function getStaticPaths() {
-  const notes = await getCollection("notes");
+  const notes = await getCollection("notes", ({ data }) => !data.draft);
   return notes.map((note) => ({
     params: { slug: note.slug },
     props: { note },
