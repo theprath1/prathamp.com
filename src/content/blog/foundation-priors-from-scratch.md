@@ -189,13 +189,11 @@ This is the kernel of $\text{Beta}(5\lambda + 1, 5\lambda + 1)$. Notice the symm
 
 What changes with $\lambda$ is the **concentration** — how tightly the prior clusters around 0.5:
 
-| $\lambda$ | Foundation prior | Mean | Interpretation |
-|---|---|---|---|
-| 0 | $\text{Beta}(1, 1)$ = Uniform | 0.5 | No trust in LLM — prior is flat |
-| 0.2 | $\text{Beta}(2, 2)$ | 0.5 | Mild preference for fairness |
-| 0.5 | $\text{Beta}(3.5, 3.5)$ | 0.5 | Moderate trust |
-| 1 | $\text{Beta}(6, 6)$ | 0.5 | Full trust — synthetic data treated as real |
-| 2 | $\text{Beta}(11, 11)$ | 0.5 | Over-trust — LLM dominates |
+$\lambda = 0$: $\text{Beta}(1, 1)$ = Uniform, mean $0.5$. No trust in LLM — prior is flat.
+- $\lambda = 0.2$: $\text{Beta}(2, 2)$, mean $0.5$. Mild preference for fairness.
+- $\lambda = 0.5$: $\text{Beta}(3.5, 3.5)$, mean $0.5$. Moderate trust.
+- $\lambda = 1$: $\text{Beta}(6, 6)$, mean $0.5$. Full trust — synthetic data treated as real.
+- $\lambda = 2$: $\text{Beta}(11, 11)$, mean $0.5$. Over-trust — LLM dominates.
 
 At $\lambda = 0$, the foundation prior collapses to the base prior — the LLM is completely ignored. At $\lambda = 1$, raising the likelihood to the power 1 recovers a standard Bayesian update, meaning we treat the synthetic data exactly as if it were real. Values of $\lambda$ between 0 and 1 express partial trust: the synthetic data informs the prior but does not carry as much weight as actual observations.
 
@@ -314,14 +312,12 @@ $$
 
 The posterior mean is $(5 + 5\lambda) / (7 + 10\lambda)$. Let us compute this for several values of $\lambda$:
 
-| $\lambda$ | Posterior | Mean | What happens |
-|---|---|---|---|
-| 0 | $\text{Beta}(5, 2)$ | $5/7 = 0.714$ | LLM ignored — data says coin is biased |
-| 0.2 | $\text{Beta}(6, 3)$ | $6/9 = 0.667$ | Slight pull toward fairness |
-| 0.5 | $\text{Beta}(7.5, 4.5)$ | $7.5/12 = 0.625$ | Moderate pull |
-| 1 | $\text{Beta}(10, 7)$ | $10/17 = 0.588$ | Full trust — same as pooling |
-| 2 | $\text{Beta}(15, 12)$ | $15/27 = 0.556$ | Over-trust |
-| $\infty$ | — | $0.5$ | LLM completely dominates |
+- $\lambda = 0$: $\text{Beta}(5, 2)$, mean $5/7 = 0.714$. LLM ignored — data says coin is biased.
+- $\lambda = 0.2$: $\text{Beta}(6, 3)$, mean $6/9 = 0.667$. Slight pull toward fairness.
+- $\lambda = 0.5$: $\text{Beta}(7.5, 4.5)$, mean $7.5/12 = 0.625$. Moderate pull.
+- $\lambda = 1$: $\text{Beta}(10, 7)$, mean $10/17 = 0.588$. Full trust — same as pooling.
+- $\lambda = 2$: $\text{Beta}(15, 12)$, mean $15/27 = 0.556$. Over-trust.
+- $\lambda \to \infty$: mean $\to 0.5$. LLM completely dominates.
 
 As $\lambda$ increases, the posterior mean slides from $0.714$ (dictated by real data) toward $0.5$ (dictated by the LLM). Each value of $\lambda$ represents a different answer to the question: "How much do you trust the LLM relative to the data in your hand?"
 
@@ -417,13 +413,11 @@ $$
 
 ### Numerical check
 
-| $\lambda$ | Effective synthetic observations $\lambda \cdot 10$ | Total evidence | Synthetic as fraction of total |
-|---|---|---|---|
-| 0 | 0 | 5 | 0% |
-| 0.1 | 1 | 6 | 17% |
-| 0.5 | 5 | 10 | 50% |
-| 1 | 10 | 15 | 67% |
-| 2 | 20 | 25 | 80% |
+- $\lambda = 0$: effective synthetic observations $= 0$, total evidence $= 5$, synthetic fraction $= 0\%$.
+- $\lambda = 0.1$: effective synthetic observations $= 1$, total evidence $= 6$, synthetic fraction $= 17\%$.
+- $\lambda = 0.5$: effective synthetic observations $= 5$, total evidence $= 10$, synthetic fraction $= 50\%$.
+- $\lambda = 1$: effective synthetic observations $= 10$, total evidence $= 15$, synthetic fraction $= 67\%$.
+- $\lambda = 2$: effective synthetic observations $= 20$, total evidence $= 25$, synthetic fraction $= 80\%$.
 
 At $\lambda = 0.1$, the LLM's 10 synthetic flips count as just 1 real flip. At $\lambda = 0.5$, they count as 5 — equal to our real sample size. At $\lambda = 1$ (pooling), they count as 10 — double our real data — giving the LLM a two-thirds vote in the final estimate.
 

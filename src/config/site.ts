@@ -10,6 +10,9 @@ export const siteConfig = {
     github: "theprath1",
     linkedin: "theprath",
   },
+  newsletter: {
+    buttondownUsername: "prathampatel",
+  },
   nav: [
     { name: "Home", href: "/" },
     { name: "About", href: "/about" },

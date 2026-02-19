@@ -4,6 +4,7 @@ import { formatDate } from "../utils/formatDate";
 import { readingTime } from "../utils/readingTime";
 import Tag from "../components/Tag.astro";
 import TableOfContents from "../components/TableOfContents.astro";
+import NewsletterSignup from "../components/NewsletterSignup.astro";
 
 interface Heading {
   depth: number;
@@ -63,6 +64,7 @@ const ogImage = `/og/blog/${slug}.png`;
     >
       <slot />
     </div>
+    <NewsletterSignup />
     </article>
     <TableOfContents headings={headings} />
   </div>
