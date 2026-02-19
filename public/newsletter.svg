@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 260" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="400" y2="260" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="envelope" x1="120" y1="70" x2="280" y2="190" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="160" y1="60" x2="260" y2="140" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f0f9ff"/>
+      <stop offset="100%" stop-color="#e0f2fe"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="260" rx="16" fill="url(#bg)"/>
+
+  <!-- Subtle grid dots -->
+  <g opacity="0.08" fill="#94a3b8">
+    <circle cx="40" cy="40" r="1.5"/><circle cx="80" cy="40" r="1.5"/><circle cx="120" cy="40" r="1.5"/><circle cx="160" cy="40" r="1.5"/><circle cx="200" cy="40" r="1.5"/><circle cx="240" cy="40" r="1.5"/><circle cx="280" cy="40" r="1.5"/><circle cx="320" cy="40" r="1.5"/><circle cx="360" cy="40" r="1.5"/>
+    <circle cx="40" cy="80" r="1.5"/><circle cx="80" cy="80" r="1.5"/><circle cx="120" cy="80" r="1.5"/><circle cx="280" cy="80" r="1.5"/><circle cx="320" cy="80" r="1.5"/><circle cx="360" cy="80" r="1.5"/>
+    <circle cx="40" cy="120" r="1.5"/><circle cx="80" cy="120" r="1.5"/><circle cx="320" cy="120" r="1.5"/><circle cx="360" cy="120" r="1.5"/>
+    <circle cx="40" cy="160" r="1.5"/><circle cx="80" cy="160" r="1.5"/><circle cx="320" cy="160" r="1.5"/><circle cx="360" cy="160" r="1.5"/>
+    <circle cx="40" cy="200" r="1.5"/><circle cx="80" cy="200" r="1.5"/><circle cx="120" cy="200" r="1.5"/><circle cx="280" cy="200" r="1.5"/><circle cx="320" cy="200" r="1.5"/><circle cx="360" cy="200" r="1.5"/>
+    <circle cx="40" cy="240" r="1.5"/><circle cx="80" cy="240" r="1.5"/><circle cx="120" cy="240" r="1.5"/><circle cx="160" cy="240" r="1.5"/><circle cx="200" cy="240" r="1.5"/><circle cx="240" cy="240" r="1.5"/><circle cx="280" cy="240" r="1.5"/><circle cx="320" cy="240" r="1.5"/><circle cx="360" cy="240" r="1.5"/>
+  </g>
+
+  <!-- Glow behind envelope -->
+  <ellipse cx="200" cy="145" rx="90" ry="60" fill="#0ea5e9" opacity="0.08"/>
+
+  <!-- Paper coming out of envelope -->
+  <g transform="translate(0, -8)">
+    <rect x="155" y="68" width="90" height="72" rx="4" fill="url(#paper)"/>
+    <!-- Lines on paper (representing text/math) -->
+    <rect x="168" y="80" width="50" height="3" rx="1.5" fill="#0284c7" opacity="0.3"/>
+    <rect x="168" y="88" width="64" height="3" rx="1.5" fill="#0284c7" opacity="0.25"/>
+    <rect x="168" y="96" width="40" height="3" rx="1.5" fill="#0284c7" opacity="0.2"/>
+    <!-- Small sigma symbol on paper -->
+    <text x="178" y="120" font-family="serif" font-size="18" fill="#0284c7" opacity="0.4">&#x03A3;</text>
+    <!-- Small graph icon -->
+    <polyline points="210,118 218,108 226,114 234,102" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5" fill="none"/>
+  </g>
+
+  <!-- Envelope body -->
+  <g transform="translate(0, -8)">
+    <path d="M120,120 L280,120 L280,200 L120,200 Z" fill="url(#envelope)" opacity="0.9"/>
+    <!-- Envelope flap -->
+    <path d="M120,120 L200,165 L280,120" fill="#0369a1" opacity="0.7"/>
+    <!-- Envelope fold line -->
+    <path d="M120,120 L200,170 L280,120" stroke="#38bdf8" stroke-width="1" fill="none" opacity="0.3"/>
+    <!-- Bottom fold lines -->
+    <path d="M120,200 L175,160" stroke="#075985" stroke-width="0.5" opacity="0.3"/>
+    <path d="M280,200 L225,160" stroke="#075985" stroke-width="0.5" opacity="0.3"/>
+  </g>
+
+  <!-- Small decorative elements -->
+  <!-- Floating @ symbol -->
+  <text x="90" y="108" font-family="Inter, sans-serif" font-size="16" fill="#0ea5e9" opacity="0.2" transform="rotate(-15, 90, 108)">@</text>
+
+  <!-- Small bell icon -->
+  <g transform="translate(300, 88)" opacity="0.2" stroke="#38bdf8" stroke-width="1.5" fill="none">
+    <path d="M8,0 C8,0 12,4 12,8 L12,12 L4,12 L4,8 C4,4 8,0 8,0Z"/>
+    <line x1="6" y1="14" x2="10" y2="14"/>
+  </g>
+
+  <!-- Sparkle dots -->
+  <circle cx="105" cy="160" r="2" fill="#0ea5e9" opacity="0.15"/>
+  <circle cx="295" cy="140" r="2" fill="#38bdf8" opacity="0.15"/>
+  <circle cx="140" cy="85" r="1.5" fill="#38bdf8" opacity="0.12"/>
+  <circle cx="265" cy="90" r="1.5" fill="#0ea5e9" opacity="0.12"/>
+
+  <!-- Bottom text area -->
+  <text x="200" y="226" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#e0f2fe" letter-spacing="0.5">
+    Stay in the loop
+  </text>
+  <text x="200" y="244" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="10" fill="#64748b">
+    New posts, straight to your inbox
+  </text>
+</svg>
