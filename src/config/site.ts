@@ -11,7 +11,8 @@ export const siteConfig = {
     linkedin: "theprath",
   },
   newsletter: {
-    buttondownUsername: "prathampatel",
+    mailchimpUrl: "https://prathamp.us1.list-manage.com/subscribe/post?u=b7fe9580cf3e2438b2c195e8f&amp;id=438603be55&amp;f_id=00c7c4e1f0",
+    mailchimpHoneypot: "b_b7fe9580cf3e2438b2c195e8f_438603be55",
   },
   nav: [
     { name: "Home", href: "/" },
