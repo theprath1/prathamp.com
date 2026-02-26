@@ -49,7 +49,11 @@ $$
 
 where $q$ is a prompt and $\pi_{\text{LLM}}$ is the LLM's distribution over outputs.
 
-In real life, you ask something like: "Generate consumer choice data for Chicago ice cream sales." The model generates something. But here is the key: you do not accept just any output. You tweak the prompt until the output matches what you expect. This is the critical subjectivity — **epistemic circularity**.
+In real life, you ask something like: "Generate consumer choice data for Chicago ice cream sales." The model generates something. But here is the key: you do not accept just any output. You tweak the prompt until the output matches what you expect. This is **epistemic circularity**, and it is the core reason the entire Foundation Prior framework exists.
+
+The circular loop works like this. You start with beliefs about $\theta$. Those beliefs shape how you write the prompt. The prompt shapes what the LLM generates. You then judge the output against your expectations — which come from the same beliefs you started with. If the output looks wrong, you reject it and re-prompt. If it looks right, you accept it. So the "data" you end up with has been filtered by the very beliefs it is supposed to update. Your prior determined what you accepted, and now you want to use that accepted output to update your prior. That is circular.
+
+In standard Bayesian inference this never happens. Real data comes from nature — it does not care about your beliefs. But synthetic data is different. It passed through a subjective filter. If you treat it like real evidence, you are essentially confirming your own assumptions back to yourself. The entire paper is built to handle this problem: how do you extract genuine information from synthetic data without falling into a self-reinforcing loop?
 
 ---
 
@@ -140,6 +144,10 @@ $$
 $$
 
 The interpretation is this: for each possible $\theta$, compute "how well $\theta$ explains the synthetic data" (that is the log-likelihood), weight it by how much you believe that $\theta$ (that is $\rho(\theta)$), and average. So the constraint means: on average, under my new belief, the synthetic dataset should not look too unlikely.
+
+### Why log-likelihood instead of raw likelihood?
+
+The constraint uses $\log L$ rather than $L$ for three reasons. First, **additivity**: likelihood multiplies across independent observations, and log turns products into sums ($\log \prod_i L_i = \sum_i \log L_i$), which makes the optimization tractable. Second, **information-geometric duality**: KL divergence and log-likelihood both live in the geometry of exponential families, and using log ensures the constraint and the objective operate in the same mathematical space — this is what makes the Lagrangian solution clean. Third, **convexity**: log-likelihood is often concave in $\theta$, which makes the optimization well-behaved; if we used raw likelihood, the problem could become non-convex and the closed-form solution would not exist.
 
 ### "Change my belief as little as possible" becomes KL minimization
 
@@ -251,13 +259,13 @@ $$
 \rho(\theta) \propto \theta^{1 + 8\lambda}(1 - \theta)^{1 + 2\lambda}
 $$
 
-That is a Beta distribution again:
+That is a Beta distribution again — this is **Beta-Bernoulli conjugacy** at work. Because the Beta prior and the Bernoulli/Binomial likelihood belong to the same exponential family, multiplying them always yields another Beta. The posterior stays in the same family as the prior, which is exactly what "conjugate prior" means.
 
 $$
 \boxed{\rho(\theta) = \text{Beta}(2 + 8\lambda,\; 2 + 2\lambda)}
 $$
 
-In the coin example, the foundation prior is completely explicit.
+In the coin example, conjugacy gives us a completely explicit foundation prior — no numerical integration needed.
 
 ### Numerical check: $\lambda = 0.25$
 
@@ -313,7 +321,9 @@ This is the core philosophical insight of the paper. Imagine synthetic data size
 
 ### Extreme values of $\lambda$
 
-When $\lambda = 0$, synthetic data is ignored entirely and $\rho(\theta) = \pi_0(\theta)$. When $\lambda$ is between 0 and 1, you have partial trust — this is the intended regime. When $\lambda = 1$, synthetic is treated exactly like real data. When $\lambda > 1$, you trust synthetic more than real, which is very dangerous. The effective sample size of synthetic data is $\lambda N_s$, so $\lambda$ directly controls how much influence synthetic evidence exerts.
+When $\lambda = 0$, synthetic data is ignored entirely and $\rho(\theta) = \pi_0(\theta)$ — you fall back to your original prior with zero effective synthetic counts. When $\lambda$ is between 0 and 1, you have partial trust — the intended regime — where synthetic contributes $\lambda N_s$ effective counts, a fraction of the full synthetic sample. When $\lambda = 1$, synthetic is treated exactly like real data, contributing the full $N_s$ counts. When $\lambda > 1$, you trust synthetic more than real data, which is very dangerous — the effective counts exceed the actual synthetic sample size.
+
+The effective sample size of synthetic data is $\lambda N_s$, so $\lambda$ directly controls how much influence synthetic evidence exerts. In our coin example with 10 synthetic flips and $\lambda = 0.25$, the effective sample size is $0.25 \times 10 = 2.5$ — you act as though you observed only 2.5 synthetic flips instead of 10. This is the mechanism that prevents epistemic circularity from spiraling: no matter how much synthetic data you generate, $\lambda$ caps its effective contribution.
 
 ---
 
@@ -363,7 +373,39 @@ So far, we assumed one synthetic dataset: 8 Heads, 2 Tails. But imagine you run 
 
 ### Computing each foundation prior
 
-Let $\lambda = 0.25$ throughout. For Case A (8H, 2T), the effective heads are $8 \times 0.25 = 2$ and effective tails are $2 \times 0.25 = 0.5$, giving foundation prior $\text{Beta}(4, 2.5)$ with mean $\approx 0.6154$. For Case B (6H, 4T), the effective heads are $6 \times 0.25 = 1.5$ and effective tails are $4 \times 0.25 = 1$, giving foundation prior $\text{Beta}(3.5, 3)$ with mean $\approx 0.5385$. For Case C (9H, 1T), the effective heads are $9 \times 0.25 = 2.25$ and effective tails are $1 \times 0.25 = 0.25$, giving foundation prior $\text{Beta}(4.25, 2.25)$ with mean $\approx 0.6538$. Different synthetic datasets produce different priors.
+Let $\lambda = 0.25$ throughout.
+
+**Case A (8H, 2T):**
+
+$$
+\text{Effective heads} = 8 \times 0.25 = 2, \quad \text{Effective tails} = 2 \times 0.25 = 0.5
+$$
+
+$$
+\rho_A(\theta) = \text{Beta}(2 + 2,\; 2 + 0.5) = \text{Beta}(4,\; 2.5), \quad \mu_A = \frac{4}{6.5} \approx 0.6154
+$$
+
+**Case B (6H, 4T):**
+
+$$
+\text{Effective heads} = 6 \times 0.25 = 1.5, \quad \text{Effective tails} = 4 \times 0.25 = 1
+$$
+
+$$
+\rho_B(\theta) = \text{Beta}(2 + 1.5,\; 2 + 1) = \text{Beta}(3.5,\; 3), \quad \mu_B = \frac{3.5}{6.5} \approx 0.5385
+$$
+
+**Case C (9H, 1T):**
+
+$$
+\text{Effective heads} = 9 \times 0.25 = 2.25, \quad \text{Effective tails} = 1 \times 0.25 = 0.25
+$$
+
+$$
+\rho_C(\theta) = \text{Beta}(2 + 2.25,\; 2 + 0.25) = \text{Beta}(4.25,\; 2.25), \quad \mu_C = \frac{4.25}{6.5} \approx 0.6538
+$$
+
+Different synthetic datasets produce different priors.
 
 ### The paper's solution: average over prompts
 
@@ -397,17 +439,35 @@ After averaging across prompt/generation variability, our best guess for heads-p
 
 ### Mixture variance
 
-Using the law of total variance from Part 1, with all three components having $a + b = 6.5$, we compute each component's variance using $\text{Var} = ab / ((a+b)^2(a+b+1))$. Component A gives $\text{Var}_A = (4 \times 2.5)/(6.5^2 \times 7.5) = 10/316.875 \approx 0.03156$. Component B gives $\text{Var}_B = (3.5 \times 3)/316.875 = 10.5/316.875 \approx 0.03314$. Component C gives $\text{Var}_C = (4.25 \times 2.25)/316.875 = 9.5625/316.875 \approx 0.03018$.
+Using the **law of total variance** from Part 1, total variance has two parts: average within-component variance plus variance of component means.
 
-The squared deviations from the mixture mean $m = 0.6026$ are $(\mu_A - m)^2 \approx 0.000164$, $(\mu_B - m)^2 \approx 0.004109$, and $(\mu_C - m)^2 \approx 0.002630$.
+All three components have $a + b = 6.5$, so the denominator $((a+b)^2(a+b+1)) = 6.5^2 \times 7.5 = 316.875$ is the same for all. The within-component variances are:
 
-Applying the law of total variance:
+$$
+\text{Var}_A = \frac{4 \times 2.5}{316.875} = \frac{10}{316.875} \approx 0.03156
+$$
+
+$$
+\text{Var}_B = \frac{3.5 \times 3}{316.875} = \frac{10.5}{316.875} \approx 0.03314
+$$
+
+$$
+\text{Var}_C = \frac{4.25 \times 2.25}{316.875} = \frac{9.5625}{316.875} \approx 0.03018
+$$
+
+The squared deviations from the mixture mean $m = 0.6026$ are:
+
+$$
+(\mu_A - m)^2 \approx 0.000164, \quad (\mu_B - m)^2 \approx 0.004109, \quad (\mu_C - m)^2 \approx 0.002630
+$$
+
+Applying the law of total variance — each term is (within-variance + between-variance) for that component:
 
 $$
 \text{Var}_{\text{mix}} = \frac{1}{3}(0.03156 + 0.000164) + \frac{1}{3}(0.03314 + 0.004109) + \frac{1}{3}(0.03018 + 0.002630) \approx 0.03393
 $$
 
-The standard deviation is approximately 0.184. The mixture is a bit more uncertain than each single Beta, because it also includes "which prompt/run did I get?" uncertainty.
+The standard deviation is approximately $\sqrt{0.03393} \approx 0.184$. The mixture is more uncertain than any single component, because it includes both "what is $\theta$?" uncertainty and "which prompt/run did I get?" uncertainty.
 
 ### Why this matters
 
@@ -451,11 +511,15 @@ $$
 \mathbb{E}[\theta \mid D_r] \approx 0.339(0.6061) + 0.335(0.5758) + 0.326(0.6212) \approx 0.6009
 $$
 
-### What this shows
+### What this shows: two layers of uncertainty
 
-There are two layers of uncertainty. The first layer is about what $\theta$ actually is. The second layer is about which synthetic world was more reasonable. Real data reduces both layers.
+There are two distinct layers of uncertainty operating simultaneously.
 
-As real data grows large, the mixture weights concentrate — one component dominates — and the influence of the synthetic mixture becomes negligible. Real data dominates. Even if synthetic prompts are unstable, real data will eventually wash out synthetic instability.
+**Layer 1 — uncertainty about $\theta$.** Even within a single component, you do not know the true coin bias. Each updated Beta is spread out over a range of $\theta$ values. This is ordinary statistical uncertainty.
+
+**Layer 2 — uncertainty about which synthetic world is correct.** The three components correspond to three different synthetic generation outcomes. Before real data, you had no reason to prefer one over another. After real data, the weights shift — reality starts telling you which synthetic scenario was more plausible. This is epistemic uncertainty about the synthetic process itself.
+
+Real data reduces both layers. It sharpens each component (Layer 1) and concentrates the mixture weights (Layer 2). As real data grows large, the weights eventually concentrate on one component — the synthetic scenario most consistent with reality — and the influence of the other components becomes negligible. In the limit of infinite real data, the mixture collapses and the synthetic starting point no longer matters. This is the robustness guarantee: even if your prompts were unstable or your synthetic data was biased, enough real data will wash out that instability.
 
 ---
 
@@ -517,7 +581,13 @@ $$
 
 Synthetic contributes $\lambda^* H_s$ and $\lambda^* T_s$ as soft counts, while real data contributes $H_r$ and $T_r$ as full counts.
 
-If synthetic aligns with reality, calibration gives higher $\lambda^*$. If synthetic contradicts reality, $\lambda^*$ drops. The framework is self-correcting.
+### Why the framework is self-correcting
+
+The calibration step creates a feedback loop between synthetic and real data. If your synthetic data happened to align well with reality — say synthetic suggested $\theta \approx 0.6$ and real flips also point to $\theta \approx 0.6$ — then the evidence $p(D_r \mid D_s, \lambda)$ is maximized at a higher $\lambda^*$, and synthetic data gets more influence. It earned that influence by being correct.
+
+If synthetic data contradicts reality — say synthetic suggested $\theta \approx 0.8$ but real flips point to $\theta \approx 0.5$ — then higher $\lambda$ values make real data less plausible (because the foundation prior is pulled away from where the real data actually lands). The evidence drops, and $\lambda^*$ shrinks toward zero. In the extreme, if synthetic is completely misleading, calibration sets $\lambda^* \approx 0$ and the framework gracefully ignores the synthetic data altogether, falling back to a standard Bayesian update with the original prior.
+
+This means you cannot be permanently misled by bad synthetic data, as long as you eventually collect real data and calibrate. The framework does not require you to know in advance whether synthetic data is trustworthy — it lets reality decide after the fact.
 
 ---
 
@@ -525,21 +595,35 @@ If synthetic aligns with reality, calibration gives higher $\lambda^*$. If synth
 
 You might ask: why minimize KL? Why not squared distance?
 
-When you solve "stay as close as possible to prior but satisfy an expectation constraint," there is a theorem: if you measure closeness using KL divergence, and your constraint is linear in the distribution (like an expectation), the solution must be:
+If we measured closeness using squared difference $\int (\rho(\theta) - \pi_0(\theta))^2\,d\theta$, we would ignore the fact that probabilities must remain positive and that they combine multiplicatively. Squared distance does not respect the geometry of probability distributions. KL divergence does — it compares distributions multiplicatively (via log-ratios), it measures information gain (how many extra bits are needed to encode $\rho$ if you designed your code for $\pi_0$), and critically, it produces a tractable solution.
+
+### Csiszar's I-projection theorem
+
+When you solve "stay as close as possible to prior but satisfy an expectation constraint," the result is governed by **Csiszar's I-projection theorem**: if you measure closeness using KL divergence, and your constraint is linear in the distribution (like an expectation), the unique solution must be:
 
 $$
 \rho(\theta) \propto \pi_0(\theta)\exp(\lambda g(\theta))
 $$
 
-That exponential form is not chosen. It is mathematically forced. In our coin case, $g(\theta) = \log L(D_s \mid \theta)$, so $\exp(\lambda g(\theta)) = L(D_s \mid \theta)^\lambda$.
+That exponential form is not chosen — it is mathematically forced by the structure of KL. In our coin case, $g(\theta) = \log L(D_s \mid \theta)$, so $\exp(\lambda g(\theta)) = L(D_s \mid \theta)^\lambda$. This is why the foundation prior has the form it does. No other divergence gives this clean exponential tilting structure.
 
-KL is the only divergence that preserves Bayesian structure. If we used other divergences, the math becomes messy and closed-form solutions may not exist.
+### The Gibbs variational principle
 
-### Connection to maximum entropy
+There is a dual way to see the same result. The **Gibbs variational principle** (also called the Donsker-Varadhan variational formula) states:
 
-The paper's core optimization is literally **relative maximum entropy**. You are saying: given my old belief $\pi_0$, and given that expected log-likelihood must be at least $C$, what is the least informative update?
+$$
+\log \int \exp(f(\theta))\,d\pi_0(\theta) = \sup_\rho \left\{ \mathbb{E}_\rho[f(\theta)] - KL(\rho \| \pi_0) \right\}
+$$
 
-Normal Bayesian updating can also be derived as minimizing KL divergence subject to exact data constraints. So Bayes' rule is a relative entropy projection. The paper uses that same machinery, but with softened ($\lambda$-weighted) constraints for synthetic data. This framework sits directly inside information geometry, maximum entropy theory, and variational inference. It is not ad hoc.
+and the supremum is achieved by the exponential tilt $\rho^*(\theta) \propto \pi_0(\theta)\exp(f(\theta))$. In our setting, $f(\theta) = \lambda \log L(D_s \mid \theta)$. So the foundation prior is exactly the optimizer in the Donsker-Varadhan formula — the distribution that maximizes expected log-likelihood minus KL cost. The left-hand side of the formula gives the normalizing constant $Z(\lambda) = \int \pi_0(\theta)\,L(D_s \mid \theta)^\lambda\,d\theta$, which is the partition function of the tilted distribution.
+
+This is not a coincidence. The constrained optimization (minimize KL subject to expectation constraint) and the variational formula (maximize expectation minus KL) are Lagrangian duals of each other. They produce the same solution from opposite directions.
+
+### Connection to Jaynes's maximum entropy
+
+The paper's core optimization is literally **relative maximum entropy** (also called minimum relative entropy or minimum discrimination information). Jaynes's Maximum Entropy principle says: when you must choose a distribution satisfying certain moment constraints, pick the one with maximum entropy — the least informative distribution consistent with your constraints. When you already have a prior $\pi_0$, the correct generalization replaces entropy with *relative* entropy: minimize $KL(\rho \| \pi_0)$ subject to constraints. You are saying: given my old belief $\pi_0$, and given that expected log-likelihood must be at least $C$, what is the least informative update?
+
+Normal Bayesian updating can also be derived this way — as minimizing KL divergence subject to exact data constraints. So Bayes' rule is itself a relative entropy projection. The paper uses that same machinery, but with softened ($\lambda$-weighted) constraints for synthetic data. This framework sits directly inside information geometry, maximum entropy theory, and variational inference. It is not ad hoc.
 
 ---
 
@@ -565,9 +649,16 @@ Then you collect real data $D_r$ and choose $\lambda^*$ by calibration — picki
 
 ## Where This Connects to Broader Theory
 
-This framework connects to several foundational results in statistics and information theory. It connects to Jaynes's Maximum Entropy principle, since the optimization is relative entropy maximization. It connects to Csiszar's I-divergence theory, since the problem is KL minimization under moment constraints. It connects to the Donsker-Varadhan variational formula through its exponential tilting structure. And it connects to generalized Bayesian updating, since the framework uses $L^\lambda$ instead of $L$.
+To summarize the named results that appear throughout the derivation:
 
-It is fundamentally an information-theoretic Bayesian update.
+- **Csiszar's I-projection theorem** gives the form of the solution: KL minimization under linear constraints uniquely produces exponential tilting.
+- **The Gibbs variational principle / Donsker-Varadhan formula** provides the dual view: the foundation prior maximizes expected log-likelihood minus KL cost, and the partition function $Z(\lambda)$ falls out as a byproduct.
+- **Jaynes's Maximum Entropy principle** (in its relative form) explains *why* KL is the right objective: it produces the least informative update consistent with the synthetic data constraint.
+- **Beta-Bernoulli conjugacy** keeps everything in closed form for the coin example — the foundation prior, the posterior after real data, and the marginal likelihood for calibration all remain Beta or Beta-Binomial.
+- **Generalized Bayesian updating** is the broader framework where likelihood is raised to a power $\lambda$ instead of used at full strength — the foundation prior is a special case where the power-likelihood applies only to synthetic data.
+- **The law of total expectation and law of total variance** govern the mixture calculations when averaging across prompt heterogeneity.
+
+It is fundamentally an information-theoretic Bayesian update, and every step uses a named, well-established result.
 
 ---
 
