@@ -187,6 +187,16 @@ $$
 
 It represents the expected value or balance point of the distribution. For example, if $\alpha = 2$ and $\beta = 2$, then $\mu = 2/4 = 0.5$.
 
+### The variance of a Beta distribution
+
+The variance of $\text{Beta}(\alpha, \beta)$ is:
+
+$$
+\boxed{\text{Var} = \frac{\alpha\beta}{(\alpha + \beta)^2(\alpha + \beta + 1)}}
+$$
+
+This formula tells you how spread out the distribution is. As $\alpha + \beta$ grows (more pseudo-observations), the variance shrinks — you become more certain. For example, $\text{Beta}(2, 2)$ has variance $\frac{2 \times 2}{4^2 \times 5} = \frac{4}{80} = 0.05$, while $\text{Beta}(20, 20)$ has variance $\frac{400}{1600 \times 41} \approx 0.006$ — ten times more pseudo-observations gives roughly ten times less variance. We will use this formula in the law of total variance section below and again in Part 2 when computing mixture uncertainty.
+
 ---
 
 ## What Is Entropy?
@@ -259,11 +269,27 @@ You are "tilting" the original distribution toward higher values of $g(\theta)$.
 
 Let $\theta$ only take three values: $\{0.2, 0.5, 0.8\}$, with prior probabilities 0.3, 0.4, and 0.3 respectively. Now suppose synthetic data prefers larger $\theta$. Let $g(\theta) = \theta$ and choose $\lambda = 2$.
 
-We compute $\exp(2\theta)$ for each value: at $\theta = 0.2$ we get $\exp(0.4) \approx 1.49$, at $\theta = 0.5$ we get $\exp(1.0) \approx 2.72$, and at $\theta = 0.8$ we get $\exp(1.6) \approx 4.95$. Now multiply each prior probability by its corresponding tilt factor: $0.3 \times 1.49 = 0.447$, then $0.4 \times 2.72 = 1.088$, and $0.3 \times 4.95 = 1.485$. The total is $0.447 + 1.088 + 1.485 = 3.02$. Dividing each product by this total gives the new probabilities: $0.148$ for $\theta = 0.2$, $0.360$ for $\theta = 0.5$, and $0.492$ for $\theta = 0.8$.
+First, compute $\exp(2\theta)$ for each value:
 
-The distribution shifted toward larger $\theta$. That is exponential tilting.
+$$
+\exp(2 \times 0.2) = \exp(0.4) \approx 1.49, \quad \exp(2 \times 0.5) = \exp(1.0) \approx 2.72, \quad \exp(2 \times 0.8) = \exp(1.6) \approx 4.95
+$$
 
-### The theorem
+Now multiply each prior probability by its corresponding tilt factor:
+
+$$
+0.3 \times 1.49 = 0.447, \quad 0.4 \times 2.72 = 1.088, \quad 0.3 \times 4.95 = 1.485
+$$
+
+The total is $0.447 + 1.088 + 1.485 = 3.02$. Dividing each product by this total gives the new (normalized) probabilities:
+
+$$
+\frac{0.447}{3.02} \approx 0.148, \quad \frac{1.088}{3.02} \approx 0.360, \quad \frac{1.485}{3.02} \approx 0.492
+$$
+
+The distribution shifted toward larger $\theta$. Before tilting, $\theta = 0.8$ had probability 0.30. After tilting, it has probability 0.49. That is exponential tilting — the prior was reweighted toward values that score higher on $g(\theta)$.
+
+### The theorem (Csiszar's I-projection)
 
 If you solve:
 
@@ -277,7 +303,7 @@ $$
 \rho(\theta) = \frac{\pi_0(\theta)\exp(\lambda g(\theta))}{\int \pi_0(u)\exp(\lambda g(u))\,du}
 $$
 
-No other shape works. This is not assumed — it is forced by the structure of KL.
+This result is known as **Csiszar's I-projection theorem**. No other shape works — the exponential form is not assumed, it is forced by the structure of KL. You will see this theorem invoked by name in Part 2 when we derive the foundation prior.
 
 ### Why exponential form appears
 
@@ -329,13 +355,23 @@ You do not know the true $\theta$. So to compute how likely the data is under yo
 
 ### Coin example
 
-Suppose $\theta$ can only be $\{0.4, 0.6\}$ with equal prior probabilities. Real data: 6 heads out of 10. Then $p(D \mid 0.4) = 0.4^6 \times 0.6^4$ and $p(D \mid 0.6) = 0.6^6 \times 0.4^4$. The marginal likelihood is:
+Suppose $\theta$ can only be $\{0.4, 0.6\}$ with equal prior probabilities. Real data: 6 heads out of 10. The likelihoods are:
 
 $$
-p(D) = 0.5 \times p(D \mid 0.4) + 0.5 \times p(D \mid 0.6)
+p(D \mid 0.4) = 0.4^6 \times 0.6^4 = 0.004096 \times 0.1296 \approx 0.000531
 $$
 
-We average likelihoods weighted by prior belief.
+$$
+p(D \mid 0.6) = 0.6^6 \times 0.4^4 = 0.046656 \times 0.0256 \approx 0.001194
+$$
+
+The marginal likelihood averages these weighted by prior belief:
+
+$$
+p(D) = 0.5 \times 0.000531 + 0.5 \times 0.001194 \approx 0.000863
+$$
+
+Notice that $p(D \mid 0.6)$ is about 2.25 times larger than $p(D \mid 0.4)$ — the data (6 heads out of 10) favors $\theta = 0.6$ over $\theta = 0.4$. But the marginal likelihood combines both possibilities into a single number that measures how well the overall model (both values of $\theta$ together) predicts the data.
 
 ### Why it is called "marginal"
 
@@ -431,7 +467,7 @@ $$
 \pi(\theta \mid D) \propto \theta^1(1 - \theta)^1 \times \theta^7(1 - \theta)^3 = \theta^8(1 - \theta)^4
 $$
 
-That is $\text{Beta}(9, 5)$. The posterior mean is $9/14 \approx 0.643$.
+That is $\text{Beta}(9, 5)$. This is **Beta-Bernoulli conjugacy** — the Beta prior and the Binomial likelihood multiply to give another Beta. The prior contributed $(\alpha_0 - 1) = 1$ pseudo-head and $(\beta_0 - 1) = 1$ pseudo-tail, and the data contributed 7 real heads and 3 real tails, giving $\text{Beta}(1 + 7 + 1,\; 1 + 3 + 1) = \text{Beta}(9, 5)$. The posterior mean is $9/14 \approx 0.643$.
 
 Everything is clean because data comes from reality. The Foundation Prior paper (Part 2) asks: what happens when data comes from an LLM instead?
 
