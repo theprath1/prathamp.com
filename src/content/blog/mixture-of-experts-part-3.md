@@ -137,6 +137,21 @@ The dispatch entropy of nonlinear MoEs is nearly zero in all settings, meaning e
 
 Why? A linear function $f(\mathbf{x}) = \mathbf{w}^T \mathbf{x}$ responds to all patches equally — it cannot distinguish a signal patch from a noise patch in a different direction. A nonlinear function like $f(\mathbf{x}) = \sum_j \sum_p \sigma(\langle \mathbf{w}_j, \mathbf{x}^{(p)} \rangle)$ with cubic activation $\sigma(z) = z^3$ can amplify the response to aligned patches while suppressing others, because $z^3$ grows much faster than $z$ for large $|z|$.
 
+This holds across all tested activation functions — linear, cubic, ReLU, CELU, GELU, and tanh — confirming that Theorem 4.1's bound is not an artifact of a specific architecture. No single expert, regardless of activation choice, exceeds 87.5%.
+
+### Can load balancing save linear MoE?
+
+One might hope that adding a load balancing loss could compensate for the weakness of linear experts by ensuring better data distribution. Chen et al. test this directly:
+
+| Model | Load Balancing | Accuracy | Dispatch Entropy |
+|-------|---------------|----------|-----------------|
+| MoE (linear) | No | 92.99 ± 2.11% | 1.300 ± 0.044 |
+| MoE (linear) | Yes | 93.81 ± 1.10% | 1.272 ± 0.037 |
+| MoE (nonlinear) | No | **99.46 ± 0.55%** | **0.098 ± 0.087** |
+| MoE (nonlinear) | Yes | 99.39 ± 0.33% | 0.083 ± 0.095 |
+
+Load balancing provides only a marginal improvement to linear MoE (92.99% → 93.81%) and does not reduce dispatch entropy. Meanwhile, nonlinear MoE without any load balancing (99.46%) vastly outperforms linear MoE with load balancing (93.81%). The conclusion: **nonlinearity is the fundamental enabler of expert specialization, not load balancing**. Load balancing helps with training stability at scale (as we saw in Parts 1 and 2), but it cannot substitute for the expressive power that nonlinear activations provide.
+
 ---
 
 ## 5. The Three Key Techniques
@@ -189,6 +204,17 @@ Chen et al. test their theory on CIFAR-10 and a variant called **CIFAR-10-Rotate
 On standard CIFAR-10, MoEs provide no benefit — the task lacks strong cluster structure, so a single model suffices. On CIFAR-10-Rotate, which has intrinsic cluster structure, MoEs consistently outperform single models by 2.8–4.4 percentage points across all architectures.
 
 This confirms the theory: **the advantage of MoE over single models depends on the cluster structure of the data**. When data naturally decomposes into clusters that require different processing, MoEs excel.
+
+### Multilingual sentiment analysis
+
+Chen et al. further validate the theory on a **multilingual sentiment analysis** task — classifying Amazon reviews from 4 languages (English, German, French, Japanese) as positive or negative. This is a natural MoE setting: each language forms a distinct cluster with its own vocabulary and syntax.
+
+| Model | Test Accuracy |
+|-------|--------------|
+| Single model | 74.13% |
+| MoE (4 experts) | **76.22%** |
+
+Beyond the accuracy gain, the routing patterns reveal that **experts spontaneously specialize by language** — without any language labels in the training objective. The t-SNE visualization of router assignments shows four clear clusters corresponding to the four languages, with each expert predominantly handling one language. This is the theory's prediction made concrete: when data has natural cluster structure, MoE experts discover and exploit it.
 
 ---
 
@@ -253,7 +279,21 @@ A summary of hyperparameter trends across production MoE models:
 
 **Activation function.** Evolved from ReLU (GShard) → GEGLU (Switch-T) → GeLU (DeepSpeed-MoE) → SwiGLU (Mixtral onward).
 
-### 7.5 Training and Inference Schemes
+### 7.5 MoE Derivatives
+
+The MoE principle has inspired several derivative architectures:
+
+**WideNet** (Xue et al.): Replaces the FFN with an MoE layer while sharing all other parameters across Transformer layers, increasing model width without depth.
+
+**Sparse Universal Transformer (SUT)** (Tan et al.): Combines parameter-sharing across layers (Universal Transformer) with a Sparse MoE and a stick-breaking-based dynamic halting mechanism — reducing computation without sacrificing generalization.
+
+**Mixture of Tokens (MoT)** (Antoniak et al.): Instead of routing tokens to experts, MoT blends tokens from different examples before presenting them to experts, enabling each expert to benefit from a wider array of token-expert combinations.
+
+**Mixture-of-Depths (MoD)** (Raposo et al., 2024): A binary gating network decides **whether a token should be processed** by a given Transformer layer at all. Tokens that skip a layer pass through via the residual connection. This allows MoD transformers to dynamically allocate FLOPs to specific sequence positions, achieving a lower overall FLOP footprint compared to both vanilla and MoE-based transformers.
+
+These derivatives reveal a trend: the conditional computation idea from MoE is being applied not just to *which* expert processes a token, but to *whether* computation happens at all.
+
+### 7.6 Training and Inference Schemes
 
 The relationship between dense and sparse models has spawned new training paradigms:
 
@@ -263,17 +303,54 @@ The relationship between dense and sparse models has spawned new training paradi
 
 **Expert merging.** Branch-Train-Merge: independently train expert models on different data domains, then merge them into a single MoE with a learned router.
 
-### 7.6 System Design for MoE
+### 7.7 System Design for MoE
 
-MoE models introduce unique system challenges:
+MoE models introduce unique system challenges across three dimensions:
 
-**Computation.** Expert parallelism distributes experts across devices. Each device holds a subset of experts and receives tokens routed to them via all-to-all communication. FastMoE, DeepSpeed-MoE, and Tutel provide optimized MoE training frameworks.
+**Computation.** Expert parallelism distributes experts across devices. Each device holds a subset of experts and receives tokens routed to them via all-to-all communication. The open-source ecosystem has grown rapidly — notable frameworks include:
 
-**Communication.** The all-to-all communication pattern (tokens dispatched to expert devices, results returned) is the primary bottleneck. Techniques include overlapping communication with computation, reducing communication volume through expert placement optimization, and hierarchical routing to minimize cross-node communication.
+| Framework | Affiliation | GitHub Stars |
+|-----------|------------|-------------|
+| OpenMoE | Colossal-AI | 38K |
+| Fairseq | Meta | 29K |
+| DeepSpeed-MoE | Microsoft | 33K |
+| Megablocks | Stanford | 1.1K |
+| Tutel | Microsoft | 672 |
+| FastMoE | Tsinghua | 1.4K |
 
-**Storage.** MoE models have many more parameters than dense models of similar FLOPs. Pre-gated MoE precomputes routing decisions and stores only the active expert weights for each batch. EdgeMoE and MPipeMoE optimize storage for edge deployment.
+Solutions like MegaBlocks reformulate MoE as block-sparse operations with specialized GPU kernels, and PIT (Permutation Invariant Transformation) uses mathematically proven transformations to convert sparsely located micro-tiles into GPU-efficient dense tiles.
 
-### 7.7 The Production MoE Models
+**Communication.** The quadruple all-to-all invocation (forward dispatch, forward combine, backward dispatch, backward combine) within each MoE layer is the primary bottleneck. Optimization techniques include: overlapping communication with computation (pipelining, used in Tutel, FasterMoE, PipeMoE), hierarchical all-to-all to reduce inter-node traffic (DeepSpeed-MoE, HetuMoE), and topology-aware routing to minimize cross-node expert selection (FasterMoE, TA-MoE, SE-MoE). ScMoE restructures the architecture to process representations from preceding layers simultaneously, enabling complete overlap of communication and computation.
+
+**Storage.** MoE models have many more parameters than dense models of similar FLOPs. Solutions operate across the storage hierarchy: Pre-gated MoE and SE-MoE selectively retain only essential non-expert parameters in GPU HBM, offloading inactive expert parameters to CPU memory or SSDs. Expert selection forecasting and parameter prefetching overlap parameter access with computation. MPipeMoE reduces memory overhead by sharing buffers across tensor partitions and using recomputation with CPU offloading.
+
+### 7.8 Applications Beyond NLP
+
+MoE has expanded well beyond language modeling:
+
+**Computer Vision.** Vision MoE (V-MoE) incorporates sparsely activated mixture of MLPs into selected ViT blocks, rivaling state-of-the-art image recognition with substantially less inference compute. SwinV2-MoE demonstrates dynamic parallelism and pipelining at scale. Patch-level routing (pMoE) segments images into patches and allocates subsets to specific experts for processing.
+
+**Recommender Systems.** Multi-gate MoE (MMoE) uses shared expert submodels across tasks with per-task gating networks. Progressive Layered Extraction (PLE) segregates shared and task-specific components with progressive routing. AdaMCT blends CNN and Transformer experts with layer-aware adaptive routing.
+
+**Multimodal Applications.** LIMoE uses contrastive loss and entropy-based regularization for cross-modal expert balancing. MoCLE integrates MoE with LoRA and a distinct universal expert, activated by cluster-based instruction routing. Uni-MoE provides a unified MLLM capable of managing diverse modalities through progressive expert collaboration training.
+
+### 7.9 Challenges and Open Problems
+
+Cai et al. identify several critical challenges:
+
+**Training Stability and Load Balancing.** The discrete routing decisions create significant challenges in maintaining balanced workloads and training stability. Current auxiliary losses can still lead to training instability and often neglect the relative importance of different tokens.
+
+**Scalability and Communication Overhead.** As model sizes grow, the trade-off between model complexity (parameter count) and communication overhead becomes a significant bottleneck. The choice of distributed parallelism strategy involves complex interplay between computation efficiency, communication overhead, and memory occupation.
+
+**Generalization and Robustness.** Sparse MoE architectures show a propensity to overfit to specific tasks or datasets. Regularization techniques like dropout and token dropping help, but generalization remains an active research area.
+
+**Interpretability and Transparency.** The dynamic gating of inputs to specialized experts poses challenges to interpretability. Understanding load balancing, knowledge redundancy, and the behavior of individual experts requires new tools and methods.
+
+**Optimal Expert Architecture.** The strategic allocation of varying numbers of experts across different layers remains under-explored. Different layers capture semantic information at varying granularity, suggesting that a uniform expert count may be suboptimal.
+
+**Integration with Existing Frameworks.** Parameter-efficient fine-tuning (PEFT) techniques like LoRA have been successfully combined with MoE (MixLoRA, LLaVA-MoLE), but these methods may compromise existing parallel strategies. Developing modular, plug-and-play MoE components is essential.
+
+### 7.10 The Production MoE Models
 
 A snapshot of notable production MoE models:
 
@@ -322,4 +399,4 @@ What changed is the size of $\mathcal{T}$ (from all experts to top-$k$ to top-1)
 
 Chen et al. (2022) showed that MoEs succeed because of three properties: (1) the cluster structure of real data provides natural subproblems for individual experts, (2) nonlinear experts can distinguish signal from noise within their assigned cluster while linear experts cannot, and (3) random initialization provides the symmetry-breaking that allows experts to specialize during an exploration phase. The router then learns to identify clusters through cluster-center features and dispatches data accordingly.
 
-Cai et al. (2024) surveyed the entire MoE landscape in the era of LLMs, revealing a field that has matured from a research curiosity into a production architecture powering models from Mixtral to DeepSeek-V3. The design space has expanded along every axis — gating functions (sparse, dense, soft), expert architectures (FFN, attention, shared, fine-grained, parameter-efficient), training schemes (original, Dense2Sparse, Sparse2Dense, expert merging), and system designs (expert parallelism, communication optimization, storage efficiency) — while the mathematical foundations laid in 1991 continue to underpin it all.
+Cai et al. (2024) surveyed the entire MoE landscape in the era of LLMs, revealing a field that has matured from a research curiosity into a production architecture powering models from Mixtral to DeepSeek-V3. The design space has expanded along every axis — gating functions (sparse, dense, soft), expert architectures (FFN, attention, shared, fine-grained, parameter-efficient), training schemes (original, Dense2Sparse, Sparse2Dense, expert merging), derivative architectures (WideNet, SUT, Mixture of Tokens, Mixture-of-Depths), system designs (expert parallelism, communication optimization, storage efficiency), and applications spanning NLP, computer vision, recommender systems, and multimodal learning — while the mathematical foundations laid in 1991 continue to underpin it all.

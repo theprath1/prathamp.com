@@ -59,7 +59,10 @@ Whenever you use a named mathematical result — a theorem, identity, inequality
 
 This applies at every level — from elementary identities (the **logarithm product rule**: $\log(ab) = \log a + \log b$, the **chain rule of calculus**, **Bayes' theorem**) to advanced results (**Csiszár's I-projection theorem**, the **Perron–Frobenius theorem**, **Fubini's theorem** for interchanging sum and integral). If a technique has an established name, use it. If a result is attributed to a person, give the attribution. Bold the name on first use in the post. This builds the reader's mathematical vocabulary alongside their understanding, and makes results easier to look up and cross-reference.
 
-**13. What NOT To Do**
+**13. Read Every Page of Every Paper**
+When writing a blog post based on research papers, read every single page of every paper — including appendices, supplementary material, proofs, and references. Never assume later pages are unimportant. Appendices often contain critical experimental results, ablations, and additional datasets that strengthen the narrative. Before claiming a paper has been fully covered, verify the total page count (e.g., using `mdls -name kMDItemNumberOfPages` for PDFs) and confirm every page has been read. Missing even supplementary experiments can leave out key insights like load balancing comparisons, activation function ablations, or cross-domain validation experiments.
+
+**14. What NOT To Do**
 - Never say "it is left as an exercise"
 - Never skip a step in a derivation because it's "straightforward"
 - Never introduce notation without defining it immediately
@@ -67,3 +70,4 @@ This applies at every level — from elementary identities (the **logarithm prod
 - Never make a claim without proving it or pointing to where it was proven
 - Never add features, tangents, or "bonus" sections — stay laser-focused on the single thread from setup to final result
 - Never assume the reader has seen this material before, but also never be condescending — explain because the explanation is interesting, not because the reader is slow
+- Never skip pages of a paper — read every page, every appendix, every table

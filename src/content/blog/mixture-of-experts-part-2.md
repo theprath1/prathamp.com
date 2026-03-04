@@ -385,9 +385,71 @@ The combination of low non-expert dropout and high expert dropout gives the best
 
 ---
 
-## 7. Scaling Properties
+## 7. Distillation: Compressing Sparse Models
 
-### 7.1 Scaling with number of experts
+Deploying a trillion-parameter sparse model is impractical for many use cases. Fedus et al. study **distillation**: compressing large sparse models into small dense ones.
+
+They find two techniques that stack:
+1. **Initialize the dense model with non-expert weights** from the sparse teacher. Since non-expert layers (self-attention, layer norms, embeddings) are identical between Switch-Base and T5-Base, these weights can be copied directly.
+2. **Use a mixture of teacher and ground-truth loss**: $0.25 \times \mathcal{L}_{\text{teacher}} + 0.75 \times \mathcal{L}_{\text{label}}$.
+
+| Technique | Parameters | Quality ($\uparrow$) |
+|-----------|-----------|---------------------|
+| T5-Base | 223M | -1.636 |
+| Switch-Base (teacher) | 3,800M | -1.444 |
+| Distillation only | 223M | (3%) -1.631 |
+| + Non-expert init | 223M | (20%) -1.598 |
+| + Mixed loss | 223M | **(29%) -1.580** |
+
+The quality gain percentage measures how much of the gap between T5-Base and Switch-Base the student recovers. By combining both techniques, a 223M parameter student preserves **~30% of the quality gain** from a 3.8B parameter teacher — a **17x compression** with meaningful quality retention.
+
+At extreme compression, distilling a 14.7B-parameter Switch model into a 223M dense model (99% compression) still retains 28% of the teacher's improvement. This demonstrates that much of what experts learn can be transferred to a single dense model.
+
+---
+
+## 8. Multilingual Learning
+
+Fedus et al. evaluate Switch Transformers on multilingual pre-training across **101 languages** using the mC4 dataset. Comparing mSwitch-Base (FLOP-matched) to mT5-Base:
+
+- Switch Transformer improves negative log perplexity on **all 101 languages**
+- Mean step speedup: **5x** over mT5-Base
+- **91% of languages** achieve at least a **4x speedup**
+
+This is particularly notable because multilingual data is naturally clustered by language — exactly the kind of structure where MoEs excel. Different experts can specialize on different languages or language families, while shared linguistic patterns are captured in the non-expert layers.
+
+---
+
+## 9. Parallelism Strategies for Scaling
+
+Arbitrarily increasing the number of experts hits diminishing returns. Fedus et al. study **complementary** scaling strategies that combine expert parallelism with data and model parallelism.
+
+With $N = n \times m$ total cores, where $n$ is the data-parallel dimension and $m$ is the model-parallel dimension:
+
+**Data parallelism** ($n = N, m = 1$): Each core holds the full model and a shard of the batch. No communication until the end of the forward/backward pass (all-reduce for gradients).
+
+**Model parallelism** ($n = 1, m = N$): Each core holds a slice of the weights. Communication at every layer (all-reduce for activations).
+
+**Expert parallelism**: Each core holds a subset of experts. Tokens are dispatched via **all-to-all communication**: each core sends tokens to the core hosting the selected expert, then receives results back. This is unique to MoE — dense models don't need it.
+
+**Expert + Data parallelism**: Used for Switch-C (1,571B params, 2048 experts). Each expert lives on one core. No model parallelism, so the per-core FFN size is limited, but expert count scales linearly with cores.
+
+**Expert + Model + Data parallelism**: Used for Switch-XXL (395B params). Model parallelism increases per-token FLOPs (larger $d_{ff}$), expert parallelism increases parameters, and data parallelism increases throughput.
+
+### Trillion-parameter results
+
+| Model | Parameters | FLOPs/seq | Experts | Neg. Log Perp. @250k | @500k |
+|-------|-----------|-----------|---------|---------------------|-------|
+| T5-XXL | 11B | 6.3T | — | -1.147 | -1.095 |
+| Switch-XXL | 395B | 6.3T | 64 | **-1.086** | **-1.008** |
+| Switch-C | 1,571B | 890B | 2048 | -1.096 | -1.043 |
+
+Switch-C uses expert-parallelism only and is **4x faster** to reach a given perplexity than T5-XXL. Interestingly, Switch-C exhibited **no training instability** despite having 1.6T parameters, while the FLOP-heavy Switch-XXL was sometimes unstable — suggesting that instability correlates more with FLOPs per token than total parameter count.
+
+---
+
+## 10. Scaling Properties
+
+### 10.1 Scaling with number of experts
 
 The key scaling axis for Switch Transformers is the number of experts. Increasing experts keeps the FLOPs per token approximately constant (since each token uses only one expert), but increases the total model parameters.
 
@@ -397,7 +459,9 @@ Fedus et al. trained Switch-Base models with 2, 4, 8, 16, 32, 64, 128, and 256 e
 2. **Sample efficiency**: the Switch-Base 64-expert model achieves the same quality as T5-Base at step 60k versus step 450k — a **7.5x speedup** in terms of training steps.
 3. **Time efficiency**: on a wall-clock basis, the 64-expert Switch Transformer reaches T5-Base quality in **one-seventh** the time.
 
-### 7.2 Switch vs. dense scaling
+Even with as few as 2 experts, Switch Transformers improve over the dense T5-Base baseline — you do not need a supercomputer to benefit from sparse expert models.
+
+### 10.2 Switch vs. dense scaling
 
 A natural question: what if we used the compute budget for a bigger dense model instead?
 
@@ -409,15 +473,9 @@ $$
 
 Despite T5-Large using 3.5x more computation per token, Switch-Base is still faster and more sample-efficient. This demonstrates that **parameter count** (via sparse activation) is a separate and important scaling axis beyond **compute per token**.
 
-### 7.3 Scaling to a trillion parameters
-
-Fedus et al. combine data, model, and expert parallelism to pre-train models up to a trillion parameters on the C4 corpus. Their largest models use 2048 experts across 2048 devices, with expert and model parallelism running on top of data parallelism.
-
-The trillion-parameter Switch Transformer achieves a **4x speedup** over the strongly-tuned T5-XXL baseline, demonstrating that sparse MoE models can effectively utilize massive compute clusters.
-
 ---
 
-## 8. Switch Transformer vs. MoE Transformer: Head-to-Head
+## 11. Switch Transformer vs. MoE Transformer: Head-to-Head
 
 Fedus et al. provide a direct comparison with all models using 128 experts at every other feed-forward layer:
 
@@ -437,7 +495,22 @@ Three findings:
 
 ---
 
-## 9. The Unified View: From Dense to Sparse
+## 12. Fine-Tuning Results
+
+Switch Transformers also excel on downstream tasks. Comparing FLOP-matched Switch models to T5 baselines across diverse benchmarks:
+
+| Model | GLUE | SQuAD | SuperGLUE | Winogrande |
+|-------|------|-------|-----------|------------|
+| T5-Base | 84.3 | 85.5 | 75.1 | 66.6 |
+| Switch-Base | **86.7** | **87.2** | **79.5** | **73.3** |
+| T5-Large | 87.8 | 88.1 | 82.7 | 79.1 |
+| Switch-Large | **88.5** | **88.6** | **84.7** | **83.0** |
+
+The gains are consistent across both model sizes and across both reasoning tasks (SuperGLUE, Winogrande) and knowledge-heavy tasks (SQuAD, closed-book QA). On knowledge-based tasks, Switch-XXL achieves new state-of-the-art results: Natural Questions exact match increases to 34.4 (vs. prior best 32.8), WebQuestions to 41.0 (vs. 37.2), and TriviaQA to 47.5 (vs. 42.9).
+
+---
+
+## 13. The Unified View: From Dense to Sparse
 
 Let us connect the dots from Part 1 to Part 2. The evolution follows a clear arc:
 
