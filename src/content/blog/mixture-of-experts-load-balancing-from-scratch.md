@@ -3,6 +3,7 @@ title: "MoE Load Balancing from Scratch"
 description: "Building Mixture-of-Experts routing from the ground up — sigmoid scores, top-K selection, expert biases, aux-loss-free balancing, and SMEBU — all derived step by step with a 4-expert toy model."
 date: 2026-03-03
 tags: [machine-learning, mixture-of-experts, load-balancing, transformers, mathematics]
+draft: true
 ---
 
 The Arcee Trinity Large technical report introduces a 400-billion-parameter sparse Mixture-of-Experts language model that activates only 13 billion parameters per token. The model has 256 routed experts per layer, but only 4 fire for any given token. That means 252 experts sit idle on every forward pass. How does the model decide which 4 to activate? And how does it prevent all tokens from piling onto the same few "popular" experts while the rest gather dust?

@@ -46,7 +46,20 @@ Use "we" throughout ("We will derive...", "Let's trace what happens..."). Be dir
 - Keep summaries tight — the final summary section should restate every key concept in 2–3 sentences total, connecting them in a single narrative arc
 - Write descriptions that telegraph the full arc of the post: "Building X from the ground up — A, B, C, and D — all derived step by step with concrete examples"
 
-**12. What NOT To Do**
+**12. Name Every Mathematical Identity, Theorem, and Technique**
+Whenever you use a named mathematical result — a theorem, identity, inequality, algorithm, or technique — explicitly name it at the point of use. The reader should never apply a well-known result without knowing what it is called in the literature. Follow this pattern: state the result, then immediately label it in parentheses or inline. For example:
+
+- When you write $\sigma(-x) = 1 - \sigma(x)$, say: "This is the **sigmoid reflection identity**."
+- When you swap a finite sum and a derivative, say: "We can do this by **linearity of differentiation**."
+- When you use $1 + q + q^2 + \cdots + q^{N-1} = \frac{1 - q^N}{1 - q}$, say: "This is the **geometric series partial sum formula**."
+- When you write that every doubly stochastic matrix is a convex combination of permutation matrices, say: "This is the **Birkhoff–von Neumann theorem**."
+- When you take a functional derivative and set it to zero to find an optimum, say: "This is the **Euler–Lagrange equation** from the **calculus of variations**."
+- When you use $\text{KL}(q \| p) \geq 0$ with equality iff $q = p$, say: "This is **Gibbs' inequality**."
+- When you approximate $\tanh(x) \approx x$ for small $x$, say: "This is a **first-order Taylor (Maclaurin) approximation**."
+
+This applies at every level — from elementary identities (the **logarithm product rule**: $\log(ab) = \log a + \log b$, the **chain rule of calculus**, **Bayes' theorem**) to advanced results (**Csiszár's I-projection theorem**, the **Perron–Frobenius theorem**, **Fubini's theorem** for interchanging sum and integral). If a technique has an established name, use it. If a result is attributed to a person, give the attribution. Bold the name on first use in the post. This builds the reader's mathematical vocabulary alongside their understanding, and makes results easier to look up and cross-reference.
+
+**13. What NOT To Do**
 - Never say "it is left as an exercise"
 - Never skip a step in a derivation because it's "straightforward"
 - Never introduce notation without defining it immediately
