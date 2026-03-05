@@ -417,6 +417,18 @@ A mixture model describes a two-step process for generating data:
 
 In MoE, step 1 is the gating network selecting an expert, and step 2 is the selected expert generating a prediction (with Gaussian noise). The entire MoE framework *is* a mixture model where the mixing weights and component means are input-dependent.
 
+### Mixture of Gaussians
+
+When every component density $f(y \mid \mu_i, \sigma_i^2)$ is a Gaussian (Section 4), the mixture model is called a **mixture of Gaussians** (also known as a **Gaussian mixture model** or GMM). The total density becomes:
+
+$$
+P(y) = \sum_{i=1}^{n} p_i \cdot \frac{1}{\sqrt{2\pi\sigma_i^2}} \exp\!\left( -\frac{(y - \mu_i)^2}{2\sigma_i^2} \right)
+$$
+
+Each component is a bell curve centred at $\mu_i$ with width $\sigma_i$, and the mixture is a weighted sum of these bell curves. The result is a density that can have multiple peaks — one per component — allowing the model to capture data that clusters in several regions.
+
+This is exactly the interpretation Jacobs et al. (1991) give to MoE in Part 1: each expert defines a Gaussian centred at its output, the gating network provides the mixing weights, and the combined model is a mixture of Gaussians. The term $e^{-\frac{1}{2}\|d - o_i\|^2}$ in the MoE error function is the Gaussian component (with unit variance, normalising constant dropped), and $\sum_i p_i e^{-\frac{1}{2}\|d - o_i\|^2}$ is the mixture.
+
 ### Numerical check
 
 Using our two forecasters with unit variance and mixing weights $p_A = 0.6$, $p_B = 0.4$:
