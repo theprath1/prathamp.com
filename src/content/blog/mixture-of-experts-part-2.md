@@ -4,6 +4,7 @@ description: "From thousands of experts to trillion-parameter models — sparse 
 date: 2026-03-04
 tags: [machine-learning, mixture-of-experts, transformers, sparse-models, scaling, mathematics]
 order: 2
+draft: true
 ---
 
 In Part 1, we derived the Mixture of Experts framework from Jacobs et al. (1991) and Jordan & Jacobs (1993): experts, gating networks, the mixture-of-Gaussians interpretation, and the EM algorithm. Those foundational papers used 4–8 experts on small tasks. In this post, we follow two papers that scaled MoEs to thousands of experts and trillions of parameters: [Shazeer et al. (2017)](https://arxiv.org/abs/1701.06538) and [Fedus et al. (2021)](https://arxiv.org/abs/2101.03961).

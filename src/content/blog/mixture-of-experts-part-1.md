@@ -1,9 +1,8 @@
 ---
 title: "Mixture of Experts from Scratch — Part 1: The Foundations (1991–1993)"
 description: "Building Mixture of Experts from the ground up — adaptive expert networks, gating functions, the mixture-of-Gaussians interpretation, hierarchical mixtures, and the EM algorithm — all derived step by step with a 2-expert regression example."
-date: 2026-03-04
+date: 2026-03-05
 tags: [machine-learning, mixture-of-experts, neural-networks, em-algorithm, mathematics]
-order: 3
 ---
 
 We are going to build the Mixture of Experts (MoE) framework from scratch, starting from the two papers that created it: [Jacobs, Jordan, Nowlan & Hinton (1991)](https://www.cs.toronto.edu/~fritz/absps/jjnh91.pdf) and [Jordan & Jacobs (1993)](https://www.cs.toronto.edu/~hinton/absps/hme.pdf). By the end of this post, we will have derived every equation in both papers using a single running example — a system of 2 experts trying to learn a piecewise-linear function.
@@ -246,7 +245,7 @@ $$
 \frac{\partial E^1}{\partial o_2^1} = -0.347 \times (1 - 0.3) = -0.347 \times 0.7 = -0.243
 $$
 
-Interestingly, expert 2 gets a *larger* gradient magnitude despite having lower responsibility, because it is farther from the target. But the gating network will increasingly route case 1 away from expert 2 as training continues, reducing its responsibility $h_2^1$ toward zero.
+Interestingly, expert 2 gets a *larger* gradient magnitude ($|-0.243| = 0.243 > |-0.131| = 0.131$) despite having lower responsibility, because it is farther from the target. (Recall that $-0.243 < -0.131$ as signed numbers, but magnitude means distance from zero — see the [prerequisites post](/blog/math-prerequisites-for-mixture-of-experts#14-gradient-magnitude-vs-signed-value).) But the gating network will increasingly route case 1 away from expert 2 as training continues, reducing its responsibility $h_2^1$ toward zero.
 
 ---
 
