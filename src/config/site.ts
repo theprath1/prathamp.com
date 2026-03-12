@@ -1,6 +1,6 @@
 export const siteConfig = {
   name: "Pratham Patel",
-  title: "Pratham Patel | Developer Portfolio",
+  title: "Pratham Patel",
   description: "Personal portfolio and blog showcasing my projects, thoughts, and learning journey.",
   url: "https://prathamp.com",
   author: {

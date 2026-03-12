@@ -10,12 +10,62 @@ const posts = (await getCollection("blog"))
 
 <BaseLayout title="Blog" description="Thoughts, tutorials, and insights on software development.">
   <section class="max-w-6xl mx-auto px-4 py-16">
-    <h1 class="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">Blog</h1>
-    <p class="text-xl text-gray-600 dark:text-gray-400 mb-12 max-w-2xl">
-      Breaking down research papers, deriving ideas from scratch, and making complex topics intuitive.
-    </p>
+    <div class="mb-12 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+      <div>
+        <h1 class="mb-4 text-4xl font-bold text-gray-900 dark:text-white md:text-5xl">Blog</h1>
+        <p class="max-w-2xl text-xl text-gray-600 dark:text-gray-400">
+          Breaking down research papers, deriving ideas from scratch, and making complex topics intuitive.
+        </p>
+      </div>
 
-    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {posts.length > 0 && (
+        <div class="hidden items-center gap-3 md:flex">
+          <span class="text-sm font-medium text-gray-500 dark:text-gray-400">View</span>
+          <div
+            class="inline-flex items-center rounded-full border border-gray-200 bg-white/90 p-1 shadow-sm dark:border-gray-700 dark:bg-gray-800/90"
+            role="group"
+            aria-label="Blog layout"
+          >
+            <button
+              type="button"
+              class="blog-view-button"
+              data-view-toggle="grid"
+              data-active="true"
+              aria-pressed="true"
+              aria-controls="blog-feed"
+            >
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
+                <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
+                <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
+                <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
+              </svg>
+              <span>Cards</span>
+            </button>
+            <button
+              type="button"
+              class="blog-view-button"
+              data-view-toggle="list"
+              data-active="false"
+              aria-pressed="false"
+              aria-controls="blog-feed"
+            >
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path d="M8 6h13"></path>
+                <path d="M8 12h13"></path>
+                <path d="M8 18h13"></path>
+                <circle cx="4" cy="6" r="1"></circle>
+                <circle cx="4" cy="12" r="1"></circle>
+                <circle cx="4" cy="18" r="1"></circle>
+              </svg>
+              <span>List</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+
+    <div id="blog-feed" class="blog-feed" data-view="grid">
       {posts.map((post) => (
         <BlogCard
           title={post.data.title}
@@ -33,4 +83,155 @@ const posts = (await getCollection("blog"))
       </div>
     )}
   </section>
+
+  <script is:inline>
+    (() => {
+      const feed = document.getElementById("blog-feed");
+      const buttons = Array.from(document.querySelectorAll("[data-view-toggle]"));
+
+      if (!(feed instanceof HTMLElement) || buttons.length === 0) {
+        return;
+      }
+
+      const desktopMedia = window.matchMedia("(min-width: 768px)");
+      let desktopView = feed.dataset.view === "list" ? "list" : "grid";
+
+      const syncButtons = () => {
+        buttons.forEach((button) => {
+          const buttonView = button.getAttribute("data-view-toggle");
+          const isActive = desktopMedia.matches && buttonView === desktopView;
+
+          button.setAttribute("data-active", String(isActive));
+          button.setAttribute("aria-pressed", String(isActive));
+        });
+      };
+
+      const applyView = () => {
+        feed.dataset.view = desktopMedia.matches ? desktopView : "list";
+        syncButtons();
+      };
+
+      buttons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const nextView = button.getAttribute("data-view-toggle");
+
+          if (nextView !== "grid" && nextView !== "list") {
+            return;
+          }
+
+          desktopView = nextView;
+          applyView();
+        });
+      });
+
+      desktopMedia.addEventListener("change", applyView);
+      applyView();
+    })();
+  </script>
+
+  <style>
+    .blog-feed {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .blog-view-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-radius: 9999px;
+      padding: 0.625rem 0.9rem;
+      color: rgb(107 114 128);
+      transition:
+        background-color 150ms ease,
+        color 150ms ease,
+        box-shadow 150ms ease;
+    }
+
+    .blog-view-button:hover {
+      color: rgb(17 24 39);
+    }
+
+    .blog-view-button:focus-visible {
+      outline: 2px solid rgb(14 165 233);
+      outline-offset: 2px;
+    }
+
+    .dark .blog-view-button {
+      color: rgb(156 163 175);
+    }
+
+    .dark .blog-view-button:hover {
+      color: rgb(243 244 246);
+    }
+
+    .blog-view-button[data-active="true"] {
+      background: rgb(17 24 39);
+      color: rgb(255 255 255);
+      box-shadow: 0 8px 24px -16px rgba(15, 23, 42, 0.9);
+    }
+
+    .dark .blog-view-button[data-active="true"] {
+      background: rgb(243 244 246);
+      color: rgb(17 24 39);
+      box-shadow: none;
+    }
+
+    @media (max-width: 767px) {
+      .blog-feed .blog-card {
+        border-width: 0 0 1px;
+        border-radius: 0;
+        background: transparent;
+        padding: 1.25rem 0;
+        box-shadow: none;
+      }
+
+      .blog-feed .blog-card:hover {
+        box-shadow: none;
+      }
+    }
+
+    @media (min-width: 768px) {
+      .blog-feed[data-view="grid"] {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1.5rem;
+      }
+
+      .blog-feed[data-view="list"] .blog-card {
+        display: grid;
+        grid-template-columns: minmax(8.5rem, 10rem) minmax(0, 1fr);
+        gap: 1.5rem;
+        border-width: 0 0 1px;
+        border-radius: 0;
+        background: transparent;
+        padding: 1.5rem 0;
+        box-shadow: none;
+      }
+
+      .blog-feed[data-view="list"] .blog-card:hover {
+        box-shadow: none;
+      }
+
+      .blog-feed[data-view="list"] .blog-card__meta {
+        margin-bottom: 0;
+        padding-top: 0.35rem;
+      }
+
+      .blog-feed[data-view="list"] .blog-card__body {
+        min-width: 0;
+      }
+
+      .blog-feed[data-view="list"] .blog-card__tags {
+        grid-column: 2;
+      }
+    }
+
+    @media (min-width: 1024px) {
+      .blog-feed[data-view="grid"] {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+  </style>
 </BaseLayout>
