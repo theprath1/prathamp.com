@@ -81,6 +81,21 @@
     max-width: 100%;
   }
 
+  /* Center images and inline SVGs in prose */
+  .prose :where(img) {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .prose :where(svg) {
+    width: 100%;
+    max-width: 560px;
+    height: auto;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+  }
+
   .prose :where(pre) {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;

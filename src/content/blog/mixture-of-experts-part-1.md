@@ -253,29 +253,9 @@ Interestingly, expert 2 gets a *larger* gradient magnitude ($|-0.243| = 0.243 > 
 
 Let us now put the pieces together into a complete architecture, as shown in Figure 1 of Jacobs et al. (1991).
 
-```
-                           ô (output)
-                            ↑
-                     ┌──────┴──────┐
-                     │  Stochastic │
-                     │  Selector   │
-                     ├──────┬──────┤
-                   p₁       │     p₂
-                    ↑       │      ↑
-              ┌─────┴───┐   │  ┌───┴─────┐
-              │Expert 1 │   │  │Expert 2 │
-              │ o₁=w₁x  │   │  │ o₂=w₂x  │
-              └────┬────┘   │  └────┬────┘
-                   │        │       │
-                   │   ┌────┴────┐  │
-                   │   │ Gating  │  │
-                   │   │ Network │  │
-                   │   └────┬────┘  │
-                   │        │       │
-                   └────────┼───────┘
-                            │
-                          input x
-```
+<div style="display:flex;justify-content:center;margin:1.5rem 0;">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 300" font-family="system-ui,-apple-system,sans-serif" font-size="13"><style>.b{fill:none;stroke:currentColor;stroke-width:1.5;rx:6;opacity:.7}.bh{fill:currentColor;fill-opacity:.08;stroke:currentColor;stroke-width:1.5;rx:6}.l{fill:currentColor;text-anchor:middle;dominant-baseline:central;font-weight:500}.ls{fill:currentColor;opacity:.55;text-anchor:middle;dominant-baseline:central;font-size:10.5}.c{stroke:currentColor;stroke-width:1.5;opacity:.35;fill:none}.a{fill:currentColor;opacity:.35}</style><text x="190" y="8" class="ls">ô (output)</text><polygon points="185,16 190,12 195,16" class="a"/><line x1="190" y1="16" x2="190" y2="28" class="c"/><rect x="125" y="28" width="130" height="38" class="bh"/><text x="190" y="41" class="l">Stochastic</text><text x="190" y="56" class="l">Selector</text><!-- Selector → Expert 1: vertical down, horizontal left, vertical down --><line x1="155" y1="66" x2="155" y2="72" class="c"/><line x1="105" y1="72" x2="155" y2="72" class="c"/><line x1="105" y1="72" x2="105" y2="82" class="c"/><polygon points="100,78 105,82 110,78" class="a"/><text x="92" y="72" class="ls">p₁</text><!-- Selector → Expert 2: vertical down, horizontal right, vertical down --><line x1="225" y1="66" x2="225" y2="72" class="c"/><line x1="225" y1="72" x2="275" y2="72" class="c"/><line x1="275" y1="72" x2="275" y2="82" class="c"/><polygon points="270,78 275,82 280,78" class="a"/><text x="288" y="72" class="ls">p₂</text><!-- Experts --><rect x="25" y="82" width="160" height="48" class="b"/><text x="105" y="100" class="l">Expert 1</text><text x="105" y="118" class="ls">o₁ = w₁x</text><rect x="195" y="82" width="160" height="48" class="b"/><text x="275" y="100" class="l">Expert 2</text><text x="275" y="118" class="ls">o₂ = w₂x</text><!-- Experts → Gating: vertical down, horizontal to center, vertical down --><polygon points="100,136 105,130 110,136" class="a"/><line x1="105" y1="136" x2="105" y2="162" class="c"/><polygon points="270,136 275,130 280,136" class="a"/><line x1="275" y1="136" x2="275" y2="162" class="c"/><line x1="105" y1="162" x2="275" y2="162" class="c"/><line x1="190" y1="162" x2="190" y2="172" class="c"/><!-- Gating Network --><rect x="130" y="172" width="120" height="42" class="bh"/><text x="190" y="187" class="l">Gating</text><text x="190" y="202" class="l">Network</text><!-- Gating → input x --><polygon points="185,220 190,214 195,220" class="a"/><line x1="190" y1="220" x2="190" y2="244" class="c"/><line x1="105" y1="244" x2="275" y2="244" class="c"/><rect x="140" y="252" width="100" height="30" class="b" style="stroke-dasharray:5 3"/><text x="190" y="267" class="l">input x</text></svg>
+</div>
 
 All networks receive the same input $x$. The experts produce outputs $o_1, o_2$. The gating network produces mixing proportions $p_1, p_2$ via softmax. The selector stochastically chooses one expert according to $(p_1, p_2)$, or in practice we train using the log-likelihood error which uses the mixture of all experts weighted by their responsibilities.
 
@@ -287,26 +267,9 @@ Two years after the original paper, Jordan & Jacobs (1993) introduced the **Hier
 
 In a two-level hierarchy with 2 branches at each level, we get 4 expert networks at the leaves and 3 gating networks (one at the top, two at the second level):
 
-```
-                         μ (output)
-                         ↑
-                   ┌─────┴─────┐
-                   │Top Gating │
-                   │  g₁  g₂   │
-                   └──┬─────┬──┘
-                      │     │
-              ┌───────┴┐   ┌┴───────┐
-              │Gating 1│   │Gating 2│
-              │g₁|₁g₂|₁│   │g₁|₂g₂|₂│
-              └┬─────┬─┘   └┬─────┬─┘
-               │     │      │     │
-            Expert Expert Expert Expert
-            (1,1) (1,2)  (2,1) (2,2)
-               ↑     ↑      ↑     ↑
-               └─────┴──┬───┴─────┘
-                        │
-                      input x
-```
+<div style="display:flex;justify-content:center;margin:1.5rem 0;">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 300" font-family="system-ui,-apple-system,sans-serif" font-size="13"><style>.b{fill:none;stroke:currentColor;stroke-width:1.5;rx:6;opacity:.7}.bh{fill:currentColor;fill-opacity:.08;stroke:currentColor;stroke-width:1.5;rx:6}.l{fill:currentColor;text-anchor:middle;dominant-baseline:central;font-weight:500}.ls{fill:currentColor;opacity:.55;text-anchor:middle;dominant-baseline:central;font-size:10.5}.c{stroke:currentColor;stroke-width:1.5;opacity:.35;fill:none}.a{fill:currentColor;opacity:.35}</style><text x="230" y="10" class="ls">μ (output)</text><polygon points="225,18 230,14 235,18" class="a"/><line x1="230" y1="18" x2="230" y2="30" class="c"/><!-- Top Gating --><rect x="165" y="30" width="130" height="38" class="bh"/><text x="230" y="43" class="l">Top Gating</text><text x="230" y="58" class="ls">g₁  g₂</text><!-- Top Gating → Gating 1: vertical down then horizontal left --><line x1="200" y1="68" x2="200" y2="80" class="c"/><line x1="130" y1="80" x2="200" y2="80" class="c"/><line x1="130" y1="80" x2="130" y2="94" class="c"/><polygon points="125,90 130,94 135,90" class="a"/><!-- Top Gating → Gating 2: vertical down then horizontal right --><line x1="260" y1="68" x2="260" y2="80" class="c"/><line x1="260" y1="80" x2="330" y2="80" class="c"/><line x1="330" y1="80" x2="330" y2="94" class="c"/><polygon points="325,90 330,94 335,90" class="a"/><!-- Gating 1 --><rect x="70" y="94" width="120" height="38" class="bh"/><text x="130" y="107" class="l">Gating 1</text><text x="130" y="122" class="ls">g₁|₁  g₂|₁</text><!-- Gating 2 --><rect x="270" y="94" width="120" height="38" class="bh"/><text x="330" y="107" class="l">Gating 2</text><text x="330" y="122" class="ls">g₁|₂  g₂|₂</text><!-- Gating 1 → Expert (1,1): vertical down then horizontal left --><line x1="105" y1="132" x2="105" y2="145" class="c"/><line x1="85" y1="145" x2="105" y2="145" class="c"/><line x1="85" y1="145" x2="85" y2="162" class="c"/><polygon points="80,158 85,162 90,158" class="a"/><!-- Gating 1 → Expert (1,2): vertical down then horizontal right --><line x1="155" y1="132" x2="155" y2="145" class="c"/><line x1="155" y1="145" x2="175" y2="145" class="c"/><line x1="175" y1="145" x2="175" y2="162" class="c"/><polygon points="170,158 175,162 180,158" class="a"/><!-- Gating 2 → Expert (2,1): vertical down then horizontal left --><line x1="305" y1="132" x2="305" y2="145" class="c"/><line x1="285" y1="145" x2="305" y2="145" class="c"/><line x1="285" y1="145" x2="285" y2="162" class="c"/><polygon points="280,158 285,162 290,158" class="a"/><!-- Gating 2 → Expert (2,2): vertical down then horizontal right --><line x1="355" y1="132" x2="355" y2="145" class="c"/><line x1="355" y1="145" x2="375" y2="145" class="c"/><line x1="375" y1="145" x2="375" y2="162" class="c"/><polygon points="370,158 375,162 380,158" class="a"/><!-- Experts --><rect x="45" y="162" width="80" height="38" class="b"/><text x="85" y="175" class="l">Expert</text><text x="85" y="190" class="ls">(1,1)</text><rect x="135" y="162" width="80" height="38" class="b"/><text x="175" y="175" class="l">Expert</text><text x="175" y="190" class="ls">(1,2)</text><rect x="245" y="162" width="80" height="38" class="b"/><text x="285" y="175" class="l">Expert</text><text x="285" y="190" class="ls">(2,1)</text><rect x="335" y="162" width="80" height="38" class="b"/><text x="375" y="175" class="l">Expert</text><text x="375" y="190" class="ls">(2,2)</text><!-- Experts → input x --><polygon points="80,206 85,200 90,206" class="a"/><line x1="85" y1="206" x2="85" y2="235" class="c"/><polygon points="170,206 175,200 180,206" class="a"/><line x1="175" y1="206" x2="175" y2="235" class="c"/><polygon points="280,206 285,200 290,206" class="a"/><line x1="285" y1="206" x2="285" y2="235" class="c"/><polygon points="370,206 375,200 380,206" class="a"/><line x1="375" y1="206" x2="375" y2="235" class="c"/><line x1="85" y1="235" x2="375" y2="235" class="c"/><line x1="230" y1="235" x2="230" y2="252" class="c"/><rect x="170" y="256" width="120" height="30" class="b" style="stroke-dasharray:5 3"/><text x="230" y="271" class="l">input x</text></svg>
+</div>
 
 The top-level gating network produces probabilities $g_1$ and $g_2$ (which branch to take). The lower-level gating networks produce conditional probabilities $g_{j|i}$ (which expert within branch $i$).
 

@@ -1,10 +1,10 @@
 ---
 title: "Mixture of Experts from Scratch — Part 2: Scaling to Billions (2017–2022)"
 description: "From thousands of experts to trillion-parameter models — sparse gating, top-k routing, load balancing, the Switch Transformer, and the engineering behind scaling MoEs — all derived step by step with a concrete 4-expert example."
-date: 2026-03-04
+date: 2026-03-15
 tags: [machine-learning, mixture-of-experts, transformers, sparse-models, scaling, mathematics]
 order: 2
-draft: true
+draft: false
 ---
 
 In Part 1, we derived the Mixture of Experts framework from Jacobs et al. (1991) and Jordan & Jacobs (1993): experts, gating networks, the mixture-of-Gaussians interpretation, and the EM algorithm. Those foundational papers used 4–8 experts on small tasks. In this post, we follow two papers that scaled MoEs to thousands of experts and trillions of parameters: [Shazeer et al. (2017)](https://arxiv.org/abs/1701.06538) and [Fedus et al. (2021)](https://arxiv.org/abs/2101.03961).
@@ -170,21 +170,9 @@ The importance loss ensures experts have equal total gate weight, but experts ma
 
 Shazeer et al. apply the MoE layer **between stacked LSTM layers** in a recurrent language model:
 
-```
-          ┌──────────┐
-          │  LSTM 2  │
-          └────┬─────┘
-               │
-          ┌────┴─────┐
-          │ MoE Layer │ ← experts are FFNs
-          └────┬─────┘
-               │
-          ┌────┴─────┐
-          │  LSTM 1  │
-          └────┬─────┘
-               │
-            input
-```
+<div style="display:flex;justify-content:center;margin:1.5rem 0;max-width:320px;margin-left:auto;margin-right:auto;">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 280" font-family="system-ui,-apple-system,sans-serif" font-size="13"><style>.b{fill:none;stroke:currentColor;stroke-width:1.5;rx:6;opacity:.7}.bh{fill:currentColor;fill-opacity:.08;stroke:currentColor;stroke-width:1.5;rx:6}.l{fill:currentColor;text-anchor:middle;dominant-baseline:central;font-weight:500}.ls{fill:currentColor;opacity:.6;text-anchor:middle;dominant-baseline:central;font-size:10.5}.c{stroke:currentColor;stroke-width:1.5;opacity:.4}.a{fill:currentColor;opacity:.4}</style><rect x="35" y="12" width="150" height="38" class="b"/><text x="110" y="31" class="l">LSTM 2</text><polygon points="104,56 110,50 116,56" class="a"/><line x1="110" y1="56" x2="110" y2="84" class="c"/><rect x="35" y="84" width="150" height="50" class="bh"/><text x="110" y="103" class="l">MoE Layer</text><text x="110" y="121" class="ls">experts are FFNs</text><polygon points="104,140 110,134 116,140" class="a"/><line x1="110" y1="140" x2="110" y2="168" class="c"/><rect x="35" y="168" width="150" height="38" class="b"/><text x="110" y="187" class="l">LSTM 1</text><polygon points="104,212 110,206 116,212" class="a"/><line x1="110" y1="212" x2="110" y2="240" class="c"/><rect x="55" y="240" width="110" height="30" class="b" style="stroke-dasharray:5 3"/><text x="110" y="255" class="l">Input</text></svg>
+</div>
 
 The MoE layer is **applied convolutionally**: the same MoE (same experts, same gating network) processes each token position independently. At each position, the gating network selects a potentially different combination of experts. This is how the model achieves **conditional computation**: different experts are active for different tokens.
 
@@ -221,31 +209,9 @@ The benefits of $k = 1$ routing are three-fold:
 
 The Switch Transformer replaces the **dense feed-forward network** (FFN) in each Transformer block with a Switch FFN layer:
 
-```
-  Standard Transformer Block:       Switch Transformer Block:
-
-  ┌───────────────────┐            ┌───────────────────────┐
-  │  Add + Normalize  │            │   Add + Normalize     │
-  └────────┬──────────┘            └──────────┬────────────┘
-           │                                  │
-  ┌────────┴──────────┐            ┌──────────┴────────────┐
-  │   Dense FFN       │            │  Switch FFN Layer     │
-  │  (same for all    │            │  ┌─────┬─────┬─────┐  │
-  │   tokens)         │            │  │FFN1 │FFN2 │FFN3 │  │
-  └────────┬──────────┘            │  └──┬──┘  │  └──┬──┘  │
-           │                       │     │Router│     │     │
-  ┌────────┴──────────┐            └─────┴─────┴─────┴─────┘
-  │  Add + Normalize  │                       │
-  └────────┬──────────┘            ┌──────────┴────────────┐
-           │                       │   Add + Normalize     │
-  ┌────────┴──────────┐            └──────────┬────────────┘
-  │  Self-Attention   │                       │
-  └────────┬──────────┘            ┌──────────┴────────────┐
-           │                       │   Self-Attention      │
-         input                     └──────────┬────────────┘
-                                              │
-                                            input
-```
+<div style="display:flex;justify-content:center;margin:1.5rem 0;">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 360" font-family="system-ui,-apple-system,sans-serif" font-size="12"><style>.b{fill:none;stroke:currentColor;stroke-width:1.5;rx:6;opacity:.7}.bh{fill:currentColor;fill-opacity:.08;stroke:currentColor;stroke-width:1.5;rx:6}.be{fill:currentColor;fill-opacity:.05;stroke:currentColor;stroke-width:1;rx:4;opacity:.8}.br{fill:currentColor;fill-opacity:.12;stroke:currentColor;stroke-width:1;rx:4;opacity:.8}.l{fill:currentColor;text-anchor:middle;dominant-baseline:central;font-weight:500}.ls{fill:currentColor;opacity:.55;text-anchor:middle;dominant-baseline:central;font-size:10.5}.t{fill:currentColor;text-anchor:middle;dominant-baseline:central;font-weight:600;font-size:13}.c{stroke:currentColor;stroke-width:1.5;opacity:.35}.a{fill:currentColor;opacity:.35}.d{stroke:currentColor;stroke-width:1;opacity:.15;stroke-dasharray:6 4}</style><line x1="270" y1="28" x2="270" y2="340" class="d"/><text x="127" y="18" class="t">Standard Transformer Block</text><rect x="32" y="34" width="190" height="34" class="b"/><text x="127" y="51" class="l">Add + Normalize</text><polygon points="122,72 127,68 132,72" class="a"/><line x1="127" y1="72" x2="127" y2="97" class="c"/><rect x="32" y="97" width="190" height="50" class="bh"/><text x="127" y="116" class="l">Dense FFN</text><text x="127" y="134" class="ls">(same for all tokens)</text><polygon points="122,151 127,147 132,151" class="a"/><line x1="127" y1="151" x2="127" y2="176" class="c"/><rect x="32" y="176" width="190" height="34" class="b"/><text x="127" y="193" class="l">Add + Normalize</text><polygon points="122,214 127,210 132,214" class="a"/><line x1="127" y1="214" x2="127" y2="239" class="c"/><rect x="32" y="239" width="190" height="34" class="b"/><text x="127" y="256" class="l">Self-Attention</text><polygon points="122,277 127,273 132,277" class="a"/><line x1="127" y1="277" x2="127" y2="302" class="c"/><rect x="62" y="302" width="130" height="30" class="b" style="stroke-dasharray:5 3"/><text x="127" y="317" class="l">Input</text><text x="405" y="18" class="t">Switch Transformer Block</text><rect x="310" y="34" width="190" height="34" class="b"/><text x="405" y="51" class="l">Add + Normalize</text><polygon points="400,72 405,68 410,72" class="a"/><line x1="405" y1="72" x2="405" y2="97" class="c"/><rect x="310" y="97" width="190" height="72" class="bh"/><text x="405" y="112" class="l">Switch FFN Layer</text><rect x="322" y="124" width="48" height="26" class="be"/><text x="346" y="137" class="l" style="font-size:10.5">FFN1</text><rect x="378" y="124" width="48" height="26" class="be"/><text x="402" y="137" class="l" style="font-size:10.5">FFN2</text><rect x="434" y="124" width="48" height="26" class="be"/><text x="458" y="137" class="l" style="font-size:10.5">FFN3</text><rect x="370" y="153" width="60" height="14" class="br"/><text x="400" y="160" class="l" style="font-size:9">Router</text><polygon points="400,173 405,169 410,173" class="a"/><line x1="405" y1="173" x2="405" y2="198" class="c"/><rect x="310" y="198" width="190" height="34" class="b"/><text x="405" y="215" class="l">Add + Normalize</text><polygon points="400,236 405,232 410,236" class="a"/><line x1="405" y1="236" x2="405" y2="261" class="c"/><rect x="310" y="261" width="190" height="34" class="b"/><text x="405" y="278" class="l">Self-Attention</text><polygon points="400,299 405,295 410,299" class="a"/><line x1="405" y1="299" x2="405" y2="314" class="c"/><rect x="340" y="314" width="130" height="30" class="b" style="stroke-dasharray:5 3"/><text x="405" y="329" class="l">Input</text></svg>
+</div>
 
 Each token is independently routed to one of the FFN experts by the router. The router is a simple linear layer: $h(x) = W_r \cdot x$, where $W_r \in \mathbb{R}^{N \times d_{\text{model}}}$ and $N$ is the number of experts.
 

@@ -254,23 +254,9 @@ Experts 2 and 3 do nothing for this token. Their parameters are not accessed, th
 
 Let us now step back and look at the full pipeline:
 
-```
-token u
-  │
-  ├─── dot product with each router vector e_i ──→ raw logits
-  │
-  ├─── sigmoid ──→ routing scores s_i ∈ (0,1)
-  │
-  ├─── add expert bias b_i ──→ selection scores (s_i + b_i)
-  │
-  ├─── top-K selection ──→ which experts fire (using s_i + b_i)
-  │
-  ├─── gate values = s_i for selected experts ──→ how much weight (using s_i only)
-  │
-  ├─── normalize gates ──→ g_i summing to 1
-  │
-  └─── weighted sum of expert outputs ──→ MoE output h'
-```
+<div style="display:flex;justify-content:center;margin:1.5rem 0;">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 340" font-family="system-ui,-apple-system,sans-serif" font-size="11"><style>.b{fill:none;stroke:currentColor;stroke-width:1.5;rx:6;opacity:.7}.bh{fill:currentColor;fill-opacity:.08;stroke:currentColor;stroke-width:1.5;rx:6}.l{fill:currentColor;text-anchor:middle;dominant-baseline:central;font-weight:500}.lr{fill:currentColor;opacity:.55;dominant-baseline:central;font-size:10;text-anchor:start}.c{stroke:currentColor;stroke-width:1.5;opacity:.35}.a{fill:currentColor;opacity:.35}</style><rect x="195" y="4" width="130" height="28" class="bh"/><text x="260" y="18" class="l">token u</text><line x1="260" y1="32" x2="260" y2="48" class="c"/><polygon points="255,44 260,48 265,44" class="a"/><rect x="130" y="52" width="260" height="28" class="b"/><text x="260" y="66" class="l">dot product with each router vector eᵢ</text><text x="400" y="66" class="lr">→ raw logits</text><line x1="260" y1="80" x2="260" y2="96" class="c"/><polygon points="255,92 260,96 265,92" class="a"/><rect x="130" y="100" width="260" height="28" class="b"/><text x="260" y="114" class="l">sigmoid</text><text x="400" y="114" class="lr">→ routing scores sᵢ ∈ (0,1)</text><line x1="260" y1="128" x2="260" y2="144" class="c"/><polygon points="255,140 260,144 265,140" class="a"/><rect x="130" y="148" width="260" height="28" class="b"/><text x="260" y="162" class="l">add expert bias bᵢ</text><text x="400" y="162" class="lr">→ selection scores (sᵢ + bᵢ)</text><line x1="260" y1="176" x2="260" y2="192" class="c"/><polygon points="255,188 260,192 265,188" class="a"/><rect x="130" y="196" width="260" height="28" class="bh"/><text x="260" y="210" class="l">top-K selection</text><text x="400" y="210" class="lr">→ which experts fire (sᵢ + bᵢ)</text><line x1="260" y1="224" x2="260" y2="240" class="c"/><polygon points="255,236 260,240 265,236" class="a"/><rect x="130" y="244" width="260" height="28" class="b"/><text x="260" y="258" class="l">normalize gates</text><text x="400" y="258" class="lr">→ gᵢ summing to 1</text><line x1="260" y1="272" x2="260" y2="288" class="c"/><polygon points="255,284 260,288 265,284" class="a"/><rect x="130" y="292" width="260" height="28" class="bh"/><text x="260" y="306" class="l">weighted sum of expert outputs</text><text x="400" y="306" class="lr">→ MoE output h′</text></svg>
+</div>
 
 The expert bias $b_i$ enters at exactly one point: the top-$K$ selection. It affects who gets chosen, not how much weight they carry. Everything else flows through the learned routing scores $s_{i,t}$.
 

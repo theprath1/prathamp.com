@@ -71,15 +71,9 @@ This looks like growth, but it's **controlled growth**, not collapse. The identi
 
 A residual block has two parallel paths:
 
-```
-        ┌─────────────┐
-x_l ───►│ identity (x)│──┐
-        └─────────────┘  │
-                         ├──► x_{l+1}
-        ┌─────────────┐  │
-x_l ───►│  F(x)       │──┘
-        └─────────────┘
-```
+<div style="display:flex;justify-content:center;margin:1.5rem 0;">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 140" font-family="system-ui,-apple-system,sans-serif" font-size="12"><style>.b{fill:none;stroke:currentColor;stroke-width:1.5;rx:6;opacity:.7}.l{fill:currentColor;text-anchor:middle;dominant-baseline:central;font-weight:500}.ls{fill:currentColor;opacity:.55;text-anchor:start;dominant-baseline:central;font-size:11}.c{stroke:currentColor;stroke-width:1.5;opacity:.35}.a{fill:currentColor;opacity:.35}.ci{stroke:currentColor;stroke-width:6;opacity:.08;fill:none}</style><text x="30" y="36" class="l" style="font-size:11">xₗ</text><line x1="50" y1="36" x2="90" y2="36" class="c"/><polygon points="86,31 94,36 86,41" class="a"/><rect x="96" y="18" width="130" height="36" class="b"/><text x="161" y="36" class="l">identity (x)</text><line x1="226" y1="36" x2="280" y2="36" class="c"/><line x1="280" y1="36" x2="280" y2="60" class="c"/><circle cx="280" cy="70" r="10" class="b" style="opacity:.5"/><text x="280" y="70" class="l" style="font-size:14;opacity:.6;dominant-baseline:central">+</text><text x="30" y="106" class="l" style="font-size:11">xₗ</text><line x1="50" y1="106" x2="90" y2="106" class="c"/><polygon points="86,101 94,106 86,111" class="a"/><rect x="96" y="88" width="130" height="36" class="b"/><text x="161" y="106" class="l">F(x)</text><line x1="226" y1="106" x2="280" y2="106" class="c"/><line x1="280" y1="106" x2="280" y2="80" class="c"/><line x1="290" y1="70" x2="340" y2="70" class="c"/><polygon points="336,65 344,70 336,75" class="a"/><text x="352" y="70" class="l" style="font-size:11">xₗ₊₁</text></svg>
+</div>
 
 Path 1 (Identity) sends $x_l \rightarrow x_l$ with no change. Path 2 (Residual) applies the learned transformation $x_l \rightarrow F(x_l)$. The outputs are summed. That straight line at the top is the identity path—it's what makes deep training stable.
 
