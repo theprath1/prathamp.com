@@ -7,7 +7,7 @@ tags: ["deep-learning", "transformers", "architecture", "residual-connections", 
 
 Residual connections are the backbone of every modern deep network. The update rule $\boldsymbol{h}_l = \boldsymbol{h}_{l-1} + f_{l-1}(\boldsymbol{h}_{l-1})$ is so universal that we rarely question it. But this simplicity hides a rigid design choice: every previous layer's output is accumulated with a fixed weight of 1. There is no mechanism for a later layer to say "I need the embedding more than I need layer 3's output" or "layer 7's contribution is irrelevant to me."
 
-The [Attention Residuals paper](https://arxiv.org/abs/2603.15031) (Kimi Team, 2025) proposes a direct fix: replace the fixed accumulation with learned, input-dependent softmax attention over all previous layer outputs. The idea is clean — apply the same attention mechanism that Transformers use over the sequence dimension, but now over the *depth* dimension.
+The [Attention Residuals paper](https://arxiv.org/abs/2603.15031) (Kimi Team, 2026) proposes a direct fix: replace the fixed accumulation with learned, input-dependent softmax attention over all previous layer outputs. The idea is clean — apply the same attention mechanism that Transformers use over the sequence dimension, but now over the *depth* dimension.
 
 We will derive everything from scratch using a single running example: a tiny network with $L = 4$ layers and scalar hidden states ($d = 1$). By the end, we will have built up to Full Attention Residuals, Block Attention Residuals, and the structured-matrix view that reveals standard residuals, Highway networks, Hyper-Connections, and AttnRes as points on a single spectrum.
 
