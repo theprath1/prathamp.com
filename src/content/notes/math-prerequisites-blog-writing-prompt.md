@@ -55,6 +55,8 @@ Use "we" throughout ("We will derive...", "Let's trace what happens..."). Be dir
 **14. The Concept Selection Principle**
 Include only concepts that will be directly used in the follow-up post. Every section must earn its place. If the follow-up post needs the log trick, derive the log trick. If it needs KL divergence, build KL divergence. If it does not need the chain rule of probability, do not include it — even if it is "important math." The prerequisite post is not a textbook chapter; it is a curated toolkit assembled for one specific purpose.
 
+**Before writing, review all previously published math prerequisite posts in the blog.** If a concept needed for the new paper has already been fully derived in an earlier prerequisite post, do not re-derive it — instead, link to the earlier post where it was covered. Only include concepts that are genuinely new. If, after removing already-covered topics, the remaining new concepts are too few to justify a standalone prerequisite post, do not write a separate post — instead, fold those few concepts directly into the paper's main blog post as a short "Mathematical Setup" section at the top.
+
 **15. Layered Derivation Structure**
 When a later concept depends on an earlier one, make the dependency chain explicit and visible. Derive the simpler concept first, verify it numerically, then use it as a named ingredient in the next derivation. For example: derive the sigmoid, then use the sigmoid to define the parameterised objective, then use the parameterised objective to motivate derivatives, then use derivatives and the log trick together to reach the gradient expression. Each layer builds on exactly the previous layers — no concept appears from thin air.
 

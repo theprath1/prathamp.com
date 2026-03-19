@@ -42,7 +42,7 @@ Use "we" throughout ("We will derive...", "Let's trace what happens..."). Be dir
 - Use `$$...$$` for all important equations, displayed on their own lines
 - Box the most important results with `\boxed{}`
 - Use bold for first introduction of terms only
-- Use ASCII diagrams when they clarify architecture (like two-path residual blocks)
+- Use inline SVG diagrams when they clarify architecture, data flow, or structural comparisons (e.g., residual block two-path diagrams, MoE routing pipelines, hierarchical gating structures, standard-vs-modified architecture side-by-sides). SVGs are preferred over ASCII diagrams for their clarity and visual precision
 - Keep summaries tight — the final summary section should restate every key concept in 2–3 sentences total, connecting them in a single narrative arc
 - Write descriptions that telegraph the full arc of the post: "Building X from the ground up — A, B, C, and D — all derived step by step with concrete examples"
 
@@ -66,7 +66,7 @@ When writing a blog post based on research papers, read every single page of eve
 - Never say "it is left as an exercise"
 - Never skip a step in a derivation because it's "straightforward"
 - Never introduce notation without defining it immediately
-- Never use code — this is pure mathematical exposition with LaTeX
+- Never use code blocks for computation or programming — this is pure mathematical exposition with LaTeX. The one exception is inline SVG diagrams for architecture illustrations and flowcharts
 - Never make a claim without proving it or pointing to where it was proven
 - Never add features, tangents, or "bonus" sections — stay laser-focused on the single thread from setup to final result
 - Never assume the reader has seen this material before, but also never be condescending — explain because the explanation is interesting, not because the reader is slow
