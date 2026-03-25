@@ -11,7 +11,7 @@ const featuredProjects = (await getCollection("projects"))
 
 const latestPosts = (await getCollection("blog"))
   .filter((p) => !p.data.draft)
-  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf())
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf() || (a.data.order ?? 0) - (b.data.order ?? 0))
   .slice(0, 3);
 ---
 
