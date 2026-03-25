@@ -3,7 +3,7 @@ title: "Mathematical Prerequisites for Mixture of Experts — Part 3"
 description: "Building the math foundations you need for understanding why MoEs work — orthogonality, vector norms, asymptotic notation, Lipschitz continuity, and dispatch entropy — all derived step by step with one consistent example."
 date: 2026-03-25
 tags: [machine-learning, mixture-of-experts, mathematics, probability, theory]
-order: 1
+order: 2
 draft: false
 ---
 
