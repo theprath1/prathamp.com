@@ -1,10 +1,10 @@
 ---
 title: "Mixture of Experts from Scratch — Part 3: Why MoEs Work and the Modern Landscape (2022–2024)"
 description: "Why experts specialize instead of collapsing, the role of nonlinearity, exploration and router learning, load balancing theory, and a complete taxonomy of modern MoE in LLMs — all derived from first principles with concrete examples."
-date: 2026-03-04
+date: 2026-03-25
 tags: [machine-learning, mixture-of-experts, deep-learning, theory, large-language-models, mathematics]
 order: 1
-draft: true
+draft: false
 ---
 
 In Parts 1 and 2, we built the MoE framework from the ground up and scaled it to trillions of parameters. But a fundamental question remained unanswered: **why do experts diversify instead of collapsing into a single model?** All experts start with the same architecture, same initialization distribution, same training algorithm. The router starts uniform. Yet somehow, after training, different experts specialize on different data clusters and the router learns to dispatch data to the right expert.
