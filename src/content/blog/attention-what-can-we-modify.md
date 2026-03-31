@@ -33,13 +33,19 @@ This is roughly BERT-base. The numbers will scale cleanly and are easy to verify
 
 The standard multi-head attention formula is:
 
-$$\text{MHA}(X) = W_O \cdot \text{concat}(o^1, \ldots, o^h)$$
+$$
+\text{MHA}(X) = W_O \cdot \text{concat}(o^1, \ldots, o^h)
+$$
 
 where for each head $i \in \{1, \ldots, h\}$:
 
-$$Q^i = X W_Q^i, \quad K^i = X W_K^i, \quad V^i = X W_V^i$$
+$$
+Q^i = X W_Q^i, \quad K^i = X W_K^i, \quad V^i = X W_V^i
+$$
 
-$$A^i = \text{softmax}\!\left(\frac{Q^i {K^i}^T + M}{\sqrt{d_k}}\right), \quad o^i = A^i V^i$$
+$$
+A^i = \text{softmax}\!\left(\frac{Q^i {K^i}^T + M}{\sqrt{d_k}}\right), \quad o^i = A^i V^i
+$$
 
 Every symbol here is a choice:
 
@@ -63,7 +69,9 @@ h heads means h separate projections of the input into (Q, K, V) space, h separa
 
 **Parameter cost** for the projection matrices: 4 matrices per head ($W_Q, W_K, W_V$ each $d_\text{model} \times d_k$, plus $W_O$ at $d_\text{model} \times d_\text{model}$):
 
-$$\text{params per layer} = h \cdot 3 \cdot d_{\text{model}} \cdot d_k + d_{\text{model}}^2$$
+$$
+\text{params per layer} = h \cdot 3 \cdot d_{\text{model}} \cdot d_k + d_{\text{model}}^2
+$$
 
 With our model: $8 \cdot 3 \cdot 512 \cdot 64 + 512^2 = 786{,}432 + 262{,}144 = 1{,}048{,}576 \approx 1\text{M}$ per layer.
 
@@ -83,11 +91,15 @@ Vanilla MHA has $h$ query heads, $h$ key heads, and $h$ value heads. The query f
 
 **KV parameter cost** in our model (K and V only):
 
-$$\text{params}_{KV} = h \cdot 2 \cdot d_{\text{model}} \cdot d_k = 8 \cdot 2 \cdot 512 \cdot 64 = 524{,}288$$
+$$
+\text{params}_{KV} = h \cdot 2 \cdot d_{\text{model}} \cdot d_k = 8 \cdot 2 \cdot 512 \cdot 64 = 524{,}288
+$$
 
 **KV cache cost per token** during inference (more on this in Axis 4):
 
-$$\text{bytes per token} = L \cdot h \cdot 2 \cdot d_k \cdot 2 = 12 \cdot 8 \cdot 2 \cdot 64 \cdot 2 = 24{,}576 \text{ bytes} \approx 24\text{ KB}$$
+$$
+\text{bytes per token} = L \cdot h \cdot 2 \cdot d_k \cdot 2 = 12 \cdot 8 \cdot 2 \cdot 64 \cdot 2 = 24{,}576 \text{ bytes} \approx 24\text{ KB}
+$$
 
 At 4096 tokens: 98 MB. At 128K tokens: 3 GB. The h factor in this formula is where the KV cache pressure comes from.
 
@@ -95,7 +107,9 @@ At 4096 tokens: 98 MB. At 128K tokens: 3 GB. The h factor in this formula is whe
 
 **Multi-Query Attention (MQA)**: all h query heads share one K head and one V head. Instead of $W_K^1, \ldots, W_K^h$, there is a single $W_K \in \mathbb{R}^{d_{\text{model}} \times d_k}$.
 
-$$Q^i = X W_Q^i \quad \forall i, \qquad K = X W_K, \qquad V = X W_V$$
+$$
+Q^i = X W_Q^i \quad \forall i, \qquad K = X W_K, \qquad V = X W_V
+$$
 
 Head i attends: $A^i = \text{softmax}(Q^i K^T / \sqrt{d_k})$, $o^i = A^i V$.
 
@@ -172,9 +186,13 @@ During training, attention is computed over the full context for all positions s
 
 The vanilla transformer block (from "Attention Is All You Need") is:
 
-$$x' = \text{LayerNorm}(x + \text{Attention}(x))$$
+$$
+x' = \text{LayerNorm}(x + \text{Attention}(x))
+$$
 
-$$x'' = \text{LayerNorm}(x' + \text{FFN}(x'))$$
+$$
+x'' = \text{LayerNorm}(x' + \text{FFN}(x'))
+$$
 
 This is the *Post-norm* arrangement: normalization happens after the residual addition. It is numerically unstable at initialization and typically requires careful learning rate warmup.
 
@@ -182,21 +200,29 @@ This is the *Post-norm* arrangement: normalization happens after the residual ad
 
 **Pre-norm (most modern models)**: normalize the input *before* the sublayer, not after:
 
-$$x' = x + \text{Attention}(\text{LayerNorm}(x))$$
+$$
+x' = x + \text{Attention}(\text{LayerNorm}(x))
+$$
 
-$$x'' = x' + \text{FFN}(\text{LayerNorm}(x'))$$
+$$
+x'' = x' + \text{FFN}(\text{LayerNorm}(x'))
+$$
 
 Gradients flow through the residual path without passing through LayerNorm. Training is more stable; warmup requirements are reduced. GPT-2, LLaMA, and essentially every model trained after 2020 uses pre-norm.
 
 **Parallel attention + FFN (PaLM, Falcon)**: compute attention and FFN on the same input simultaneously and add both to the residual:
 
-$$x' = x + \text{Attention}(\text{LayerNorm}(x)) + \text{FFN}(\text{LayerNorm}(x))$$
+$$
+x' = x + \text{Attention}(\text{LayerNorm}(x)) + \text{FFN}(\text{LayerNorm}(x))
+$$
 
 Saves one LayerNorm pass. More importantly, attention and FFN projections can be fused into a single matrix multiply on hardware. ~15% throughput improvement.
 
 **RMSNorm instead of LayerNorm**: LayerNorm subtracts the mean and divides by standard deviation, then applies learned scale and shift. RMSNorm skips the mean subtraction — divides only by root mean square, applies only scale:
 
-$$\text{RMSNorm}(x)_i = \frac{x_i}{\sqrt{\frac{1}{d}\sum_j x_j^2 + \epsilon}} \cdot \gamma_i$$
+$$
+\text{RMSNorm}(x)_i = \frac{x_i}{\sqrt{\frac{1}{d}\sum_j x_j^2 + \epsilon}} \cdot \gamma_i
+$$
 
 Fewer operations, no shift parameter, comparable quality. LLaMA, Mistral, Gemma all use RMSNorm.
 

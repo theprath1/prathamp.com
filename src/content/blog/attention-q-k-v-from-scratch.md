@@ -12,7 +12,9 @@ But the Transformer paper (Vaswani et al., 2017) replaced the feedforward compat
 
 **The running example**: 3 tokens with 2-dimensional embeddings:
 
-$$\mathbf{x}_1 = \begin{bmatrix} 1 \\ 0 \end{bmatrix}, \quad \mathbf{x}_2 = \begin{bmatrix} 0 \\ 1 \end{bmatrix}, \quad \mathbf{x}_3 = \begin{bmatrix} 0.5 \\ 0.5 \end{bmatrix}$$
+$$
+\mathbf{x}_1 = \begin{bmatrix} 1 \\ 0 \end{bmatrix}, \quad \mathbf{x}_2 = \begin{bmatrix} 0 \\ 1 \end{bmatrix}, \quad \mathbf{x}_3 = \begin{bmatrix} 0.5 \\ 0.5 \end{bmatrix}
+$$
 
 Think of dimension 1 as encoding "noun-ness" and dimension 2 as encoding "verb-ness." Token 1 is a pure noun, token 2 is a pure verb, token 3 is equally both. We will compute scaled dot-product self-attention on these three tokens entirely by hand.
 
@@ -24,7 +26,9 @@ Think of dimension 1 as encoding "noun-ness" and dimension 2 as encoding "verb-n
 
 Recall the Bahdanau alignment model:
 
-$$e_{ij} = \mathbf{v}_a^\top \tanh\!\left(W_a s_{i-1} + U_a h_j\right)$$
+$$
+e_{ij} = \mathbf{v}_a^\top \tanh\!\left(W_a s_{i-1} + U_a h_j\right)
+$$
 
 The query ($s_{i-1}$, the decoder state) and the key ($h_j$, the encoder annotation) are each projected into a shared $n'$-dimensional space, summed, passed through $\tanh$, then dotted with $\mathbf{v}_a$. The result is a scalar compatibility score.
 
@@ -38,13 +42,17 @@ This is powerful — a feedforward network can represent any smooth compatibilit
 
 The simplest similarity measure between two vectors $\mathbf{q}$ and $\mathbf{k}$ is their **dot product** (also called the **inner product**):
 
-$$e(\mathbf{q}, \mathbf{k}) = \mathbf{q} \cdot \mathbf{k} = \mathbf{q}^\top \mathbf{k} = \sum_{d=1}^{D} q_d k_d$$
+$$
+e(\mathbf{q}, \mathbf{k}) = \mathbf{q} \cdot \mathbf{k} = \mathbf{q}^\top \mathbf{k} = \sum_{d=1}^{D} q_d k_d
+$$
 
 For unit-norm vectors, this equals the cosine of the angle between them — a direct measure of directional similarity. For general vectors, it captures both magnitude and directional alignment.
 
 The dot product has a key structural advantage: if we pack all queries into a matrix $Q \in \mathbb{R}^{n \times d_k}$ and all keys into a matrix $K \in \mathbb{R}^{m \times d_k}$, then all $n \times m$ pairwise dot products are computed in one matrix multiplication:
 
-$$S = QK^\top \in \mathbb{R}^{n \times m}$$
+$$
+S = QK^\top \in \mathbb{R}^{n \times m}
+$$
 
 This maps directly onto the matrix multiplication primitives that modern GPUs are built to execute as fast as possible. The feedforward alignment model cannot be parallelized this way — the nonlinearity breaks the factorization.
 
@@ -66,7 +74,9 @@ These two roles are conflated. The Transformer paper separates them into three d
 
 Each is obtained by a separate learned linear projection:
 
-$$Q = X W_Q \in \mathbb{R}^{n \times d_k}, \quad K = X W_K \in \mathbb{R}^{n \times d_k}, \quad V = X W_V \in \mathbb{R}^{n \times d_v}$$
+$$
+Q = X W_Q \in \mathbb{R}^{n \times d_k}, \quad K = X W_K \in \mathbb{R}^{n \times d_k}, \quad V = X W_V \in \mathbb{R}^{n \times d_v}
+$$
 
 where $X \in \mathbb{R}^{n \times d_\text{model}}$ is the input token matrix, $W_Q, W_K \in \mathbb{R}^{d_\text{model} \times d_k}$, and $W_V \in \mathbb{R}^{d_\text{model} \times d_v}$ are learned weight matrices.
 
@@ -80,7 +90,9 @@ In Bahdanau's model, both roles were played by the same vector $h_j$ with no pro
 
 Putting it together, the full attention computation is:
 
-$$\boxed{\text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right) V}$$
+$$
+\boxed{\text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right) V}
+$$
 
 This is **scaled dot-product attention** as defined in Vaswani et al. (2017). The factor $1/\sqrt{d_k}$ is the scaling term. We derive exactly why it is needed in the next section.
 
@@ -94,23 +106,31 @@ This is the part that confuses almost everyone. The scaling looks like an arbitr
 
 Suppose the components of $\mathbf{q}$ and $\mathbf{k}$ are drawn independently from a standard normal distribution:
 
-$$q_i \stackrel{\text{i.i.d.}}{\sim} \mathcal{N}(0, 1), \quad k_i \stackrel{\text{i.i.d.}}{\sim} \mathcal{N}(0, 1), \quad i = 1, \ldots, d_k$$
+$$
+q_i \stackrel{\text{i.i.d.}}{\sim} \mathcal{N}(0, 1), \quad k_i \stackrel{\text{i.i.d.}}{\sim} \mathcal{N}(0, 1), \quad i = 1, \ldots, d_k
+$$
 
 We want to find the variance of the dot product $\mathbf{q} \cdot \mathbf{k} = \sum_{i=1}^{d_k} q_i k_i$.
 
 **Step 1: Mean of each term.** Since $q_i$ and $k_i$ are independent:
-$$\mathbb{E}[q_i k_i] = \mathbb{E}[q_i]\, \mathbb{E}[k_i] = 0 \times 0 = 0$$
+$$
+\mathbb{E}[q_i k_i] = \mathbb{E}[q_i]\, \mathbb{E}[k_i] = 0 \times 0 = 0
+$$
 
 By **linearity of expectation**: $\mathbb{E}[\mathbf{q} \cdot \mathbf{k}] = 0$.
 
 **Step 2: Variance of each term.** We use $\text{Var}(Z) = \mathbb{E}[Z^2] - (\mathbb{E}[Z])^2$:
-$$\text{Var}(q_i k_i) = \mathbb{E}[(q_i k_i)^2] - 0 = \mathbb{E}[q_i^2]\, \mathbb{E}[k_i^2]$$
+$$
+\text{Var}(q_i k_i) = \mathbb{E}[(q_i k_i)^2] - 0 = \mathbb{E}[q_i^2]\, \mathbb{E}[k_i^2]
+$$
 
 The second equality uses independence of $q_i$ and $k_i$. Since $q_i \sim \mathcal{N}(0,1)$, we have $\mathbb{E}[q_i^2] = \text{Var}(q_i) + (\mathbb{E}[q_i])^2 = 1 + 0 = 1$. Similarly $\mathbb{E}[k_i^2] = 1$. So $\text{Var}(q_i k_i) = 1$.
 
 **Step 3: Variance of the sum.** The terms $q_i k_i$ are independent across $i$ (since the $q_i$ and $k_i$ are all independent). By **additivity of variance for independent random variables**:
 
-$$\text{Var}\!\left(\sum_{i=1}^{d_k} q_i k_i\right) = \sum_{i=1}^{d_k} \text{Var}(q_i k_i) = d_k \cdot 1 = d_k$$
+$$
+\text{Var}\!\left(\sum_{i=1}^{d_k} q_i k_i\right) = \sum_{i=1}^{d_k} \text{Var}(q_i k_i) = d_k \cdot 1 = d_k
+$$
 
 The standard deviation of the dot product is $\sqrt{d_k}$.
 
@@ -140,7 +160,9 @@ We now carry out the complete computation for our 3-token example. We use $W_Q =
 
 With $Q = K = X$:
 
-$$QK^\top = XX^\top = \begin{bmatrix} 1 & 0 \\ 0 & 1 \\ 0.5 & 0.5 \end{bmatrix} \begin{bmatrix} 1 & 0 & 0.5 \\ 0 & 1 & 0.5 \end{bmatrix}$$
+$$
+QK^\top = XX^\top = \begin{bmatrix} 1 & 0 \\ 0 & 1 \\ 0.5 & 0.5 \end{bmatrix} \begin{bmatrix} 1 & 0 & 0.5 \\ 0 & 1 & 0.5 \end{bmatrix}
+$$
 
 Computing each of the 9 entries by the **definition of matrix multiplication** (row of left matrix dotted with column of right matrix):
 
@@ -154,11 +176,15 @@ Computing each of the 9 entries by the **definition of matrix multiplication** (
 - $(3,2)$: $[0.5, 0.5] \cdot [0, 1] = 0.5 \cdot 0 + 0.5 \cdot 1 = 0.5$
 - $(3,3)$: $[0.5, 0.5] \cdot [0.5, 0.5] = 0.5 \cdot 0.5 + 0.5 \cdot 0.5 = 0.25 + 0.25 = 0.5$
 
-$$QK^\top = \begin{bmatrix} 1 & 0 & 0.5 \\ 0 & 1 & 0.5 \\ 0.5 & 0.5 & 0.5 \end{bmatrix}$$
+$$
+QK^\top = \begin{bmatrix} 1 & 0 & 0.5 \\ 0 & 1 & 0.5 \\ 0.5 & 0.5 & 0.5 \end{bmatrix}
+$$
 
 Dividing by $\sqrt{2} \approx 1.4142$:
 
-$$S = \frac{QK^\top}{\sqrt{2}} = \begin{bmatrix} 0.7071 & 0 & 0.3536 \\ 0 & 0.7071 & 0.3536 \\ 0.3536 & 0.3536 & 0.3536 \end{bmatrix}$$
+$$
+S = \frac{QK^\top}{\sqrt{2}} = \begin{bmatrix} 0.7071 & 0 & 0.3536 \\ 0 & 0.7071 & 0.3536 \\ 0.3536 & 0.3536 & 0.3536 \end{bmatrix}
+$$
 
 ### 4.2 Step 2: Apply Row-Wise Softmax
 
@@ -166,53 +192,81 @@ Each row $i$ of $S$ is the score vector for token $i$ attending to all tokens. S
 
 **Row 1** (token 1 attending to all): $[0.7071,\ 0,\ 0.3536]$
 
-$$\exp(0.7071) = 2.0281, \quad \exp(0) = 1.0000, \quad \exp(0.3536) = 1.4240$$
+$$
+\exp(0.7071) = 2.0281, \quad \exp(0) = 1.0000, \quad \exp(0.3536) = 1.4240
+$$
 
-$$Z_1 = 2.0281 + 1.0000 + 1.4240 = 4.4521$$
+$$
+Z_1 = 2.0281 + 1.0000 + 1.4240 = 4.4521
+$$
 
-$$A_{1,\cdot} = \left[\frac{2.0281}{4.4521},\; \frac{1.0000}{4.4521},\; \frac{1.4240}{4.4521}\right] = [0.4556,\; 0.2247,\; 0.3199] \approx [0.456,\; 0.225,\; 0.320]$$
+$$
+A_{1,\cdot} = \left[\frac{2.0281}{4.4521},\; \frac{1.0000}{4.4521},\; \frac{1.4240}{4.4521}\right] = [0.4556,\; 0.2247,\; 0.3199] \approx [0.456,\; 0.225,\; 0.320]
+$$
 
 **Row 2** (token 2 attending to all): $[0,\ 0.7071,\ 0.3536]$
 
 The three score values are the same as row 1, just with the large score now at position 2 instead of position 1. By the **permutation equivariance of the softmax function** (softmax is symmetric under permutation of inputs — the same exponentials, just reindexed):
 
-$$A_{2,\cdot} = [0.225,\; 0.456,\; 0.320]$$
+$$
+A_{2,\cdot} = [0.225,\; 0.456,\; 0.320]
+$$
 
 **Row 3** (token 3 attending to all): $[0.3536,\ 0.3536,\ 0.3536]$
 
 All three scores are identical. When all inputs to the softmax are equal, the **uniform distribution** is the unique output, since equal exponentials divided by $3 \times$ that exponential each give $1/3$. Explicitly: $\exp(0.3536) = 1.4240$ for all three. Sum $= 3 \times 1.4240 = 4.2720$. Each weight $= 1.4240 / 4.2720 = 0.333$.
 
-$$A_{3,\cdot} = [0.333,\; 0.333,\; 0.333]$$
+$$
+A_{3,\cdot} = [0.333,\; 0.333,\; 0.333]
+$$
 
 The full attention weight matrix:
 
-$$A = \begin{bmatrix} 0.456 & 0.225 & 0.320 \\ 0.225 & 0.456 & 0.320 \\ 0.333 & 0.333 & 0.333 \end{bmatrix}$$
+$$
+A = \begin{bmatrix} 0.456 & 0.225 & 0.320 \\ 0.225 & 0.456 & 0.320 \\ 0.333 & 0.333 & 0.333 \end{bmatrix}
+$$
 
 ### 4.3 Step 3: Multiply by Values
 
 With $V = X$, compute $O = AV$ using the **definition of matrix multiplication**:
 
-$$O = \begin{bmatrix} 0.456 & 0.225 & 0.320 \\ 0.225 & 0.456 & 0.320 \\ 0.333 & 0.333 & 0.333 \end{bmatrix} \begin{bmatrix} 1 & 0 \\ 0 & 1 \\ 0.5 & 0.5 \end{bmatrix}$$
+$$
+O = \begin{bmatrix} 0.456 & 0.225 & 0.320 \\ 0.225 & 0.456 & 0.320 \\ 0.333 & 0.333 & 0.333 \end{bmatrix} \begin{bmatrix} 1 & 0 \\ 0 & 1 \\ 0.5 & 0.5 \end{bmatrix}
+$$
 
 **Output for token 1:**
 
-$$o_1^{(\text{dim 1})} = 0.456 \times 1 + 0.225 \times 0 + 0.320 \times 0.5 = 0.456 + 0 + 0.160 = 0.616$$
+$$
+o_1^{(\text{dim 1})} = 0.456 \times 1 + 0.225 \times 0 + 0.320 \times 0.5 = 0.456 + 0 + 0.160 = 0.616
+$$
 
-$$o_1^{(\text{dim 2})} = 0.456 \times 0 + 0.225 \times 1 + 0.320 \times 0.5 = 0 + 0.225 + 0.160 = 0.385$$
+$$
+o_1^{(\text{dim 2})} = 0.456 \times 0 + 0.225 \times 1 + 0.320 \times 0.5 = 0 + 0.225 + 0.160 = 0.385
+$$
 
-$$\boxed{\mathbf{o}_1 = [0.616,\; 0.385]}$$
+$$
+\boxed{\mathbf{o}_1 = [0.616,\; 0.385]}
+$$
 
 **Output for token 2** (by symmetry of the weight matrix with rows 1 and 2 swapped):
 
-$$\boxed{\mathbf{o}_2 = [0.385,\; 0.616]}$$
+$$
+\boxed{\mathbf{o}_2 = [0.385,\; 0.616]}
+$$
 
 **Output for token 3:**
 
-$$o_3^{(\text{dim 1})} = 0.333 \times 1 + 0.333 \times 0 + 0.333 \times 0.5 = 0.333 + 0 + 0.167 = 0.500$$
+$$
+o_3^{(\text{dim 1})} = 0.333 \times 1 + 0.333 \times 0 + 0.333 \times 0.5 = 0.333 + 0 + 0.167 = 0.500
+$$
 
-$$o_3^{(\text{dim 2})} = 0.333 \times 0 + 0.333 \times 1 + 0.333 \times 0.5 = 0 + 0.333 + 0.167 = 0.500$$
+$$
+o_3^{(\text{dim 2})} = 0.333 \times 0 + 0.333 \times 1 + 0.333 \times 0.5 = 0 + 0.333 + 0.167 = 0.500
+$$
 
-$$\boxed{\mathbf{o}_3 = [0.500,\; 0.500]}$$
+$$
+\boxed{\mathbf{o}_3 = [0.500,\; 0.500]}
+$$
 
 ### 4.4 Interpretation
 
@@ -232,9 +286,13 @@ A single attention head computes one weighted average over the values. This mean
 
 **Multi-head attention** runs $h$ independent attention heads simultaneously, each with its own projection matrices:
 
-$$\text{head}_i = \text{Attention}\!\left(Q W_i^Q,\; K W_i^K,\; V W_i^V\right)$$
+$$
+\text{head}_i = \text{Attention}\!\left(Q W_i^Q,\; K W_i^K,\; V W_i^V\right)
+$$
 
-$$\text{MultiHead}(Q, K, V) = \text{Concat}(\text{head}_1, \ldots, \text{head}_h)\, W^O$$
+$$
+\text{MultiHead}(Q, K, V) = \text{Concat}(\text{head}_1, \ldots, \text{head}_h)\, W^O
+$$
 
 where $W_i^Q \in \mathbb{R}^{d_\text{model} \times d_k}$, $W_i^K \in \mathbb{R}^{d_\text{model} \times d_k}$, $W_i^V \in \mathbb{R}^{d_\text{model} \times d_v}$ are the per-head projection matrices, and $W^O \in \mathbb{R}^{h d_v \times d_\text{model}}$ is an output projection that combines the heads back into a single representation.
 
@@ -250,7 +308,9 @@ The previous post used Bahdanau's **cross-attention**: the query came from the d
 
 **Self-attention** is the special case where the query, keys, and values all come from the same sequence:
 
-$$Q = K = V = X \cdot W_{\{Q,K,V\}}$$
+$$
+Q = K = V = X \cdot W_{\{Q,K,V\}}
+$$
 
 Every token attends to every other token in the same sequence. Each output token's representation is a context-weighted blend of all other tokens in the sequence.
 
@@ -278,11 +338,15 @@ This means a Transformer without positional information treats "the cat sat on t
 
 The Transformer injects positional information by adding a fixed **positional encoding** to each token embedding before the first attention layer:
 
-$$\tilde{\mathbf{x}}_t = \mathbf{x}_t + \text{PE}(t)$$
+$$
+\tilde{\mathbf{x}}_t = \mathbf{x}_t + \text{PE}(t)
+$$
 
 The sinusoidal positional encoding used by Vaswani et al. is:
 
-$$\text{PE}(t, 2i) = \sin\!\left(\frac{t}{10000^{2i/d_\text{model}}}\right), \quad \text{PE}(t, 2i+1) = \cos\!\left(\frac{t}{10000^{2i/d_\text{model}}}\right)$$
+$$
+\text{PE}(t, 2i) = \sin\!\left(\frac{t}{10000^{2i/d_\text{model}}}\right), \quad \text{PE}(t, 2i+1) = \cos\!\left(\frac{t}{10000^{2i/d_\text{model}}}\right)
+$$
 
 where $t$ is the position index and $i$ indexes the dimension. Different dimensions oscillate at different frequencies: low dimensions (small $i$) change rapidly with $t$ (encoding fine-grained local position), and high dimensions change slowly (encoding coarse-grained global position). This is a **Fourier decomposition** of the position index across the embedding dimensions.
 
@@ -311,7 +375,9 @@ The Transformer is not a different thing from Bahdanau attention. It is the same
 
 Starting from Bahdanau's feedforward alignment model, we derived the Transformer's scaled dot-product attention:
 
-$$\text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right) V$$
+$$
+\text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right) V
+$$
 
 The $\sqrt{d_k}$ scaling is not cosmetic: dot products grow in variance linearly with dimension ($\text{Var} = d_k$ when components are i.i.d. standard normal), and large variance saturates the softmax to near-zero gradients. Dividing by $\sqrt{d_k}$ restores unit variance.
 

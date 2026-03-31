@@ -36,25 +36,35 @@ Q has shape (n, d_k). K has shape (n, d_k). The product QK^T has shape (n, n).
 
 There are n² entries total, so:
 
-$$\text{FLOPs}(QK^T) = 2 d_k \cdot n^2$$
+$$
+\text{FLOPs}(QK^T) = 2 d_k \cdot n^2
+$$
 
 **The remaining steps.** Scaling by 1/√d_k: n² FLOPs (elementwise). Softmax over each row: 3 passes of n operations per row (max, exp, divide), times n rows ≈ 3n² FLOPs. AV: same structure as QK^T, this time (n×n)·(n×d_v), costing 2d_v·n² FLOPs.
 
 Total per head:
 
-$$\text{FLOPs}_{\text{head}} = 2d_k n^2 + n^2 + 3n^2 + 2d_v n^2 = n^2(2d_k + 2d_v + 4)$$
+$$
+\text{FLOPs}_{\text{head}} = 2d_k n^2 + n^2 + 3n^2 + 2d_v n^2 = n^2(2d_k + 2d_v + 4)
+$$
 
 With d_k = d_v = 64:
 
-$$\text{FLOPs}_{\text{head}} = n^2 \cdot 132 \approx n^2 \cdot 128$$
+$$
+\text{FLOPs}_{\text{head}} = n^2 \cdot 132 \approx n^2 \cdot 128
+$$
 
 Multiply by h = 8 heads:
 
-$$\boxed{\text{FLOPs}_{\text{attention}} \approx 1024 \cdot n^2}$$
+$$
+\boxed{\text{FLOPs}_{\text{attention}} \approx 1024 \cdot n^2}
+$$
 
 **Compared to the FFN.** The feed-forward sublayer in each transformer block is two linear projections: d_model → 4·d_model → d_model. Cost per token: 2·d_model·4·d_model + 2·4·d_model·d_model = 16·d_model² multiplied by n tokens = 16·d_model²·n. With d_model = 512:
 
-$$\text{FLOPs}_{\text{FFN}} = 16 \cdot 512^2 \cdot n = 4{,}194{,}304 \cdot n$$
+$$
+\text{FLOPs}_{\text{FFN}} = 16 \cdot 512^2 \cdot n = 4{,}194{,}304 \cdot n
+$$
 
 ### The Crossover Table
 
@@ -62,7 +72,9 @@ Attention is O(n²) and FFN is O(n). At short sequences, FFN dominates. At some 
 
 Set FLOPs_attention = FLOPs_FFN:
 
-$$1024 \cdot n^2 = 4{,}194{,}304 \cdot n \implies n^* = 4{,}096$$
+$$
+1024 \cdot n^2 = 4{,}194{,}304 \cdot n \implies n^* = 4{,}096
+$$
 
 | n | FLOPs (attn, billion) | FLOPs (FFN, billion) | Dominant |
 |---|---|---|---|
@@ -91,15 +103,21 @@ Standard attention materializes two full n×n matrices:
 
 In fp16 (2 bytes per float), each matrix costs:
 
-$$\text{bytes}(S) = \text{bytes}(P) = 2 \cdot n^2 \text{ bytes}$$
+$$
+\text{bytes}(S) = \text{bytes}(P) = 2 \cdot n^2 \text{ bytes}
+$$
 
 For n = 4 096, one head, one layer:
 
-$$2 \times 2 \times 4096^2 = 67{,}108{,}864 \text{ bytes} = 64 \text{ MB}$$
+$$
+2 \times 2 \times 4096^2 = 67{,}108{,}864 \text{ bytes} = 64 \text{ MB}
+$$
 
 Scale to h = 8 heads and L = 12 layers:
 
-$$64 \text{ MB} \times 8 \times 12 = 6{,}144 \text{ MB} \approx 6 \text{ GB}$$
+$$
+64 \text{ MB} \times 8 \times 12 = 6{,}144 \text{ MB} \approx 6 \text{ GB}
+$$
 
 Just for the attention weight matrices. No activations, no parameters. At n = 8 192 this quadruples to 24 GB. At n = 16 384 it is 96 GB — already exceeding the VRAM of most GPUs.
 
@@ -126,7 +144,9 @@ Total HBM accesses: **Θ(Nd + N²)**
 
 At n = 4 096, d = 64 (per head):
 
-$$\text{HBM reads/writes} = 4 \cdot 4096 \cdot 64 + 3 \cdot 4096^2 = 1{,}048{,}576 + 50{,}331{,}648 \approx 51 \text{ M elements}$$
+$$
+\text{HBM reads/writes} = 4 \cdot 4096 \cdot 64 + 3 \cdot 4096^2 = 1{,}048{,}576 + 50{,}331{,}648 \approx 51 \text{ M elements}
+$$
 
 The N² term is 48× larger than the Nd term. The attention computation is *memory-bandwidth-bound*, not compute-bound. The GPU's arithmetic units sit idle, waiting for data from HBM.
 
@@ -150,11 +170,15 @@ This turns per-step compute from O(t²) to O(t) at the cost of storing the cache
 
 At each layer, for each head, the cache holds one K vector and one V vector per token. Each vector has d_k or d_v dimensions. In fp16:
 
-$$\text{cache bytes per token} = 2 \cdot L \cdot h \cdot (d_k + d_v) \cdot 2 \text{ bytes}$$
+$$
+\text{cache bytes per token} = 2 \cdot L \cdot h \cdot (d_k + d_v) \cdot 2 \text{ bytes}
+$$
 
 With L = 32 layers, h = 32 heads, d_k = d_v = 128 (GPT-3 scale):
 
-$$\text{bytes per token} = 2 \cdot 32 \cdot 32 \cdot 128 \cdot 2 = 524{,}288 = 0.5 \text{ MB/token}$$
+$$
+\text{bytes per token} = 2 \cdot 32 \cdot 32 \cdot 128 \cdot 2 = 524{,}288 = 0.5 \text{ MB/token}
+$$
 
 This is 0.5 MB per token in the context window. Not per batch — per *token*.
 

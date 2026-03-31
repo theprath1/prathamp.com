@@ -23,7 +23,9 @@ A **sequence-to-sequence** (seq2seq) model maps a source sequence $\mathbf{x} = 
 
 The decoder models each conditional probability as:
 
-$$p(y_i \mid y_1, \ldots, y_{i-1}, \mathbf{x}) = g(y_{i-1}, s_i, \mathbf{c})$$
+$$
+p(y_i \mid y_1, \ldots, y_{i-1}, \mathbf{x}) = g(y_{i-1}, s_i, \mathbf{c})
+$$
 
 where $s_i$ is the decoder's hidden state at step $i$, and $g$ is a nonlinear function. The same fixed vector $\mathbf{c}$ appears in every call to $g$ — for generating $y_1$, $y_2$, $\ldots$, $y_{T_y}$.
 
@@ -31,11 +33,15 @@ where $s_i$ is the decoder's hidden state at step $i$, and $g$ is a nonlinear fu
 
 The encoder is a recurrent neural network (RNN) that reads $x_1, x_2, \ldots, x_{T_x}$ sequentially:
 
-$$h_t = f(x_t, h_{t-1})$$
+$$
+h_t = f(x_t, h_{t-1})
+$$
 
 The context vector is computed from all hidden states, most commonly as just the final hidden state:
 
-$$\mathbf{c} = h_{T_x}$$
+$$
+\mathbf{c} = h_{T_x}
+$$
 
 This is the problem. The entire source sentence — every word, every dependency, every long-range relationship — must be compressed into a single fixed-size vector. The decoder reads from this one vector to generate every target word.
 
@@ -51,7 +57,9 @@ We will use this concrete example throughout every derivation in this post.
 
 **Source sequence**: 3 words — word$_1$, word$_2$, word$_3$. After encoding through a bidirectional RNN, each word is represented by a scalar hidden state (annotation):
 
-$$h_1 = 0.2, \quad h_2 = 0.9, \quad h_3 = 0.1$$
+$$
+h_1 = 0.2, \quad h_2 = 0.9, \quad h_3 = 0.1
+$$
 
 Think of these numbers as capturing how informationally salient each source word is. Word$_2$ ($h_2 = 0.9$) is the most prominent; words 1 and 3 are quieter.
 
@@ -67,7 +75,9 @@ The key insight of Bahdanau et al. is to replace the single fixed $\mathbf{c}$ w
 
 We define:
 
-$$\boxed{c_i = \sum_{j=1}^{T_x} \alpha_{ij} h_j}$$
+$$
+\boxed{c_i = \sum_{j=1}^{T_x} \alpha_{ij} h_j}
+$$
 
 The context vector $c_i$ is a **weighted sum** of all encoder hidden states. The weight $\alpha_{ij}$ answers: "when generating the $i$-th target word, how much should I attend to the $j$-th source word?"
 
@@ -92,7 +102,9 @@ To compute the weights $\alpha_{ij}$, we first need unnormalized **alignment sco
 
 We define an **alignment model** $a$:
 
-$$e_{ij} = a(s_{i-1}, h_j)$$
+$$
+e_{ij} = a(s_{i-1}, h_j)
+$$
 
 where $s_{i-1}$ is the decoder hidden state just before generating $y_i$ (not after — we need to know what we are about to generate), and $h_j$ is the $j$-th encoder annotation.
 
@@ -102,7 +114,9 @@ The function $a$ is a learned **compatibility function**: it returns a high scor
 
 Bahdanau et al. parametrize $a$ as a single-hidden-layer feedforward network:
 
-$$e_{ij} = \mathbf{v}_a^\top \tanh\!\left(W_a s_{i-1} + U_a h_j\right)$$
+$$
+e_{ij} = \mathbf{v}_a^\top \tanh\!\left(W_a s_{i-1} + U_a h_j\right)
+$$
 
 where $W_a \in \mathbb{R}^{n' \times n}$ and $U_a \in \mathbb{R}^{n' \times 2n}$ are weight matrices, and $\mathbf{v}_a \in \mathbb{R}^{n'}$ is a weight vector. The scalar output $e_{ij}$ is the dot product of $\mathbf{v}_a$ with the $\tanh$ nonlinearity applied to the sum of two linear projections.
 
@@ -110,11 +124,15 @@ A critical efficiency observation from the paper: since $U_a h_j$ does not depen
 
 For our scalar running example ($n = n' = 1$), with all weight scalars set to 1 (i.e., $W_a = U_a = v_a = 1$), the alignment model becomes:
 
-$$e_{ij} = \tanh\!\left(s_{i-1} + h_j\right)$$
+$$
+e_{ij} = \tanh\!\left(s_{i-1} + h_j\right)
+$$
 
 This is the **hyperbolic tangent function** applied to the sum $s_{i-1} + h_j$. The hyperbolic tangent is defined as:
 
-$$\tanh(x) = \frac{e^x - e^{-x}}{e^x + e^{-x}}$$
+$$
+\tanh(x) = \frac{e^x - e^{-x}}{e^x + e^{-x}}
+$$
 
 and maps any real input to the interval $(-1, +1)$.
 
@@ -124,27 +142,41 @@ We compute $e_{1,j}$ for $j = 1, 2, 3$, using $s_0 = 0.5$.
 
 **Score for source word 1** ($h_1 = 0.2$):
 
-$$e_{1,1} = \tanh(s_0 + h_1) = \tanh(0.5 + 0.2) = \tanh(0.7)$$
+$$
+e_{1,1} = \tanh(s_0 + h_1) = \tanh(0.5 + 0.2) = \tanh(0.7)
+$$
 
 Computing $\tanh(0.7)$ from the definition:
 
-$$\tanh(0.7) = \frac{e^{0.7} - e^{-0.7}}{e^{0.7} + e^{-0.7}} = \frac{2.0138 - 0.4966}{2.0138 + 0.4966} = \frac{1.5172}{2.5104} \approx 0.6044$$
+$$
+\tanh(0.7) = \frac{e^{0.7} - e^{-0.7}}{e^{0.7} + e^{-0.7}} = \frac{2.0138 - 0.4966}{2.0138 + 0.4966} = \frac{1.5172}{2.5104} \approx 0.6044
+$$
 
 **Score for source word 2** ($h_2 = 0.9$):
 
-$$e_{1,2} = \tanh(s_0 + h_2) = \tanh(0.5 + 0.9) = \tanh(1.4)$$
+$$
+e_{1,2} = \tanh(s_0 + h_2) = \tanh(0.5 + 0.9) = \tanh(1.4)
+$$
 
-$$\tanh(1.4) = \frac{e^{1.4} - e^{-1.4}}{e^{1.4} + e^{-1.4}} = \frac{4.0552 - 0.2466}{4.0552 + 0.2466} = \frac{3.8086}{4.3018} \approx 0.8854$$
+$$
+\tanh(1.4) = \frac{e^{1.4} - e^{-1.4}}{e^{1.4} + e^{-1.4}} = \frac{4.0552 - 0.2466}{4.0552 + 0.2466} = \frac{3.8086}{4.3018} \approx 0.8854
+$$
 
 **Score for source word 3** ($h_3 = 0.1$):
 
-$$e_{1,3} = \tanh(s_0 + h_3) = \tanh(0.5 + 0.1) = \tanh(0.6)$$
+$$
+e_{1,3} = \tanh(s_0 + h_3) = \tanh(0.5 + 0.1) = \tanh(0.6)
+$$
 
-$$\tanh(0.6) = \frac{e^{0.6} - e^{-0.6}}{e^{0.6} + e^{-0.6}} = \frac{1.8221 - 0.5488}{1.8221 + 0.5488} = \frac{1.2733}{2.3709} \approx 0.5370$$
+$$
+\tanh(0.6) = \frac{e^{0.6} - e^{-0.6}}{e^{0.6} + e^{-0.6}} = \frac{1.8221 - 0.5488}{1.8221 + 0.5488} = \frac{1.2733}{2.3709} \approx 0.5370
+$$
 
 Collecting the three scores:
 
-$$e_{1,1} \approx 0.6044, \quad e_{1,2} \approx 0.8854, \quad e_{1,3} \approx 0.5370$$
+$$
+e_{1,1} \approx 0.6044, \quad e_{1,2} \approx 0.8854, \quad e_{1,3} \approx 0.5370
+$$
 
 These numbers say: source word 2 ($h_2 = 0.9$, the most prominent source word) aligns most strongly with generating target word 1. Word 1 and word 3 have similar, lower alignment scores.
 
@@ -156,7 +188,9 @@ The alignment scores $e_{ij}$ are real numbers in $(-1, +1)$ (because $\tanh$ is
 
 The **softmax function** achieves this. For each target position $i$, we apply softmax over all source positions $j$:
 
-$$\alpha_{ij} = \frac{\exp(e_{ij})}{\displaystyle\sum_{k=1}^{T_x} \exp(e_{ik})}$$
+$$
+\alpha_{ij} = \frac{\exp(e_{ij})}{\displaystyle\sum_{k=1}^{T_x} \exp(e_{ik})}
+$$
 
 ### 5.1 Why Softmax?
 
@@ -172,21 +206,35 @@ Starting from $e_{1,1} \approx 0.6044$, $e_{1,2} \approx 0.8854$, $e_{1,3} \appr
 
 **Exponentiate each score:**
 
-$$\exp(0.6044) \approx 1.8302$$
-$$\exp(0.8854) \approx 2.4235$$
-$$\exp(0.5370) \approx 1.7108$$
+$$
+\exp(0.6044) \approx 1.8302
+$$
+$$
+\exp(0.8854) \approx 2.4235
+$$
+$$
+\exp(0.5370) \approx 1.7108
+$$
 
 **Compute the normalizing constant:**
 
-$$Z_1 = 1.8302 + 2.4235 + 1.7108 = 5.9645$$
+$$
+Z_1 = 1.8302 + 2.4235 + 1.7108 = 5.9645
+$$
 
 **Divide each by $Z_1$:**
 
-$$\alpha_{1,1} = \frac{1.8302}{5.9645} \approx 0.3069$$
+$$
+\alpha_{1,1} = \frac{1.8302}{5.9645} \approx 0.3069
+$$
 
-$$\alpha_{1,2} = \frac{2.4235}{5.9645} \approx 0.4063$$
+$$
+\alpha_{1,2} = \frac{2.4235}{5.9645} \approx 0.4063
+$$
 
-$$\alpha_{1,3} = \frac{1.7108}{5.9645} \approx 0.2868$$
+$$
+\alpha_{1,3} = \frac{1.7108}{5.9645} \approx 0.2868
+$$
 
 **Verification**: $0.3069 + 0.4063 + 0.2868 = 1.0000$. ✓
 
@@ -198,20 +246,26 @@ The attention weights say: when generating target word 1, we place 40.6% of our 
 
 With the attention weights computed, the context vector is a weighted sum:
 
-$$c_1 = \sum_{j=1}^{3} \alpha_{1,j} \cdot h_j = \alpha_{1,1} \cdot h_1 + \alpha_{1,2} \cdot h_2 + \alpha_{1,3} \cdot h_3$$
+$$
+c_1 = \sum_{j=1}^{3} \alpha_{1,j} \cdot h_j = \alpha_{1,1} \cdot h_1 + \alpha_{1,2} \cdot h_2 + \alpha_{1,3} \cdot h_3
+$$
 
 This operation — a weighted sum of vectors with weights provided by a separate mechanism — is the **inner product** of the attention weight vector $[\alpha_{1,1},\, \alpha_{1,2},\, \alpha_{1,3}]$ with the hidden state vector $[h_1,\, h_2,\, h_3]$.
 
 ### 6.1 Numerical Check
 
-$$c_1 = 0.3069 \times 0.2 + 0.4063 \times 0.9 + 0.2868 \times 0.1$$
+$$
+c_1 = 0.3069 \times 0.2 + 0.4063 \times 0.9 + 0.2868 \times 0.1
+$$
 
 Working through each term:
 - $0.3069 \times 0.2 = 0.0614$
 - $0.4063 \times 0.9 = 0.3657$
 - $0.2868 \times 0.1 = 0.0287$
 
-$$\boxed{c_1 = 0.0614 + 0.3657 + 0.0287 = 0.4558}$$
+$$
+\boxed{c_1 = 0.0614 + 0.3657 + 0.0287 = 0.4558}
+$$
 
 ### 6.2 Comparison: With vs. Without Attention
 
@@ -232,14 +286,20 @@ Bahdanau et al. use a **bidirectional RNN** (BiRNN) encoder, introduced by Schus
 The **Bidirectional Recurrent Neural Network** addresses this with two passes:
 
 **Forward pass**: Read $x_1, x_2, \ldots, x_{T_x}$ left to right:
-$$\overrightarrow{h}_t = f(x_t,\, \overrightarrow{h}_{t-1}), \quad \overrightarrow{h}_0 = \mathbf{0}$$
+$$
+\overrightarrow{h}_t = f(x_t,\, \overrightarrow{h}_{t-1}), \quad \overrightarrow{h}_0 = \mathbf{0}
+$$
 
 **Backward pass**: Read $x_{T_x}, x_{T_x-1}, \ldots, x_1$ right to left:
-$$\overleftarrow{h}_t = f(x_t,\, \overleftarrow{h}_{t+1}), \quad \overleftarrow{h}_{T_x+1} = \mathbf{0}$$
+$$
+\overleftarrow{h}_t = f(x_t,\, \overleftarrow{h}_{t+1}), \quad \overleftarrow{h}_{T_x+1} = \mathbf{0}
+$$
 
 The annotation for word $j$ is the **concatenation** of both hidden states:
 
-$$h_j = \left[\overrightarrow{h}_j^\top;\; \overleftarrow{h}_j^\top\right]^\top \in \mathbb{R}^{2n}$$
+$$
+h_j = \left[\overrightarrow{h}_j^\top;\; \overleftarrow{h}_j^\top\right]^\top \in \mathbb{R}^{2n}
+$$
 
 This makes $h_j$ a function of the entire source sequence, with strong focus on word $j$ — the forward state has just processed $x_j$ from the left, and the backward state has just processed $x_j$ from the right. In our running example, $h_1, h_2, h_3$ are these concatenated annotations, treated as scalars for simplicity.
 
@@ -255,7 +315,9 @@ The decoder generates each target word $y_i$ using three things:
 
 The model is trained end-to-end to maximize the **log-likelihood** of the correct translations. By the **chain rule of probability** (the factorization of a joint distribution into a product of conditionals):
 
-$$\log p(\mathbf{y} \mid \mathbf{x}) = \sum_{i=1}^{T_y} \log p(y_i \mid y_1, \ldots, y_{i-1}, \mathbf{x})$$
+$$
+\log p(\mathbf{y} \mid \mathbf{x}) = \sum_{i=1}^{T_y} \log p(y_i \mid y_1, \ldots, y_{i-1}, \mathbf{x})
+$$
 
 Gradients flow from the loss back through $g$, through $s_i$, through $c_i$, through $\alpha_{ij}$, through $e_{ij}$, and into both the encoder and the alignment model. Every parameter — encoder, alignment model, decoder — is trained jointly.
 
