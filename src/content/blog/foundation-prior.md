@@ -677,3 +677,8 @@ That is the key epistemic correction. The mathematical elegance lies in the fact
 ## Summary
 
 We derived the Foundation Prior framework entirely from one coin example. Synthetic data cannot be treated like real evidence because it is generated, filtered, and prompt-dependent — so the paper replaces normal Bayesian updating with a constrained optimization: minimize KL divergence from the prior subject to a log-likelihood constraint on synthetic data, which uniquely produces an exponential tilt $\rho(\theta) \propto \pi_0(\theta)\,L(D_s \mid \theta)^\lambda$. The trust parameter $\lambda$ downweights synthetic data to prevent manufactured certainty, prompt heterogeneity is handled by averaging foundation priors into a mixture, and $\lambda$ is calibrated by choosing the value that best predicts real data. The final posterior combines real data at full weight with synthetic data at weight $\lambda^*$, giving a principled, self-correcting framework where LLM outputs serve as structured prior information rather than hard evidence.
+
+---
+
+*Previous: [Mathematical Prerequisites for Foundation Prior](/blog/math-prerequisites-for-foundation-prior)*  
+*Next: [MoE Load Balancing from Scratch](/blog/mixture-of-experts-load-balancing-from-scratch)*

@@ -401,3 +401,8 @@ What changed is the size of $\mathcal{T}$ (from all experts to top-$k$ to top-1)
 Chen et al. (2022) showed that MoEs succeed because of three properties: (1) the cluster structure of real data provides natural subproblems for individual experts, (2) nonlinear experts can distinguish signal from noise within their assigned cluster while linear experts cannot, and (3) random initialization provides the symmetry-breaking that allows experts to specialize during an exploration phase. The router then learns to identify clusters through cluster-center features and dispatches data accordingly.
 
 Cai et al. (2024) surveyed the entire MoE landscape in the era of LLMs, revealing a field that has matured from a research curiosity into a production architecture powering models from Mixtral to DeepSeek-V3. The design space has expanded along every axis — gating functions (sparse, dense, soft), expert architectures (FFN, attention, shared, fine-grained, parameter-efficient), training schemes (original, Dense2Sparse, Sparse2Dense, expert merging), derivative architectures (WideNet, SUT, Mixture of Tokens, Mixture-of-Depths), system designs (expert parallelism, communication optimization, storage efficiency), and applications spanning NLP, computer vision, recommender systems, and multimodal learning — while the mathematical foundations laid in 1991 continue to underpin it all.
+
+---
+
+*Previous: [Mathematical Prerequisites for Mixture of Experts — Part 3](/blog/math-prerequisites-for-mixture-of-experts-part-3)*  
+*Next: [What Attention is Really Doing](/blog/attention-what-is-it-really)*

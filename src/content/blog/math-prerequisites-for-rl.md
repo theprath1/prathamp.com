@@ -320,3 +320,8 @@ This will matter enormously in Reinforcement Learning. The "coin" in RL is the p
 Everything in this post was built from one coin-toss example. A **probability distribution** assigns probabilities to outcomes. The **expected value** $\mathbb{E}[X]$ computes the weighted average $\sum (\text{value})(\text{probability})$. The **sigmoid** $\sigma(\theta)$ maps any real number to a probability, which lets us define a parameterised objective $J(\theta)$ — the expected value as a function of parameters. The **derivative** $\frac{dJ}{d\theta}$ tells us how $J$ changes when $\theta$ changes, giving us a direction to improve. The **log trick** — the identity $\frac{dP}{d\theta} = P \cdot \frac{d}{d\theta}\log P$ — converts that derivative into an expectation. **Maximum likelihood** offers an alternative objective — maximizing $\log p$ instead of $p$ — whose gradient weights each example by $1/p$, focusing learning aggressively on hard problems where the model currently struggles. This distinction between the RL objective and the ML objective will become central in Part 3. Finally, **Monte Carlo estimation** lets us approximate expected values by sampling and averaging, with the key guarantee of **unbiasedness**: on average, the sample estimate equals the truth.
 
 With these tools in hand, we're ready for [Reinforcement Learning from Scratch](/blog/reinforcement-learning-from-scratch), where we put them all together to derive the REINFORCE algorithm.
+
+---
+
+*Previous: [Manifold-Constrained Hyper-Connections (with the math)](/blog/manifold-constrained-hyper-connections-math)*  
+*Next: [Reinforcement Learning from Scratch](/blog/reinforcement-learning-from-scratch)*

@@ -417,3 +417,8 @@ The mathematical elegance lies in recognizing that by constraining $H$ to lie on
 5. Sinkhorn, R., & Knopp, P. (1967). *Concerning nonnegative matrices and doubly stochastic matrices*. [Pacific Journal of Mathematics](https://msp.org/pjm/1967/21-2/p14.xhtml)
 
 6. LeetArxiv. (2024). *Sinkhorn-Knopp Algorithm*. [Substack](https://leetarxiv.substack.com/p/sinkhorn-knopp-algorithm-24d)
+
+---
+
+*Previous: [Gradient Boosting: A Complete Guide](/blog/gradient-boosting)*  
+*Next: [Manifold-Constrained Hyper-Connections (with the math)](/blog/manifold-constrained-hyper-connections-math)*

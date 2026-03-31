@@ -427,3 +427,8 @@ The mathematical elegance lies in recognizing that doubly stochastic matrices fo
 2. Sinkhorn, R., & Knopp, P. (1967). *Concerning nonnegative matrices and doubly stochastic matrices*. [Pacific Journal of Mathematics](https://msp.org/pjm/1967/21-2/p14.xhtml)
 
 3. LeetArxiv. (2024). *Sinkhorn-Knopp Algorithm*. [Substack](https://leetarxiv.substack.com/p/sinkhorn-knopp-algorithm-24d)
+
+---
+
+*Previous: [Manifold-Constrained Hyper-Connections](/blog/manifold-constrained-hyper-connections)*  
+*Next: [Mathematical Prerequisites for Reinforcement Learning](/blog/math-prerequisites-for-rl)*

@@ -390,3 +390,8 @@ For each action in a sampled trajectory, the gradient estimate includes the term
 An **action** $a$ is a choice the model makes, and the **reward** $r$ is the scalar signal telling us how good that choice was. The **policy** $\pi_\theta(a \mid s)$ defines the probability of taking action $a$ in state $s$, controlled by the **parameter** $\theta$ — a knob (or vector of knobs) that we tune during training. The **objective** $J(\theta)$ is the average reward earned under the current policy, and the **gradient** $\nabla_\theta J$ tells us the direction to change $\theta$ to increase that average. A **trajectory** $\tau$ is the complete sequence of states and actions in one episode. The **log trick** — the identity $\nabla P = P \nabla \log P$ — converts the gradient into an expectation we can estimate by sampling. And **REINFORCE** is the algorithm that ties it all together: sample trajectories, estimate the gradient, update the parameters, repeat.
 
 Everything was derived from two small examples — a math quiz for the single-step case and a grid world for the multi-step case. The same structure scales to language models with vocabularies of 50,000 tokens, game-playing agents navigating millions of states, and robots learning to walk. The algebra is identical; only the size of the action space and the length of the trajectories change.
+
+---
+
+*Previous: [Mathematical Prerequisites for Reinforcement Learning](/blog/math-prerequisites-for-rl)*  
+*Next: [MaxRL: From REINFORCE to Maximum Likelihood](/blog/maxrl-from-reinforce-to-maximum-likelihood)*

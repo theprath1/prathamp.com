@@ -612,3 +612,8 @@ DenseFormer grants cross-layer access but with fixed, input-independent coeffici
 ## 12. Summary
 
 Standard residual connections accumulate all previous layer outputs with fixed unit weights, producing an all-ones depth mixing matrix that offers zero selectivity and causes hidden-state magnitudes to grow as $O(L)$ under PreNorm — the dilution problem. Attention Residuals replace this fixed accumulation with learned softmax attention over depth, where each layer uses a single pseudo-query vector to selectively weight all previous layer outputs, yielding a dense, input-dependent mixing matrix with maximum rank. Block AttnRes makes this practical at scale by compressing layers into $N$ blocks with standard summation within blocks and full attention across block representations, reducing memory from $O(Ld)$ to $O(Nd)$ while recovering most of the gain with $N \approx 8$ — a two-phase computation strategy with online softmax merging keeps inference overhead below 2%.
+
+---
+
+*Previous: [Mixture of Experts from Scratch — Part 2](/blog/mixture-of-experts-part-2)*  
+*Next: [Mathematical Prerequisites for Mixture of Experts — Part 3](/blog/math-prerequisites-for-mixture-of-experts-part-3)*

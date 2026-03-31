@@ -155,3 +155,7 @@ A high learning rate (e.g., 1.0) leads to rapid overfitting. A lower rate (e.g.,
 Gradient Boosting sequentially builds an additive model of weak learners, where each new learner optimizes the loss function by fitting to the negative gradient (pseudo-residuals) of the previous ensemble.
 
 It's gradient descent, but instead of updating weights, we're adding entire functions to our model—one correction at a time.
+
+---
+ 
+*Next: [Manifold-Constrained Hyper-Connections](/blog/manifold-constrained-hyper-connections)*

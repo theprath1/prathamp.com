@@ -784,3 +784,8 @@ Trinity Large uses $\lambda = 5 \times 10^{-4}$, $\kappa = 2$, $\beta = 0.5$.
 ## Summary
 
 We built the Mixture-of-Experts routing mechanism from the ground up: a token vector hits each expert's router vector, the dot products pass through sigmoid to produce independent routing scores in $(0,1)$, the expert bias shifts the selection threshold without affecting the gating weights (the decoupled design), the top-$K$ experts fire, and their outputs are weighted by normalized routing scores. The expert bias is the lever for load balancing — increasing it for underused experts, decreasing it for overused ones — and SMEBU is the mechanism that adjusts that lever intelligently. By replacing the sign function with $\tanh$, SMEBU produces updates proportional to the severity of the imbalance: aggressive corrections for large deviations, gentle nudges near equilibrium, and convergence to zero updates at perfect balance. Momentum smooths out the noise from stochastic load fluctuations, preventing the oscillation that plagues sign-based methods. Together, these changes enabled Trinity Large to train stably with 256 experts per layer across 17 trillion tokens with zero loss spikes.
+
+---
+
+*Previous: [Foundation Prior: How LLM Outputs Reshape Bayesian Beliefs](/blog/foundation-prior)*  
+*Next: [Mathematical Prerequisites for Mixture of Experts](/blog/math-prerequisites-for-mixture-of-experts)*

@@ -704,3 +704,8 @@ MaxRL bridges the gap. By dividing by $K$ (the observed number of successes) ins
 The control variate (subtracting the average score) keeps the estimator unbiased while reducing the variance that comes from the randomness of sampling. The result is a practical algorithm: sample $N$ outputs, check which ones are correct, average the score functions of the correct ones, subtract the average score function of all outputs, and use that as your gradient estimate.
 
 The paper's central message is that REINFORCE and maximum likelihood are not separate training paradigms — they are endpoints of a single spectrum parameterized by $N$. At $N = 1$, you get REINFORCE. At $N = \infty$, you get ML. And for any finite $N$ in between, you get a well-defined objective $J^{(N)}_{\text{MaxRL}}$ with a simple, unbiased gradient estimator. The choice of $N$ lets you smoothly trade off between the computational cost of generating more samples and the richness of the training signal you extract from them. As the unified weight function view showed, this entire spectrum boils down to one question: how aggressively should you emphasize hard examples? The weight function $w(p)$ goes from uniform ($w = 1$) at $N = 1$ to maximal hard-example amplification ($w = 1/p$) at $N = \infty$, with $N$ controlling where you sit on that curve.
+
+---
+
+*Previous: [Reinforcement Learning from Scratch](/blog/reinforcement-learning-from-scratch)*  
+*Next: [Mathematical Prerequisites for Foundation Prior](/blog/math-prerequisites-for-foundation-prior)*

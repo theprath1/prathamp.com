@@ -510,3 +510,8 @@ Shazeer et al. (2017) proved that conditional computation works at scale: 1000x 
 Fedus et al. (2021) simplified and improved the approach with the Switch Transformer: route each token to a single expert, use selective precision for stability, initialize smaller for consistent training, and apply expert dropout for fine-tuning. The result scales from 223M to 1 trillion parameters, achieving 7x speedups over dense T5 baselines.
 
 In Part 3, we will examine why MoEs work from a theoretical perspective (Chen et al., 2022) and survey the modern MoE landscape in large language models (Cai et al., 2024).
+
+---
+
+*Previous: [Mathematical Prerequisites for Mixture of Experts — Part 2](/blog/math-prerequisites-for-mixture-of-experts-part-2)*  
+*Next: [Attention Residuals: Replacing Fixed Skip Connections with Learned Depth-Wise Attention](/blog/attention-residuals)*

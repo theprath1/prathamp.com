@@ -580,3 +580,8 @@ The HME batch algorithm converged in **35 epochs** compared to backpropagation's
 We have built the Mixture of Experts framework from first principles. The cooperative error function couples experts and prevents specialization. The competitive error function decouples them by asking each expert to produce the entire output. The log-likelihood error function replaces priors with Bayesian posteriors, giving the system a principled way to discover which expert should handle which data. The Hierarchical Mixture of Experts extends this to a tree structure, and the EM algorithm provides a convergence-guaranteed learning procedure that decomposes into a collection of weighted generalized linear model fits. The on-line version brings recursive estimation theory to bear, enabling learning in a single pass through the data. These two papers — Jacobs et al. (1991) and Jordan & Jacobs (1993) — laid the mathematical foundations that every subsequent MoE paper builds upon.
 
 In Part 2, we will see how Shazeer et al. (2017) scaled this framework to thousands of experts and billions of parameters, and how Fedus et al. (2021) simplified it further with the Switch Transformer.
+
+---
+
+*Previous: [Mathematical Prerequisites for Mixture of Experts](/blog/math-prerequisites-for-mixture-of-experts)*  
+*Next: [Mathematical Prerequisites for Mixture of Experts — Part 2](/blog/math-prerequisites-for-mixture-of-experts-part-2)*

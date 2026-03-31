@@ -517,3 +517,8 @@ The tension is clear: larger $C$ reduces dropping but wastes memory. Fedus et al
 We have built six tools for Part 2. The softplus function guarantees positive noise scales by smoothly approximating $\max(0, z)$. Top-k masking with $-\infty$ forces softmax to produce exactly $k$ nonzero probabilities, enabling sparse gating where only $k$ out of $n$ experts are computed. Mean, variance, standard deviation, and the coefficient of variation measure how unbalanced expert loads are — the CV equals zero at perfect balance and increases with any deviation, making its square a natural load balancing penalty. The indicator function and argmax describe hard routing decisions: the argmax picks the best expert, the indicator counts how many tokens go where. The distinction between differentiable functions (softmax probabilities) and non-differentiable functions (argmax, indicators) explains why the load balancing loss multiplies $f_i$ by $P_i$ — gradients flow through the differentiable $P_i$ while the non-differentiable $f_i$ acts as a fixed scaling factor. The dot product $\sum_i f_i P_i$ measures alignment between routing counts and routing probabilities, reaching its minimum at uniform balance. And expert capacity arithmetic sets the buffer size per expert, trading dropped tokens against wasted memory.
 
 With these tools in hand, we are ready for [Part 2](/blog/mixture-of-experts-part-2), where we derive sparse gating, the Switch Transformer, and load balancing losses from scratch.
+
+---
+
+*Previous: [Mixture of Experts from Scratch — Part 1](/blog/mixture-of-experts-part-1)*  
+*Next: [Mixture of Experts from Scratch — Part 2](/blog/mixture-of-experts-part-2)*

@@ -476,3 +476,8 @@ Everything is clean because data comes from reality. The Foundation Prior paper 
 ## Summary
 
 We built seven mathematical tools, all from one coin example. A **parameter** is an unknown number controlling data generation. **Likelihood** is the joint probability of observed data viewed as a function of the parameter. The **Beta distribution** encodes prior fake observations of heads and tails and stays Beta after updating — that is conjugacy. **Entropy** measures uncertainty, and the **maximum entropy principle** says: do not assume more than your constraints force. **KL divergence** measures how far a new belief is from an old one, and minimizing it under expectation constraints uniquely produces **exponential tilting** — multiplying the prior by $\exp(\lambda g(\theta))$. **Marginal likelihood** integrates out the parameter to give a single number measuring how well the entire model predicts data. And the **law of total variance** decomposes mixture uncertainty into within-component and between-component parts. In Part 2, every one of these tools will be used to derive the Foundation Prior framework from scratch.
+
+---
+
+*Previous: [MaxRL: From REINFORCE to Maximum Likelihood](/blog/maxrl-from-reinforce-to-maximum-likelihood)*  
+*Next: [Foundation Prior: How LLM Outputs Reshape Bayesian Beliefs](/blog/foundation-prior)*
