@@ -405,4 +405,4 @@ Cai et al. (2024) surveyed the entire MoE landscape in the era of LLMs, revealin
 ---
 
 *Previous: [Mathematical Prerequisites for Mixture of Experts — Part 3](/blog/math-prerequisites-for-mixture-of-experts-part-3)*  
-*Next: [What Attention is Really Doing](/blog/attention-what-is-it-really)*
+*Next: [Mathematical Prerequisites for the Attention Series](/blog/math-prerequisites-for-attention)*
