@@ -386,5 +386,5 @@ In the next post, we ask: why use a feedforward network as the compatibility fun
 
 ---
 
-*Previous: [Mixture of Experts from Scratch — Part 3](/blog/mixture-of-experts-part-3)*  
+*Previous: [Mathematical Prerequisites for the Attention Series](/blog/math-prerequisites-for-attention)*  
 *Next: [From Soft Alignment to Queries, Keys, and Values](/blog/attention-q-k-v-from-scratch)*
