@@ -8,384 +8,991 @@ order: 3
 
 In the previous post, we derived Bahdanau attention from scratch: a feedforward compatibility function $e_{ij} = \mathbf{v}_a^\top \tanh(W_a s_{i-1} + U_a h_j)$, softmax normalization, and a dynamic context vector $c_i = \sum_j \alpha_{ij} h_j$. It worked. The model learned to align source and target words without any explicit supervision.
 
-But the Transformer paper (Vaswani et al., 2017) replaced the feedforward compatibility function with something far simpler: a dot product. In doing so, it unlocked full parallelization, enabled self-attention, and produced the architecture that underpins every major language model today. In this post we derive why — starting from a single question: what is the simplest compatibility function that still works?
-
-**The running example**: 3 tokens with 2-dimensional embeddings:
-
-$$
-\mathbf{x}_1 = \begin{bmatrix} 1 \\ 0 \end{bmatrix}, \quad \mathbf{x}_2 = \begin{bmatrix} 0 \\ 1 \end{bmatrix}, \quad \mathbf{x}_3 = \begin{bmatrix} 0.5 \\ 0.5 \end{bmatrix}
-$$
-
-Think of dimension 1 as encoding "noun-ness" and dimension 2 as encoding "verb-ness." Token 1 is a pure noun, token 2 is a pure verb, token 3 is equally both. We will compute scaled dot-product self-attention on these three tokens entirely by hand.
+But the Transformer paper (Vaswani et al., 2017) replaced that feedforward compatibility function with something far simpler: a dot product. In doing so, it unlocked full parallelization, enabled self-attention, and produced the architecture that underpins every major language model today. In this post we derive why, starting from a single question: what is the simplest compatibility function that still works?
 
 ---
 
-## 1. Reconsidering the Compatibility Function
+## 1. The Running Example
 
-### 1.1 What Bahdanau's Alignment Model Does
-
-Recall the Bahdanau alignment model:
+We keep one tiny sequence throughout:
 
 $$
-e_{ij} = \mathbf{v}_a^\top \tanh\!\left(W_a s_{i-1} + U_a h_j\right)
+\mathbf{x}_1 =
+\begin{bmatrix}
+1 \\ 0
+\end{bmatrix},
+\qquad
+\mathbf{x}_2 =
+\begin{bmatrix}
+0 \\ 1
+\end{bmatrix},
+\qquad
+\mathbf{x}_3 =
+\begin{bmatrix}
+0.5 \\ 0.5
+\end{bmatrix}
 $$
 
-The query ($s_{i-1}$, the decoder state) and the key ($h_j$, the encoder annotation) are each projected into a shared $n'$-dimensional space, summed, passed through $\tanh$, then dotted with $\mathbf{v}_a$. The result is a scalar compatibility score.
+Think of dimension 1 as encoding "noun-ness" and dimension 2 as encoding "verb-ness." Token 1 is a pure noun, token 2 is a pure verb, and token 3 is equally both.
 
-This is powerful — a feedforward network can represent any smooth compatibility function. But it has two structural drawbacks:
+We will compute the full scaled dot-product self-attention mechanism on these three vectors by hand.
 
-1. **Sequential computation**: We compute $e_{ij}$ for each $(i, j)$ pair separately. For $T_y$ target positions and $T_x$ source positions, we make $T_y \times T_x$ passes through the alignment network.
-
-2. **Cannot be batched across pairs**: Because of the $\tanh$ nonlinearity on the sum $W_a s_{i-1} + U_a h_j$, we cannot factor the computation into separate operations on $s_{i-1}$ and $h_j$ and then combine them via a simple matrix multiply. The addition inside the $\tanh$ couples the query and key.
-
-### 1.2 The Dot-Product Compatibility Function
-
-The simplest similarity measure between two vectors $\mathbf{q}$ and $\mathbf{k}$ is their **dot product** (also called the **inner product**):
-
-$$
-e(\mathbf{q}, \mathbf{k}) = \mathbf{q} \cdot \mathbf{k} = \mathbf{q}^\top \mathbf{k} = \sum_{d=1}^{D} q_d k_d
-$$
-
-For unit-norm vectors, this equals the cosine of the angle between them — a direct measure of directional similarity. For general vectors, it captures both magnitude and directional alignment.
-
-The dot product has a key structural advantage: if we pack all queries into a matrix $Q \in \mathbb{R}^{n \times d_k}$ and all keys into a matrix $K \in \mathbb{R}^{m \times d_k}$, then all $n \times m$ pairwise dot products are computed in one matrix multiplication:
-
-$$
-S = QK^\top \in \mathbb{R}^{n \times m}
-$$
-
-This maps directly onto the matrix multiplication primitives that modern GPUs are built to execute as fast as possible. The feedforward alignment model cannot be parallelized this way — the nonlinearity breaks the factorization.
+For readability we display the token vectors vertically, but from this point on we will stack them as **rows** of the matrix $X$. So individual queries, keys, and values will also be treated as row vectors, and the scalar score between positions $i$ and $j$ will be written as $q_i k_j^\top$.
 
 ---
 
-## 2. Queries, Keys, and Values
+## 2. Reconsidering the Compatibility Function
 
-### 2.1 Why Three Separate Projections?
-
-In Bahdanau's model, the encoder states $h_j$ serve two roles simultaneously:
-- They are the things we **score against** (used inside the alignment model to compute $e_{ij}$).
-- They are the things we **retrieve** (used directly in the weighted sum $c_i = \sum_j \alpha_{ij} h_j$).
-
-These two roles are conflated. The Transformer paper separates them into three distinct linear projections applied to each token:
-
-- The **query** ($\mathbf{q}_i$): what the current position is looking for. It is what the alignment scores are computed with respect to.
-- The **key** ($\mathbf{k}_j$): what each position "offers" for the purpose of being found. It is what the query is compared against.
-- The **value** ($\mathbf{v}_j$): the actual content retrieved from position $j$ once it has been selected. It is what is mixed into the output.
-
-Each is obtained by a separate learned linear projection:
+In Bahdanau attention, the compatibility score was
 
 $$
-Q = X W_Q \in \mathbb{R}^{n \times d_k}, \quad K = X W_K \in \mathbb{R}^{n \times d_k}, \quad V = X W_V \in \mathbb{R}^{n \times d_v}
+e_{ij} = \mathbf{v}_a^\top \tanh(W_a s_{i-1} + U_a h_j)
 $$
 
-where $X \in \mathbb{R}^{n \times d_\text{model}}$ is the input token matrix, $W_Q, W_K \in \mathbb{R}^{d_\text{model} \times d_k}$, and $W_V \in \mathbb{R}^{d_\text{model} \times d_v}$ are learned weight matrices.
+This score answered a good question: how compatible is decoder state $s_{i-1}$ with encoder annotation $h_j$?
 
-### 2.2 Why Separate Keys from Values?
+But the Transformer wants something else in addition. It wants the score function to work for every pair of positions in parallel, and it wants the whole score matrix to be produced by matrix multiplication.
 
-The basis for finding relevant information (captured by keys and queries) may differ from the basis for representing the content once found (captured by values). A word might be findable because it plays a particular syntactic role — its key encodes this. But what you actually want to extract from it may be its semantic content — its value encodes that. The separation gives the model flexibility to learn different representations for these two purposes.
+### 2.1 What Bahdanau's Alignment Model Does
 
-In Bahdanau's model, both roles were played by the same vector $h_j$ with no projection. The Transformer adds two degrees of freedom: $W_K$ and $W_V$ project $h_j$ into separate key and value spaces.
-
-### 2.3 Scaled Dot-Product Attention
-
-Putting it together, the full attention computation is:
+The additive alignment model mixes the two inputs inside a nonlinearity:
 
 $$
-\boxed{\text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right) V}
+\tanh(W_a s_{i-1} + U_a h_j)
 $$
 
-This is **scaled dot-product attention** as defined in Vaswani et al. (2017). The factor $1/\sqrt{d_k}$ is the scaling term. We derive exactly why it is needed in the next section.
+The query and the key are each projected into a shared hidden space, added, passed through $\tanh$, and then dotted with $\mathbf{v}_a$. That makes the compatibility function expressive, but it also means we cannot precompute a representation of the query alone and a representation of the key alone and then combine them with one large matrix multiply. The interaction happens before the final dot product with $\mathbf{v}_a$.
+
+This is not wrong. It is just much less GPU-friendly.
+
+### 2.2 The Dot-Product Compatibility Function
+
+Suppose we want a score function with the form
+
+$$
+e_{ij} = q_i k_j^\top
+$$
+
+where $q_i$ depends only on token $i$ and $k_j$ depends only on token $j$.
+
+Then the full matrix of all pairwise scores is
+
+$$
+E = QK^\top
+$$
+
+with
+
+$$
+Q =
+\begin{bmatrix}
+q_1^\top \\
+q_2^\top \\
+\vdots
+\end{bmatrix},
+\qquad
+K =
+\begin{bmatrix}
+k_1^\top \\
+k_2^\top \\
+\vdots
+\end{bmatrix}
+$$
+
+This is exactly what modern GPUs are built to do: one matrix multiply computes all pairwise similarities.
+
+### 2.3 A bilinear view
+
+If the input token at position $i$ is the row vector $x_i$, then the most general batched linear score looks like
+
+$$
+e_{ij} = x_i A x_j^\top
+$$
+
+for some learned matrix $A$.
+
+Now factor $A$ as
+
+$$
+A = W_Q W_K^\top
+$$
+
+Then
+
+$$
+e_{ij} = x_i W_Q W_K^\top x_j^\top
+$$
+
+Group the terms by **associativity of matrix multiplication**:
+
+$$
+e_{ij} = (x_i W_Q)(x_j W_K)^\top
+$$
+
+Define
+
+$$
+q_i = x_i W_Q,
+\qquad
+k_j = x_j W_K
+$$
+
+and we get
+
+$$
+\boxed{e_{ij} = q_i k_j^\top}
+$$
+
+That is the Transformer's dot-product compatibility function.
+
+So the dot product is not arbitrary. It is the simplest factorized bilinear score that gives us all pairwise similarities in one matrix multiply.
 
 ---
 
-## 3. Why Divide by $\sqrt{d_k}$?
+## 3. Queries, Keys, and Values
 
-This is the part that confuses almost everyone. The scaling looks like an arbitrary normalization constant. It is not.
+Once the compatibility function has been factorized, the three projections appear naturally.
 
-### 3.1 The Variance of a Dot Product
+### 3.1 Query
 
-Suppose the components of $\mathbf{q}$ and $\mathbf{k}$ are drawn independently from a standard normal distribution:
+A **query** is what the current position is asking for.
 
-$$
-q_i \stackrel{\text{i.i.d.}}{\sim} \mathcal{N}(0, 1), \quad k_i \stackrel{\text{i.i.d.}}{\sim} \mathcal{N}(0, 1), \quad i = 1, \ldots, d_k
-$$
-
-We want to find the variance of the dot product $\mathbf{q} \cdot \mathbf{k} = \sum_{i=1}^{d_k} q_i k_i$.
-
-**Step 1: Mean of each term.** Since $q_i$ and $k_i$ are independent:
-$$
-\mathbb{E}[q_i k_i] = \mathbb{E}[q_i]\, \mathbb{E}[k_i] = 0 \times 0 = 0
-$$
-
-By **linearity of expectation**: $\mathbb{E}[\mathbf{q} \cdot \mathbf{k}] = 0$.
-
-**Step 2: Variance of each term.** We use $\text{Var}(Z) = \mathbb{E}[Z^2] - (\mathbb{E}[Z])^2$:
-$$
-\text{Var}(q_i k_i) = \mathbb{E}[(q_i k_i)^2] - 0 = \mathbb{E}[q_i^2]\, \mathbb{E}[k_i^2]
-$$
-
-The second equality uses independence of $q_i$ and $k_i$. Since $q_i \sim \mathcal{N}(0,1)$, we have $\mathbb{E}[q_i^2] = \text{Var}(q_i) + (\mathbb{E}[q_i])^2 = 1 + 0 = 1$. Similarly $\mathbb{E}[k_i^2] = 1$. So $\text{Var}(q_i k_i) = 1$.
-
-**Step 3: Variance of the sum.** The terms $q_i k_i$ are independent across $i$ (since the $q_i$ and $k_i$ are all independent). By **additivity of variance for independent random variables**:
+If token $i$ wants to find relevant information elsewhere in the sequence, its query is
 
 $$
-\text{Var}\!\left(\sum_{i=1}^{d_k} q_i k_i\right) = \sum_{i=1}^{d_k} \text{Var}(q_i k_i) = d_k \cdot 1 = d_k
+q_i = x_i W_Q
 $$
 
-The standard deviation of the dot product is $\sqrt{d_k}$.
+### 3.2 Key
 
-### 3.2 Why Large Variance Hurts
+A **key** is how a position advertises what kind of information it contains.
 
-This is the core insight from Vaswani et al.: for large $d_k$, the dot products grow large in magnitude. For $d_k = 64$ (a typical head dimension), unscaled dot products have standard deviation 8. The inputs to the softmax span a range of roughly $\pm 24$ (three standard deviations).
+At position $j$:
 
-Recall that $\text{softmax}(x_i) = e^{x_i} / \sum_j e^{x_j}$. When one input is 24 and the others are near 0, $e^{24} \approx 2.6 \times 10^{10}$ while $e^0 = 1$. The softmax becomes nearly a hard argmax — all weight concentrates on the single largest score. The gradient of the softmax in this regime is nearly zero (the function is saturated). Training with near-zero gradients stalls.
+$$
+k_j = x_j W_K
+$$
 
-Dividing by $\sqrt{d_k}$ rescales the dot products to have standard deviation 1, keeping the softmax in a well-conditioned regime where gradients are healthy.
+The query and key interact only to produce scores.
 
-### 3.3 Numerical Check
+### 3.3 Value
 
-In our running example, $d_k = 2$, so $\sqrt{d_k} = \sqrt{2} \approx 1.4142$.
+A **value** is the actual content retrieved once a position is selected.
 
-The unscaled dot product of $\mathbf{x}_1 = [1, 0]$ with itself: $1^2 + 0^2 = 1.0$. After scaling: $1.0 / 1.4142 \approx 0.707$. The unscaled dot product of $\mathbf{x}_3 = [0.5, 0.5]$ with itself: $0.25 + 0.25 = 0.5$. After scaling: $0.5 / 1.4142 \approx 0.354$.
+At position $j$:
 
-These are small enough that the softmax over them will be well-conditioned — no saturation.
+$$
+v_j = x_j W_V
+$$
+
+This gives the third projection:
+
+$$
+v_j = x_j W_V
+$$
+
+### 3.4 Matrix form
+
+Pack the full sequence into a matrix
+
+$$
+X \in \mathbb{R}^{n \times d_\text{model}}
+$$
+
+Then the three projections are
+
+$$
+Q = XW_Q \in \mathbb{R}^{n \times d_k}
+$$
+
+$$
+K = XW_K \in \mathbb{R}^{n \times d_k}
+$$
+
+$$
+V = XW_V \in \mathbb{R}^{n \times d_v}
+$$
+
+### 3.5 Why keys and values are separated
+
+This is the key conceptual difference from Bahdanau attention. In Bahdanau's model, the encoder states $h_j$ served two roles at once. They were the things scored against, and they were also the things retrieved. In the Transformer, those roles are separated. Keys decide how positions are matched, while values decide what content is actually mixed into the output. A token might be easy to find for one reason and useful to retrieve for another.
+
+### 3.6 A concrete check: scores can stay the same while values change
+
+This is the part that usually feels too abstract on first reading, so let us pin it down with the running example.
+
+Keep the query and key projections equal to the identity:
+
+$$
+W_Q = W_K = I
+$$
+
+so the score matrix is unchanged. But now choose a different value projection:
+
+$$
+W_V =
+\begin{bmatrix}
+1 & 0 \\
+1 & 1
+\end{bmatrix}
+$$
+
+Then the transformed values are:
+
+$$
+v_1 = [1,0]W_V = [1,0]
+$$
+
+$$
+v_2 = [0,1]W_V = [1,1]
+$$
+
+$$
+v_3 = [0.5,0.5]W_V = [1,0.5]
+$$
+
+Notice what happened. The keys used for matching did not change, but the values returned after matching did change. So the attention weights can stay exactly the same while the retrieved content changes. That is the practical meaning of separating keys from values.
 
 ---
 
-## 4. Scaled Dot-Product Attention: Full Numerical Walkthrough
+## 4. Deriving the Full Attention Formula
 
-We now carry out the complete computation for our 3-token example. We use $W_Q = W_K = W_V = I$ (the $2 \times 2$ identity matrix) to isolate the attention mechanism from the projection step — equivalent to self-attention with no learned projection.
+Once we have scores, the rest of the mechanism follows the same pattern as Bahdanau attention. We compute unnormalized scores, normalize them into weights, and then retrieve a weighted combination of values.
 
-### 4.1 Step 1: Compute the Score Matrix $S = QK^\top / \sqrt{d_k}$
+### 4.1 Score matrix
 
-With $Q = K = X$:
-
-$$
-QK^\top = XX^\top = \begin{bmatrix} 1 & 0 \\ 0 & 1 \\ 0.5 & 0.5 \end{bmatrix} \begin{bmatrix} 1 & 0 & 0.5 \\ 0 & 1 & 0.5 \end{bmatrix}
-$$
-
-Computing each of the 9 entries by the **definition of matrix multiplication** (row of left matrix dotted with column of right matrix):
-
-- $(1,1)$: $[1, 0] \cdot [1, 0] = 1 \cdot 1 + 0 \cdot 0 = 1$
-- $(1,2)$: $[1, 0] \cdot [0, 1] = 1 \cdot 0 + 0 \cdot 1 = 0$
-- $(1,3)$: $[1, 0] \cdot [0.5, 0.5] = 1 \cdot 0.5 + 0 \cdot 0.5 = 0.5$
-- $(2,1)$: $[0, 1] \cdot [1, 0] = 0 \cdot 1 + 1 \cdot 0 = 0$
-- $(2,2)$: $[0, 1] \cdot [0, 1] = 0 \cdot 0 + 1 \cdot 1 = 1$
-- $(2,3)$: $[0, 1] \cdot [0.5, 0.5] = 0 \cdot 0.5 + 1 \cdot 0.5 = 0.5$
-- $(3,1)$: $[0.5, 0.5] \cdot [1, 0] = 0.5 \cdot 1 + 0.5 \cdot 0 = 0.5$
-- $(3,2)$: $[0.5, 0.5] \cdot [0, 1] = 0.5 \cdot 0 + 0.5 \cdot 1 = 0.5$
-- $(3,3)$: $[0.5, 0.5] \cdot [0.5, 0.5] = 0.5 \cdot 0.5 + 0.5 \cdot 0.5 = 0.25 + 0.25 = 0.5$
+All pairwise scores are
 
 $$
-QK^\top = \begin{bmatrix} 1 & 0 & 0.5 \\ 0 & 1 & 0.5 \\ 0.5 & 0.5 & 0.5 \end{bmatrix}
+S = QK^\top
 $$
 
-Dividing by $\sqrt{2} \approx 1.4142$:
+Entry $(i,j)$ is
 
 $$
-S = \frac{QK^\top}{\sqrt{2}} = \begin{bmatrix} 0.7071 & 0 & 0.3536 \\ 0 & 0.7071 & 0.3536 \\ 0.3536 & 0.3536 & 0.3536 \end{bmatrix}
+S_{ij} = q_i k_j^\top
 $$
 
-### 4.2 Step 2: Apply Row-Wise Softmax
+### 4.2 Row-wise softmax
 
-Each row $i$ of $S$ is the score vector for token $i$ attending to all tokens. Softmax is applied independently to each row.
-
-**Row 1** (token 1 attending to all): $[0.7071,\ 0,\ 0.3536]$
+For each query position $i$, apply softmax over all keys:
 
 $$
-\exp(0.7071) = 2.0281, \quad \exp(0) = 1.0000, \quad \exp(0.3536) = 1.4240
+A_{ij} = \frac{\exp(S_{ij})}{\sum_{r=1}^{n} \exp(S_{ir})}
 $$
 
-$$
-Z_1 = 2.0281 + 1.0000 + 1.4240 = 4.4521
-$$
+This gives a full attention weight matrix
 
 $$
-A_{1,\cdot} = \left[\frac{2.0281}{4.4521},\; \frac{1.0000}{4.4521},\; \frac{1.4240}{4.4521}\right] = [0.4556,\; 0.2247,\; 0.3199] \approx [0.456,\; 0.225,\; 0.320]
+A = \text{softmax}(S)
 $$
 
-**Row 2** (token 2 attending to all): $[0,\ 0.7071,\ 0.3536]$
+where the softmax is applied row by row.
 
-The three score values are the same as row 1, just with the large score now at position 2 instead of position 1. By the **permutation equivariance of the softmax function** (softmax is symmetric under permutation of inputs — the same exponentials, just reindexed):
+### 4.3 Weighted value retrieval
 
-$$
-A_{2,\cdot} = [0.225,\; 0.456,\; 0.320]
-$$
-
-**Row 3** (token 3 attending to all): $[0.3536,\ 0.3536,\ 0.3536]$
-
-All three scores are identical. When all inputs to the softmax are equal, the **uniform distribution** is the unique output, since equal exponentials divided by $3 \times$ that exponential each give $1/3$. Explicitly: $\exp(0.3536) = 1.4240$ for all three. Sum $= 3 \times 1.4240 = 4.2720$. Each weight $= 1.4240 / 4.2720 = 0.333$.
+Now retrieve content by multiplying those weights by the values:
 
 $$
-A_{3,\cdot} = [0.333,\; 0.333,\; 0.333]
+O = AV
 $$
 
-The full attention weight matrix:
+Entry-wise, this says
 
 $$
-A = \begin{bmatrix} 0.456 & 0.225 & 0.320 \\ 0.225 & 0.456 & 0.320 \\ 0.333 & 0.333 & 0.333 \end{bmatrix}
+o_i = \sum_{j=1}^{n} A_{ij} v_j
 $$
 
-### 4.3 Step 3: Multiply by Values
+This is exactly the same weighted-memory-retrieval structure as Bahdanau attention, except that the weights came from a batched dot product instead of an additive feedforward score.
 
-With $V = X$, compute $O = AV$ using the **definition of matrix multiplication**:
+### 4.4 The scaling factor
 
-$$
-O = \begin{bmatrix} 0.456 & 0.225 & 0.320 \\ 0.225 & 0.456 & 0.320 \\ 0.333 & 0.333 & 0.333 \end{bmatrix} \begin{bmatrix} 1 & 0 \\ 0 & 1 \\ 0.5 & 0.5 \end{bmatrix}
-$$
-
-**Output for token 1:**
+The Transformer inserts one additional factor:
 
 $$
-o_1^{(\text{dim 1})} = 0.456 \times 1 + 0.225 \times 0 + 0.320 \times 0.5 = 0.456 + 0 + 0.160 = 0.616
+\frac{1}{\sqrt{d_k}}
 $$
 
-$$
-o_1^{(\text{dim 2})} = 0.456 \times 0 + 0.225 \times 1 + 0.320 \times 0.5 = 0 + 0.225 + 0.160 = 0.385
-$$
+So the final formula becomes
 
 $$
-\boxed{\mathbf{o}_1 = [0.616,\; 0.385]}
+\boxed{\text{Attention}(Q,K,V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V}
 $$
 
-**Output for token 2** (by symmetry of the weight matrix with rows 1 and 2 swapped):
-
-$$
-\boxed{\mathbf{o}_2 = [0.385,\; 0.616]}
-$$
-
-**Output for token 3:**
-
-$$
-o_3^{(\text{dim 1})} = 0.333 \times 1 + 0.333 \times 0 + 0.333 \times 0.5 = 0.333 + 0 + 0.167 = 0.500
-$$
-
-$$
-o_3^{(\text{dim 2})} = 0.333 \times 0 + 0.333 \times 1 + 0.333 \times 0.5 = 0 + 0.333 + 0.167 = 0.500
-$$
-
-$$
-\boxed{\mathbf{o}_3 = [0.500,\; 0.500]}
-$$
-
-### 4.4 Interpretation
-
-Token 1 started as a "pure noun" $[1.0, 0.0]$ and became $[0.616, 0.385]$: it absorbed verb flavor from token 2 and mixed flavor from token 3, weighted by its attention to them. Token 2 started as a "pure verb" $[0.0, 1.0]$ and became $[0.385, 0.616]$: symmetric result. Token 3 started as an equal mixture $[0.5, 0.5]$ and remained $[0.5, 0.5]$: because it attended equally to a pure noun and a pure verb, the blend balanced out.
-
-This is self-attention's essential function: each token's output representation is a context-weighted blend of the entire sequence. No token is isolated — each one "sees" all others.
+We now derive why that scaling is needed.
 
 ---
 
-## 5. Multi-Head Attention
+## 5. Why Divide by $\sqrt{d_k}$?
 
-### 5.1 The Limitation of a Single Head
+This is the part that confuses almost everyone. The scaling is not cosmetic. It is a variance correction.
 
-A single attention head computes one weighted average over the values. This means it can only express one "mode" of attention per layer. If a token should simultaneously attend to its syntactic dependent (for structure) and to a semantically related word (for meaning), a single head must blend these two patterns into one weight vector. The information from each pattern gets mixed into a single average.
+### 5.1 Variance of a dot product
 
-### 5.2 Multiple Heads in Parallel
-
-**Multi-head attention** runs $h$ independent attention heads simultaneously, each with its own projection matrices:
+Assume the components of a query and key are independent standard normal variables:
 
 $$
-\text{head}_i = \text{Attention}\!\left(Q W_i^Q,\; K W_i^K,\; V W_i^V\right)
+q_r \sim \mathcal{N}(0,1),
+\qquad
+k_r \sim \mathcal{N}(0,1),
+\qquad
+r = 1, \ldots, d_k
 $$
 
+We want the variance of
+
 $$
-\text{MultiHead}(Q, K, V) = \text{Concat}(\text{head}_1, \ldots, \text{head}_h)\, W^O
+q^\top k = \sum_{r=1}^{d_k} q_r k_r
 $$
 
-where $W_i^Q \in \mathbb{R}^{d_\text{model} \times d_k}$, $W_i^K \in \mathbb{R}^{d_\text{model} \times d_k}$, $W_i^V \in \mathbb{R}^{d_\text{model} \times d_v}$ are the per-head projection matrices, and $W^O \in \mathbb{R}^{h d_v \times d_\text{model}}$ is an output projection that combines the heads back into a single representation.
+First, the mean of one product term:
 
-Vaswani et al. use $h = 8$ heads with $d_k = d_v = d_\text{model}/h = 64$ (for $d_\text{model} = 512$). Each head operates in a 64-dimensional subspace. The total computational cost is similar to single-head attention with full dimensionality, because the per-head dimension is smaller by a factor of $h$.
+$$
+\mathbb{E}[q_r k_r] = \mathbb{E}[q_r]\mathbb{E}[k_r] = 0 \cdot 0 = 0
+$$
 
-Multi-head attention allows the model to **jointly attend to information from different representation subspaces at different positions**. The visualization in the Transformer paper shows heads specializing in different tasks: anaphora resolution, syntactic structure, positional patterns. A single head would have to average over all of these.
+This uses independence and the **multiplication rule for expectations of independent variables**.
+
+Now the variance of one term:
+
+$$
+\text{Var}(q_r k_r) = \mathbb{E}[(q_r k_r)^2] - (\mathbb{E}[q_r k_r])^2
+$$
+
+The second term is zero, so
+
+$$
+\text{Var}(q_r k_r) = \mathbb{E}[q_r^2]\mathbb{E}[k_r^2]
+$$
+
+again by independence.
+
+Because each variable has variance 1 and mean 0:
+
+$$
+\mathbb{E}[q_r^2] = 1,
+\qquad
+\mathbb{E}[k_r^2] = 1
+$$
+
+So
+
+$$
+\text{Var}(q_r k_r) = 1
+$$
+
+Now sum over all $d_k$ terms. Since the terms are independent, apply the **additivity of variance for independent random variables**:
+
+$$
+\text{Var}\!\left(\sum_{r=1}^{d_k} q_r k_r\right)
+= \sum_{r=1}^{d_k} \text{Var}(q_r k_r)
+= \sum_{r=1}^{d_k} 1
+= d_k
+$$
+
+So the unscaled dot product has variance
+
+$$
+\boxed{\text{Var}(q^\top k) = d_k}
+$$
+
+and therefore standard deviation
+
+$$
+\sqrt{d_k}
+$$
+
+### 5.2 Why large variance hurts softmax
+
+If $d_k$ is large, the dot products become large in magnitude.
+
+Large positive gaps in the score vector make softmax almost one-hot. When that happens, the softmax saturates and its gradients become tiny.
+
+Dividing by $\sqrt{d_k}$ rescales the variance back to 1:
+
+$$
+\text{Var}\!\left(\frac{q^\top k}{\sqrt{d_k}}\right)
+= \frac{1}{d_k} \text{Var}(q^\top k)
+= \frac{1}{d_k} \cdot d_k
+= 1
+$$
+
+This uses the **variance scaling rule**:
+
+$$
+\text{Var}(aX) = a^2 \text{Var}(X)
+$$
+
+### 5.3 Numerical check for our running example
+
+In our running example:
+
+$$
+d_k = 2
+$$
+
+so
+
+$$
+\sqrt{d_k} = \sqrt{2} \approx 1.4142
+$$
+
+If an unscaled score is 1, the scaled score becomes
+
+$$
+\frac{1}{1.4142} \approx 0.7071
+$$
+
+If an unscaled score is 0.5, the scaled score becomes
+
+$$
+\frac{0.5}{1.4142} \approx 0.3536
+$$
+
+The scores are compressed toward zero, which keeps the softmax less extreme.
 
 ---
 
-## 6. Self-Attention vs. Cross-Attention
+## 6. Full Numerical Walkthrough: Self-Attention on Three Tokens
 
-The previous post used Bahdanau's **cross-attention**: the query came from the decoder, and the keys and values came from the encoder. The query and the memory it retrieves from are different sequences.
+Now we run the whole mechanism start to finish.
 
-**Self-attention** is the special case where the query, keys, and values all come from the same sequence:
+To isolate attention itself, we take the simplest projections:
 
 $$
-Q = K = V = X \cdot W_{\{Q,K,V\}}
+W_Q = W_K = W_V = I
 $$
 
-Every token attends to every other token in the same sequence. Each output token's representation is a context-weighted blend of all other tokens in the sequence.
+the $2 \times 2$ identity matrix.
 
-This is the key innovation of the Transformer encoder. A BiRNN encoder can also capture context, but only sequentially: position $j$'s representation is influenced by positions $j-1$, $j-2$, $\ldots$ through the recurrence (and $j+1$, $j+2$, $\ldots$ through the backward pass). With self-attention, every position can directly attend to every other position in a single operation — the "path length" between any two positions is 1.
+Then
+
+$$
+Q = K = V = X
+$$
+
+for our running example.
+
+### 6.1 Compute $QK^\top$
+
+Write the input matrix:
+
+$$
+X =
+\begin{bmatrix}
+1 & 0 \\
+0 & 1 \\
+0.5 & 0.5
+\end{bmatrix}
+$$
+
+Then
+
+$$
+QK^\top = XX^\top
+=
+\begin{bmatrix}
+1 & 0 \\
+0 & 1 \\
+0.5 & 0.5
+\end{bmatrix}
+\begin{bmatrix}
+1 & 0 & 0.5 \\
+0 & 1 & 0.5
+\end{bmatrix}
+$$
+
+By the **definition of matrix multiplication**, each entry is a row-column dot product. Row 1 against the three columns gives $1 \cdot 1 + 0 \cdot 0 = 1$, then $1 \cdot 0 + 0 \cdot 1 = 0$, and then $1 \cdot 0.5 + 0 \cdot 0.5 = 0.5$. Row 2 gives $0 \cdot 1 + 1 \cdot 0 = 0$, then $0 \cdot 0 + 1 \cdot 1 = 1$, and then $0 \cdot 0.5 + 1 \cdot 0.5 = 0.5$. Row 3 gives $0.5 \cdot 1 + 0.5 \cdot 0 = 0.5$, then $0.5 \cdot 0 + 0.5 \cdot 1 = 0.5$, and finally $0.5 \cdot 0.5 + 0.5 \cdot 0.5 = 0.25 + 0.25 = 0.5$.
+
+So
+
+$$
+QK^\top =
+\begin{bmatrix}
+1 & 0 & 0.5 \\
+0 & 1 & 0.5 \\
+0.5 & 0.5 & 0.5
+\end{bmatrix}
+$$
+
+### 6.2 Apply the scaling
+
+Divide by $\sqrt{2}$:
+
+$$
+\frac{QK^\top}{\sqrt{2}}
+=
+\begin{bmatrix}
+0.7071 & 0 & 0.3536 \\
+0 & 0.7071 & 0.3536 \\
+0.3536 & 0.3536 & 0.3536
+\end{bmatrix}
+$$
+
+### 6.3 Softmax row 1
+
+Row 1 is
+
+$$
+[0.7071,\ 0,\ 0.3536]
+$$
+
+Exponentiate:
+
+$$
+e^{0.7071} \approx 2.0281,\qquad
+e^0 = 1,\qquad
+e^{0.3536} \approx 1.4240
+$$
+
+Add them:
+
+$$
+Z_1 = 2.0281 + 1 + 1.4240 = 4.4521
+$$
+
+Normalize:
+
+$$
+A_{1,\cdot} =
+\left[
+\frac{2.0281}{4.4521},
+\frac{1}{4.4521},
+\frac{1.4240}{4.4521}
+\right]
+\approx
+[0.4556,\ 0.2247,\ 0.3199]
+$$
+
+### 6.4 Softmax rows 2 and 3
+
+Row 2 is
+
+$$
+[0,\ 0.7071,\ 0.3536]
+$$
+
+which is just a permutation of row 1, so
+
+$$
+A_{2,\cdot} \approx [0.2247,\ 0.4556,\ 0.3199]
+$$
+
+Row 3 has equal entries:
+
+$$
+[0.3536,\ 0.3536,\ 0.3536]
+$$
+
+Equal inputs to softmax produce the uniform distribution, so
+
+$$
+A_{3,\cdot} =
+\left[\frac{1}{3},\ \frac{1}{3},\ \frac{1}{3}\right]
+\approx
+[0.333,\ 0.333,\ 0.333]
+$$
+
+The full attention matrix is therefore
+
+$$
+A \approx
+\begin{bmatrix}
+0.456 & 0.225 & 0.320 \\
+0.225 & 0.456 & 0.320 \\
+0.333 & 0.333 & 0.333
+\end{bmatrix}
+$$
+
+### 6.5 Multiply by the values
+
+Since $V = X$,
+
+$$
+O = AV
+$$
+
+Compute the first output vector:
+
+$$
+o_1^{(1)} = 0.456 \cdot 1 + 0.225 \cdot 0 + 0.320 \cdot 0.5 = 0.456 + 0 + 0.160 = 0.616
+$$
+
+$$
+o_1^{(2)} = 0.456 \cdot 0 + 0.225 \cdot 1 + 0.320 \cdot 0.5 = 0 + 0.225 + 0.160 = 0.385
+$$
+
+So
+
+$$
+\boxed{o_1 \approx [0.616,\ 0.385]}
+$$
+
+By symmetry,
+
+$$
+\boxed{o_2 \approx [0.385,\ 0.616]}
+$$
+
+For token 3:
+
+$$
+o_3^{(1)} = 0.333 \cdot 1 + 0.333 \cdot 0 + 0.333 \cdot 0.5 = 0.333 + 0 + 0.167 = 0.500
+$$
+
+$$
+o_3^{(2)} = 0.333 \cdot 0 + 0.333 \cdot 1 + 0.333 \cdot 0.5 = 0 + 0.333 + 0.167 = 0.500
+$$
+
+So
+
+$$
+\boxed{o_3 = [0.500,\ 0.500]}
+$$
+
+### 6.6 Interpretation
+
+Token 1 started as a pure noun-like vector:
+
+$$
+[1,\ 0]
+$$
+
+After self-attention it became
+
+$$
+[0.616,\ 0.385]
+$$
+
+It kept mostly noun content, but absorbed some verb content from the other tokens.
+
+That is the core role of self-attention: contextual mixing through learned, content-dependent weighted averages.
 
 ---
 
-## 7. The Three Uses of Attention in the Transformer
+## 7. A Short Comparison: Unscaled vs Scaled
 
-The Transformer architecture uses attention in three distinct ways:
+It is worth looking at the scaling effect directly on the running example rather than only through the variance proof.
 
-**1. Encoder self-attention**: $Q$, $K$, $V$ all come from the encoder's previous-layer output. Each encoder position attends to all encoder positions. This builds contextual representations where each token encodes information about the full sequence.
+### 7.1 Unscaled row 1
 
-**2. Decoder masked self-attention**: $Q$, $K$, $V$ come from the decoder's previous-layer output, but with a **causal mask**. All entries above the diagonal in $S$ are set to $-\infty$ before the softmax. Since $\text{softmax}(-\infty) = 0$, this prevents position $i$ from attending to positions $j > i$. The decoder cannot "look ahead" at future target tokens.
+Without the $\sqrt{d_k}$ scaling, row 1 would be
 
-**3. Encoder–decoder attention (cross-attention)**: $Q$ comes from the decoder, and $K$, $V$ come from the encoder output. This is the direct generalization of Bahdanau attention: the decoder queries the full encoder representation at each decoding step.
+$$
+[1,\ 0,\ 0.5]
+$$
+
+Exponentiate:
+
+$$
+e^1 \approx 2.7183,\qquad e^0 = 1,\qquad e^{0.5} \approx 1.6487
+$$
+
+Normalize:
+
+$$
+Z = 2.7183 + 1 + 1.6487 = 5.3670
+$$
+
+So
+
+$$
+\text{softmax}([1,0,0.5]) \approx [0.5065,\ 0.1863,\ 0.3072]
+$$
+
+### 7.2 Scaled row 1
+
+With scaling, we got
+
+$$
+\text{softmax}([0.7071,0,0.3536]) \approx [0.4556,\ 0.2247,\ 0.3199]
+$$
+
+### 7.3 What changed
+
+The scaled version is less sharp. The largest weight dropped from about $0.507$ to $0.456$, and the smaller weights rose correspondingly.
+
+For $d_k = 2$, the effect is mild. For realistic head sizes like $d_k = 64$ or $128$, the effect becomes much more important.
 
 ---
 
-## 8. Positional Encoding: Why Attention Needs It
+## 8. Multi-Head Attention
 
-Self-attention is **permutation equivariant**: if we permute the rows of $X$, the output $O$ is permuted in the same way. This follows from the structure of $S = QK^\top$: permuting the rows of $Q$ permutes the rows of $S$, which permutes the rows of $A$, which permutes the rows of $AV$. There is nothing in the formula that distinguishes "token at position 3" from "the same token appearing at position 7."
+A single head gives one attention pattern. If we want the model to track several different relations at once, we run several heads in parallel.
 
-This means a Transformer without positional information treats "the cat sat on the mat" identically to "mat the on sat cat the" (up to the final permutation of the output). For language, word order is critical.
+### 8.1 Definition
 
-The Transformer injects positional information by adding a fixed **positional encoding** to each token embedding before the first attention layer:
-
-$$
-\tilde{\mathbf{x}}_t = \mathbf{x}_t + \text{PE}(t)
-$$
-
-The sinusoidal positional encoding used by Vaswani et al. is:
+Head $r$ computes
 
 $$
-\text{PE}(t, 2i) = \sin\!\left(\frac{t}{10000^{2i/d_\text{model}}}\right), \quad \text{PE}(t, 2i+1) = \cos\!\left(\frac{t}{10000^{2i/d_\text{model}}}\right)
+\text{head}_r = \text{Attention}(QW_r^Q, KW_r^K, VW_r^V)
 $$
 
-where $t$ is the position index and $i$ indexes the dimension. Different dimensions oscillate at different frequencies: low dimensions (small $i$) change rapidly with $t$ (encoding fine-grained local position), and high dimensions change slowly (encoding coarse-grained global position). This is a **Fourier decomposition** of the position index across the embedding dimensions.
+Then concatenate:
 
-The key property of this encoding: for any fixed offset $k$, $\text{PE}(t + k)$ is a linear function of $\text{PE}(t)$ (by the **angle addition identities for trigonometric functions**: $\sin(t + k) = \sin t \cos k + \cos t \sin k$). This means the model can learn to attend by relative offset — "attend to the word 3 positions before me" — without explicit training on relative positions.
+$$
+\text{MultiHead}(Q,K,V) = \text{concat}(\text{head}_1, \ldots, \text{head}_h)\, W^O
+$$
+
+### 8.2 Parameter count
+
+With $h$ heads and $d_k = d_v = d_\text{model}/h$, the attention parameter count is
+
+$$
+4 d_\text{model}^2
+$$
+
+as we will re-derive in more detail later in the series.
+
+### 8.3 Numerical check
+
+For $d_\text{model} = 512$:
+
+$$
+4 \cdot 512^2 = 1{,}048{,}576
+$$
+
+parameters in the attention block.
+
+The main point of multi-head attention is not more total parameters. It is more parallel attention subspaces.
+
+### 8.4 Why multiple heads help
+
+A single head produces one attention distribution per token. If token 1 needs to look at token 2 for syntax and token 3 for semantics, one head has to blend those two requirements into one row of weights.
+
+Multiple heads let the model keep several attention patterns alive at once. One head can specialize in one relation, another head in another relation, and the output projection $W^O$ can recombine them afterward.
+
+This is not a proof that heads always specialize cleanly. It is the representational reason the design exists.
 
 ---
 
-## 9. Bahdanau vs. Transformer: A Unified View
+## 9. Self-Attention, Cross-Attention, and Masked Attention
 
-We can now see Bahdanau attention and Transformer attention as the same mechanism — a soft memory retrieval — with different design choices:
+### 9.1 Self-attention
 
-| Property | Bahdanau (2015) | Transformer (2017) |
-|---|---|---|
-| Compatibility function | Feedforward: $\mathbf{v}^\top \tanh(W_a s + U_a h)$ | Scaled dot product: $\mathbf{q}^\top \mathbf{k} / \sqrt{d_k}$ |
-| Keys = Values? | Yes (both are $h_j$) | No (separate $K$ and $V$ projections) |
-| Query source | Decoder hidden state $s_{i-1}$ | Learned projection of current token |
-| Context encoding | Sequential (RNN) | Parallel (positional encodings) |
-| Parallelizable? | No (sequential RNN required) | Yes (pure matrix operations) |
-| Attending to same sequence? | No (cross-attention only) | Yes (self-attention and cross-attention) |
+In **self-attention**, queries, keys, and values all come from the same sequence:
 
-The Transformer is not a different thing from Bahdanau attention. It is the same idea — weighted retrieval from memory — with a simpler compatibility function, separate key and value projections, multiple heads, and positional encodings in place of recurrence. Each change is motivated by a concrete limitation of Bahdanau's design.
+$$
+Q = XW_Q,\qquad K = XW_K,\qquad V = XW_V
+$$
+
+This is what we computed above.
+
+### 9.2 Cross-attention
+
+In **cross-attention**, the queries come from one sequence and the keys/values come from another:
+
+$$
+Q = X_\text{query} W_Q,
+\qquad
+K = X_\text{memory} W_K,
+\qquad
+V = X_\text{memory} W_V
+$$
+
+This is the Transformer version of Bahdanau-style encoder-decoder attention.
+
+### 9.3 Masked self-attention
+
+In decoder self-attention, a token must not look at future tokens.
+
+So we add a **causal mask**:
+
+$$
+S_\text{masked} = \frac{QK^\top + M}{\sqrt{d_k}}
+$$
+
+where forbidden entries of $M$ are $-\infty$.
+
+### 9.4 Numerical check on row 2
+
+Take token 2 in our running example. Its unmasked scaled scores were
+
+$$
+[0,\ 0.7071,\ 0.3536]
+$$
+
+If token 2 is not allowed to look at token 3, then we replace the third entry with $-\infty$:
+
+$$
+[0,\ 0.7071,\ -\infty]
+$$
+
+Exponentiate:
+
+$$
+e^0 = 1,\qquad e^{0.7071} \approx 2.0281,\qquad e^{-\infty} = 0
+$$
+
+Normalize:
+
+$$
+Z = 1 + 2.0281 + 0 = 3.0281
+$$
+
+So the masked attention row becomes
+
+$$
+\left[
+\frac{1}{3.0281},
+\frac{2.0281}{3.0281},
+0
+\right]
+\approx
+[0.330,\ 0.670,\ 0]
+$$
+
+The mask does not merely discourage future attention. It sets the forbidden probability exactly to zero.
+
+---
+
+## 10. Why Self-Attention Changed the Path Length
+
+A bidirectional RNN can eventually move information from token 1 to token 3, but it has to do so through intermediate recurrent steps.
+
+In a three-token sequence, the path from token 1 to token 3 through a left-to-right RNN is:
+
+$$
+x_1 \to h_1 \to h_2 \to h_3
+$$
+
+That is two recurrent transitions between the endpoints.
+
+In self-attention, token 3 can attend directly to token 1 in one layer because the score
+
+$$
+S_{3,1} = q_3 k_1^\top
+$$
+
+is computed in the same matrix multiply as every other pair.
+
+So the interaction path length between any two positions inside one self-attention layer is 1.
+
+### 10.1 Numerical check
+
+In our running example, token 3 attends to token 1 with score
+
+$$
+0.5
+$$
+
+before scaling and
+
+$$
+0.3536
+$$
+
+after scaling. That direct token-3-to-token-1 interaction is present immediately in the score matrix. No recurrence is needed to transmit it across intermediate positions.
+
+This shorter path length is one of the reasons self-attention handles long-range interactions so well.
+
+---
+
+## 11. Positional Information
+
+Self-attention has one major omission: the formula itself does not know token order.
+
+### 11.1 Why order is missing
+
+If we permute the rows of $X$, then the rows of $Q$, $K$, and $V$ are permuted in the same way. The output rows are then permuted in the same way.
+
+That means the bare self-attention mechanism is **permutation equivariant**.
+
+This is good for set processing. It is bad for language, where "dog bites man" and "man bites dog" must not mean the same thing.
+
+### 11.2 Positional encodings
+
+The Transformer solves this by adding a positional vector to each token embedding before attention:
+
+$$
+\tilde{x}_t = x_t + \text{PE}(t)
+$$
+
+The original paper uses sinusoidal positional encodings:
+
+$$
+\text{PE}(t, 2i) = \sin\!\left(\frac{t}{10000^{2i/d_\text{model}}}\right),
+\qquad
+\text{PE}(t, 2i+1) = \cos\!\left(\frac{t}{10000^{2i/d_\text{model}}}\right)
+$$
+
+### 11.3 Why sinusoids are convenient
+
+The sine and cosine features have a useful relative-position property because of the **angle-addition identities**:
+
+$$
+\sin(a+b) = \sin a \cos b + \cos a \sin b
+$$
+
+$$
+\cos(a+b) = \cos a \cos b - \sin a \sin b
+$$
+
+These identities mean a fixed offset in position can be represented as a linear transformation of the sinusoidal features.
+
+That is why the model can learn relative offsets even though the encoding is written in absolute positions.
+
+### 11.4 Numerical check for the first sinusoidal pair
+
+Take the first two positional dimensions, where the denominator is 1. Then the encoding pair is simply
+
+$$
+(\sin t,\ \cos t)
+$$
+
+At positions $t = 0, 1, 2$:
+
+$$
+\text{PE}(0) = (\sin 0,\ \cos 0) = (0,\ 1)
+$$
+
+$$
+\text{PE}(1) = (\sin 1,\ \cos 1) \approx (0.8415,\ 0.5403)
+$$
+
+$$
+\text{PE}(2) = (\sin 2,\ \cos 2) \approx (0.9093,\ -0.4161)
+$$
+
+So even this first frequency pair already gives each position a distinct two-dimensional signature. Higher dimensions add slower oscillations, which let the model represent both fine local offsets and broader global position.
+
+---
+
+## 12. Bahdanau Attention and Transformer Attention as One Story
+
+We can now place both mechanisms inside one unified retrieval template.
+
+### 12.1 Bahdanau attention
+
+In Bahdanau attention, the query is the decoder state $s_{i-1}$, the key is the encoder annotation $h_j$, the value is that same encoder annotation $h_j$, and the score is produced by an additive feedforward compatibility function.
+
+### 12.2 Transformer attention
+
+In Transformer attention, the query is a learned projection of the current token, the key is a learned projection of a candidate memory token, the value is another learned projection of that candidate memory token, and the score is the scaled dot product.
+
+### 12.3 The unified view
+
+Both compute
+
+$$
+\text{weights} = \text{softmax}(\text{compatibility scores})
+$$
+
+and then
+
+$$
+\text{output} = \text{weighted average of stored values}
+$$
+
+So the Transformer does not abandon attention. It re-expresses the same retrieval idea in a form that is easier to batch, easier to parallelize, and better suited to self-attention over one sequence.
 
 ---
 
 ## Summary
 
-Starting from Bahdanau's feedforward alignment model, we derived the Transformer's scaled dot-product attention:
+The Transformer's attention formula comes from one simple design goal: factor the compatibility score so all pairwise interactions can be computed by matrix multiplication. That leads to queries and keys, softmax turns their dot products into weights, values carry the retrieved content, and the $\sqrt{d_k}$ factor rescales the score variance so the softmax does not saturate.
 
-$$
-\text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right) V
-$$
-
-The $\sqrt{d_k}$ scaling is not cosmetic: dot products grow in variance linearly with dimension ($\text{Var} = d_k$ when components are i.i.d. standard normal), and large variance saturates the softmax to near-zero gradients. Dividing by $\sqrt{d_k}$ restores unit variance.
-
-In our 3-token running example: score matrix diagonal entries at 0.707, attention weights $[0.456, 0.225, 0.320]$ for token 1, and output $[0.616, 0.385]$ — the pure-noun token absorbed verb flavor from its context.
-
-Multi-head attention runs $h$ such computations in parallel with independent projections, allowing each head to specialize on a different relationship type. The Transformer uses this mechanism in three places: encoder self-attention, decoder masked self-attention, and encoder–decoder cross-attention.
-
-In the next post, we count exactly how expensive this is. The attention matrix $A \in \mathbb{R}^{n \times n}$ has $n^2$ entries. For $n = 1024$, that is over one million entries. For $n = 16384$, it is 268 million. The consequences for memory, compute, and inference are the subject of the next post — and they are severe.
+In our three-token example, this produces scaled scores, attention weights, and contextualized outputs entirely by hand. The next post asks what happens when we stop thinking about three tokens and start thinking about 4K, 8K, or 128K tokens, where the same clean formula runs head-first into quadratic cost.
 
 ---
 

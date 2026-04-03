@@ -6,11 +6,11 @@ tags: [machine-learning, attention, transformers, architecture]
 order: 1
 ---
 
-Every attention variant you will ever encounter — Multi-Query Attention, GQA, FlashAttention, Longformer, Linear Attention, MLA, Mamba — is a modification of vanilla multi-head attention. But the papers rarely frame it that way. They present the new thing from scratch, and you are left wondering: what actually changed?
+Every attention variant you will ever encounter — Multi-Query Attention, GQA, FlashAttention, Longformer, Linear Attention, MLA, Mamba — is a modification of vanilla multi-head attention. But papers rarely frame it that way. They present the new thing from scratch, and you are left wondering: what actually changed?
 
-This blog answers that question by breaking the vanilla attention formula into its constituent choices. There are exactly five axes on which you can make a different decision. Every variant in the literature sits at a specific point in this five-dimensional space. Once you see the space, every subsequent paper becomes: "which axis did this modify, and why?"
+This blog answers that question by breaking the vanilla attention formula into its constituent choices. There are exactly five axes on which you can make a different decision. Every variant in the literature sits at a specific point in this five-dimensional space. Once you see the space, every subsequent paper becomes: which axis did this modify, and why?
 
-This is the most important blog in the series. The twelve blogs that follow are each one axis, one variant, one paper.
+This is the structural blog in the series. The posts that follow are easier to place once this map is explicit.
 
 ---
 
@@ -25,193 +25,545 @@ We need a concrete model to anchor the numbers throughout. Fix:
 - $N = 512$ tokens (training), $n$ tokens generated so far (inference)
 - fp16 throughout (2 bytes per element)
 
-This is roughly BERT-base. The numbers will scale cleanly and are easy to verify.
+The identity
+
+$$
+h \cdot d_k = 8 \cdot 64 = 512 = d_\text{model}
+$$
+
+will appear constantly. It is the reason many formulas simplify cleanly.
 
 ---
 
-## Vanilla Attention, Written with Every Choice Made Explicit
+## 1. Vanilla Attention, Written with Every Choice Made Explicit
 
-The standard multi-head attention formula is:
+For one transformer layer, standard multi-head attention is
 
 $$
-\text{MHA}(X) = W_O \cdot \text{concat}(o^1, \ldots, o^h)
+\text{MHA}(X) = \text{concat}(o^1, \ldots, o^h)\, W_O
 $$
 
 where for each head $i \in \{1, \ldots, h\}$:
 
 $$
-Q^i = X W_Q^i, \quad K^i = X W_K^i, \quad V^i = X W_V^i
+Q^i = XW_Q^i, \qquad K^i = XW_K^i, \qquad V^i = XW_V^i
 $$
 
 $$
-A^i = \text{softmax}\!\left(\frac{Q^i {K^i}^\top + M}{\sqrt{d_k}}\right), \quad o^i = A^i V^i
+A^i = \text{softmax}\!\left(\frac{Q^i {K^i}^\top + M}{\sqrt{d_k}}\right), \qquad o^i = A^i V^i
 $$
 
-Every symbol here is a choice:
+The formula looks compact. It is actually hiding several independent design decisions.
+
+### 1.1 The five questions hidden inside the formula
+
+When we write the vanilla formula, we have already committed to answers to five questions: how many heads there are, how keys and values are represented, which query-key pairs are allowed to interact, what persistent state is kept across decoding steps, and where the attention block sits inside the larger transformer layer. Those are the five axes we will use in this series.
+
+### 1.2 A symbol-to-axis map
 
 | Symbol | Current choice | What could change |
 |---|---|---|
 | $h$ | 8 separate heads | Fewer, shared, or grouped heads |
 | $W_K^i, W_V^i$ | One per head, full rank | Shared across heads, or low-rank |
-| $M$ | Causal mask ($-\infty$ for future positions) | Local window, global tokens, cross |
-| KV persistence | Nothing saved across steps | Cache K, V, or a compressed latent |
-| Layer placement | Sequential: Attn → AddNorm → FFN → AddNorm | Parallel with FFN, different norm |
+| $M$ | Full or causal mask | Local window, global tokens, cross |
+| KV persistence | No training cache, full inference KV cache | Cache K, V, or a compressed latent |
+| Layer placement | Standard residual + norm + FFN block | Parallel FFN, different norm, different wrapper |
 
-These five rows are the five axes. We go through each one.
+The rest of this post expands each axis carefully.
+
+### 1.3 A generalized attention template
+
+We can expose the same five axes in one slightly more general template:
+
+$$
+Q^i = XW_Q^i
+$$
+
+$$
+K^{g(i)},\ V^{g(i)} = R_\text{KV}(X, z_t)
+$$
+
+$$
+A^i = \text{softmax}\!\left(\frac{Q^i {K^{g(i)}}^\top + M_\text{pattern}}{\sqrt{d_k}}\right)
+$$
+
+$$
+o^i = A^i V^{g(i)}
+$$
+
+$$
+Y = B\!\left(X,\ \text{concat}(o^1, \ldots, o^h),\ z_t\right)
+$$
+
+This notation is more general than vanilla MHA, but that is the point. The index $i$ labels query heads. The function $g(i)$ tells us which KV group or shared KV representation head $i$ uses. The term $R_\text{KV}$ is the rule that builds keys and values, $M_\text{pattern}$ is the mask or bias that determines which interactions are allowed, $z_t$ is any persistent state carried across decoding steps, and $B$ is the larger wrapper around the attention output.
+
+Once we write the formula this way, the five axes stop being vague. Axis 1 changes how many query heads exist. Axis 2 changes the KV construction rule and the grouping function $g(i)$. Axis 3 changes the pattern term $M_\text{pattern}$. Axis 4 changes what state survives across time. Axis 5 changes the block wrapper $B$.
+
+Vanilla MHA is just one point in this larger space: $g(i) = i$ for every head, $R_\text{KV}$ computes one key and one value projection per head from the current sequence, $M_\text{pattern}$ is the standard dense full or causal mask, $z_t$ is empty during training and the usual KV cache during inference, and $B$ is the standard transformer block. We will keep coming back to this template because it lets us describe very different papers in one common language instead of paper-specific vocabulary.
 
 ---
 
-## Axis 1: Number of Heads
+## 2. Axis 1: Number of Heads
 
-### What h controls
+### 2.1 What a head is
 
-$h$ heads means $h$ separate projections of the input into $(Q, K, V)$ space, $h$ separate attention computations, and concatenation at the end.
+A **head** is one independent attention computation with its own projections $W_Q^i, W_K^i, W_V^i$. If we have $h$ heads, we do not compute one attention map. We compute $h$ of them and concatenate the outputs at the end.
 
-**Parameter cost.** Count every weight matrix per layer:
-
-- Each head $i$ has three projection matrices: $W_Q^i \in \mathbb{R}^{d_\text{model} \times d_k}$, $W_K^i \in \mathbb{R}^{d_\text{model} \times d_k}$, $W_V^i \in \mathbb{R}^{d_\text{model} \times d_v}$. Each has $d_\text{model} \cdot d_k$ parameters (with $d_k = d_v$). Three matrices per head, $h$ heads: $h \cdot 3 \cdot d_\text{model} \cdot d_k$ parameters.
-- The output projection $W_O \in \mathbb{R}^{(h \cdot d_v) \times d_\text{model}}$ maps the concatenated head outputs back to $d_\text{model}$. Since $h \cdot d_v = d_\text{model}$, this matrix is $d_\text{model} \times d_\text{model}$, with $d_\text{model}^2$ parameters.
-
-Summing both contributions — by the **addition principle** of counting:
+In vanilla attention, we choose
 
 $$
-\text{params per layer} = h \cdot 3 \cdot d_{\text{model}} \cdot d_k + d_{\text{model}}^2
+h = 8
 $$
 
-**Numerical check** with our model ($h=8$, $d_\text{model}=512$, $d_k=64$):
+heads.
+
+### 2.2 Parameter count
+
+The first thing to notice is that head count sounds like it should control parameter count. In the standard transformer parameterization, it mostly does not. Let us derive that carefully.
+
+Each head has one query matrix $W_Q^i \in \mathbb{R}^{d_\text{model} \times d_k}$, one key matrix $W_K^i \in \mathbb{R}^{d_\text{model} \times d_k}$, and one value matrix $W_V^i \in \mathbb{R}^{d_\text{model} \times d_v}$.
+
+Their parameter counts are:
 
 $$
-8 \cdot 3 \cdot 512 \cdot 64 + 512^2 = 786{,}432 + 262{,}144 = 1{,}048{,}576 \approx 1\text{M per layer}
+d_\text{model} d_k,\qquad d_\text{model} d_k,\qquad d_\text{model} d_v
 $$
 
-**What multiple heads buy.** Each head attends with its own learned projection. Head 1 might learn to track syntactic dependencies; head 5 might track coreference. The concatenation aggregates all signals. This is the same mechanism as having $h$ separate embedding spaces that each answer a different question about the input.
+Since $d_v = d_k$ in our running model, the three together cost
 
-**The tradeoff.** More heads → more capacity, but each head has dimension $d_k = d_\text{model}/h$. Halve the heads, each head gets twice the width. At extreme cases: $h=1$ is single-head attention (full-width representations, one signal); $h=512$ is degenerate (each head operates on a scalar).
+$$
+3 d_\text{model} d_k
+$$
 
-**Variants on this axis:** none of the major variants actually change $h$. What they change is how many unique K/V projections exist for those $h$ heads — that is Axis 2.
+per head.
+
+Across $h$ heads:
+
+$$
+3 h d_\text{model} d_k
+$$
+
+The output projection maps the concatenated head outputs back to model width:
+
+$$
+W_O \in \mathbb{R}^{(h d_v) \times d_\text{model}}
+$$
+
+Because $h d_v = d_\text{model}$, this has
+
+$$
+d_\text{model}^2
+$$
+
+parameters.
+
+So the full attention block has
+
+$$
+3 h d_\text{model} d_k + d_\text{model}^2
+$$
+
+parameters.
+
+Now use $h d_k = d_\text{model}$:
+
+$$
+3 h d_\text{model} d_k + d_\text{model}^2
+= 3 d_\text{model}(h d_k) + d_\text{model}^2
+$$
+
+Substitute $h d_k = d_\text{model}$:
+
+$$
+= 3 d_\text{model}^2 + d_\text{model}^2
+= 4 d_\text{model}^2
+$$
+
+So under the standard choice $d_k = d_\text{model}/h$, the total attention parameter count is
+
+$$
+\boxed{4 d_\text{model}^2}
+$$
+
+and is independent of the number of heads.
+
+### 2.3 Numerical check
+
+With $d_\text{model} = 512$:
+
+$$
+4 d_\text{model}^2 = 4 \cdot 512^2 = 4 \cdot 262{,}144 = 1{,}048{,}576
+$$
+
+Exactly as expected.
+
+We can also verify it the long way:
+
+$$
+3 h d_\text{model} d_k + d_\text{model}^2
+= 3 \cdot 8 \cdot 512 \cdot 64 + 512^2
+$$
+
+Compute the first term:
+
+$$
+3 \cdot 8 \cdot 512 \cdot 64 = 786{,}432
+$$
+
+Add the output projection:
+
+$$
+786{,}432 + 262{,}144 = 1{,}048{,}576
+$$
+
+Both routes match.
+
+### 2.4 What changing the number of heads actually changes
+
+This is the first place where the literature can be misleading. People often talk about "more heads" as if that obviously means "more parameters." Under the standard choice $d_k = d_\text{model}/h$, that is not really what is happening.
+
+If we keep $d_\text{model}$ fixed and change $h$, the total parameter count stays roughly fixed, the width per head changes because $d_k = d_\text{model}/h$, and the number of distinct attention patterns changes. So Axis 1 is not mainly about raw parameter count. It is about how the model slices up representational capacity. Fewer heads mean wider per-head subspaces but fewer independent patterns. More heads mean narrower per-head subspaces but more separate patterns alive at once.
+
+Most famous efficiency variants do not primarily change Axis 1. They keep the number of query heads fixed and instead change how many **distinct KV heads** exist. That is the next axis.
 
 ---
 
-## Axis 2: KV Representation
+## 3. Axis 2: KV Representation
 
-### The default: one K and V projection per head
+### 3.1 The vanilla choice
 
-Vanilla MHA has $h$ query heads, $h$ key heads, and $h$ value heads. The query for head $i$ uses $W_Q^i$; the key uses $W_K^i$; the value uses $W_V^i$. All three projection matrices are unique per head.
-
-**KV parameter cost** in our model (K and V only). Each of $h$ heads has $W_K^i$ and $W_V^i$, each of size $d_\text{model} \times d_k$:
+Vanilla MHA gives every query head its own key and value projections:
 
 $$
-\text{params}_{KV} = h \cdot 2 \cdot d_{\text{model}} \cdot d_k = 8 \cdot 2 \cdot 512 \cdot 64 = 524{,}288
+Q^i = XW_Q^i, \qquad K^i = XW_K^i, \qquad V^i = XW_V^i
 $$
 
-**KV cache cost per token** during inference. At each generation step, for each of $L$ layers and each of $h$ heads, we cache one K-vector of $d_k$ elements and one V-vector of $d_v$ elements. In fp16 (2 bytes per element):
+for every head $i$.
+
+This means the model stores and manipulates
 
 $$
-\text{bytes per token} = L \cdot h \cdot (d_k + d_v) \cdot 2
+h
 $$
 
-With $d_k = d_v = 64$, the factor $(d_k + d_v) = 128$:
+distinct key streams and
 
 $$
-= 12 \cdot 8 \cdot 128 \cdot 2 = 24{,}576 \text{ bytes} \approx 24\text{ KB/token}
+h
 $$
 
-**Numerical check:** at 4096 tokens, $4096 \times 24{,}576 = 100{,}663{,}296$ bytes $\approx$ 96 MB. At 128K tokens, $131{,}072 \times 24{,}576 \approx 3$ GB. The $h$ factor in the formula is precisely where the KV cache pressure comes from — halve $h$ and the cache halves.
+distinct value streams. Each query head gets its own private KV view of the sequence.
 
-### What you can change
+### 3.2 KV parameter count
 
-**Multi-Query Attention (MQA)**: all $h$ query heads share one K head and one V head. Instead of $W_K^1, \ldots, W_K^h$, there is a single $W_K \in \mathbb{R}^{d_{\text{model}} \times d_k}$.
+The key and value projections alone cost:
 
 $$
-Q^i = X W_Q^i \quad \forall i, \qquad K = X W_K, \qquad V = X W_V
+h \cdot d_\text{model} d_k + h \cdot d_\text{model} d_v
 $$
 
-Head $i$ attends: $A^i = \text{softmax}(Q^i K^\top / \sqrt{d_k})$, $o^i = A^i V$.
+Factor out $h d_\text{model}$:
 
-KV cache per token: $L \cdot 1 \cdot (d_k + d_v) \cdot 2 = 12 \cdot 1 \cdot 128 \cdot 2 = 3{,}072 \text{ bytes}$ — exactly $h = 8$ times smaller.
+$$
+h d_\text{model}(d_k + d_v)
+$$
 
-**Grouped-Query Attention (GQA)**: $h$ query heads, $g$ KV heads, $h/g$ queries per KV group. Intermediate point between MHA and MQA. With $g = 2$ (4 queries per KV group), KV cache is $h/g = 4\times$ smaller.
+In our running model:
 
-**Multi-head Latent Attention (MLA, DeepSeek)**: instead of caching K and V directly, project the input to a low-rank latent $c_t \in \mathbb{R}^{d_c}$ where $d_c \ll h \cdot d_k$. K and V are recovered from $c_t$ via learned up-projections at inference time. The cache stores only $c_t$ — $d_c$ elements per token instead of $2 \cdot h \cdot d_k$.
+$$
+8 \cdot 512 \cdot (64 + 64)
+= 8 \cdot 512 \cdot 128
+= 524{,}288
+$$
 
-With $d_c = 512$ vs. $2 \cdot h \cdot d_k = 2 \cdot 8 \cdot 64 = 1024$: cache is 2× smaller. At larger $h$, the compression is proportionally larger.
+So half of the attention parameters live in the KV projections. That is already a clue that this axis matters: even before inference enters the picture, keys and values are carrying a large fraction of the attention block's parameter budget.
 
-**Summary of KV variants:**
+### 3.3 KV cache bytes per token
 
-| Variant | KV heads | Cache per token | Quality |
-|---|---|---|---|
-| MHA | $h = 8$ | 24 KB | Best |
-| GQA (g=2) | g = 2 | 6 KB | Near-MHA |
-| MQA | 1 | 3 KB | Slight degradation |
-| MLA | — (latent $d_c$) | $2d_c$ bytes | Competitive |
+During autoregressive inference, the key and value vectors are cached for every previous token.
+
+For one token, one head, one layer, the cache stores:
+
+$$
+d_k + d_v
+$$
+
+elements.
+
+In fp16, that is
+
+$$
+(d_k + d_v) \cdot 2
+$$
+
+bytes.
+
+Across $h$ heads and $L$ layers:
+
+$$
+\boxed{\text{KV bytes/token} = L \cdot h \cdot (d_k + d_v) \cdot 2}
+$$
+
+Substitute our model:
+
+$$
+12 \cdot 8 \cdot (64 + 64) \cdot 2
+= 12 \cdot 8 \cdot 128 \cdot 2
+= 24{,}576 \text{ bytes}
+$$
+
+So vanilla MHA costs
+
+$$
+\boxed{24 \text{ KB/token}}
+$$
+
+of KV cache. That single number is the quantity later posts will keep attacking.
+
+### 3.4 What can change on this axis
+
+This is where the design space opens up. Once we realize that query heads and KV heads do not have to be counted the same way, MHA stops looking inevitable.
+
+**Multi-Query Attention (MQA).** Keep $h$ query heads, but share one K head and one V head across all of them:
+
+$$
+Q^i = XW_Q^i,\qquad K = XW_K,\qquad V = XW_V
+$$
+
+KV cache becomes
+
+$$
+L \cdot 1 \cdot (d_k + d_v) \cdot 2
+$$
+
+which is smaller than MHA by a factor of
+
+$$
+\frac{h}{1} = h
+$$
+
+In our running model:
+
+$$
+12 \cdot 1 \cdot 128 \cdot 2 = 3{,}072 \text{ bytes} = 3 \text{ KB/token}
+$$
+
+**Grouped-Query Attention (GQA).** Keep $h$ query heads, but use only $g$ KV heads. Each KV head is shared by $h/g$ queries:
+
+$$
+\text{KV bytes/token} = L \cdot g \cdot (d_k + d_v) \cdot 2
+$$
+
+Reduction factor:
+
+$$
+\frac{L h (d_k + d_v) 2}{L g (d_k + d_v) 2} = \frac{h}{g}
+$$
+
+With $g = 2$ in our running model:
+
+$$
+12 \cdot 2 \cdot 128 \cdot 2 = 6{,}144 \text{ bytes} = 6 \text{ KB/token}
+$$
+
+**Multi-head Latent Attention (MLA).** Instead of caching per-head K and V directly, cache a smaller latent representation $c_t \in \mathbb{R}^{d_c}$ and reconstruct K and V from it later. Cache cost becomes
+
+$$
+L \cdot d_c \cdot 2
+$$
+
+bytes per token.
+
+The point is simple. Axis 2 directly changes the shape of the stored and computed KV representation. That is why MQA, GQA, and MLA belong together even though the papers sound very different.
+
+### 3.5 Numerical table
+
+| KV scheme | KV heads / latent | Bytes per token |
+|---|---|---|
+| MHA | $h = 8$ KV heads | 24,576 |
+| GQA-4 | $g = 4$ KV heads | 12,288 |
+| GQA-2 | $g = 2$ KV heads | 6,144 |
+| MQA | 1 shared KV head | 3,072 |
+
+This axis is the source of MQA, GQA, and MLA. It is also the axis most directly tied to long-context inference cost.
 
 ---
 
-## Axis 3: Attention Pattern
+## 4. Axis 3: Attention Pattern
 
-### The default: full (dense) attention with causal mask
+### 4.1 The vanilla choice
 
-The mask $M$ in the attention formula is $-\infty$ for disallowed positions and $0$ for allowed ones. The causal mask (used in decoder self-attention) sets $M[i,j] = -\infty$ for all $j > i$. This means every position can attend to all positions at or before it.
+Vanilla self-attention is dense. Every query attends to every allowed key. The mask $M$ decides what "allowed" means. In encoder self-attention, all pairs are allowed. In decoder self-attention, only past and present positions are allowed. But in both cases, once a position is allowed, it is included. There is no sparsity inside the allowed region.
 
-**Full attention pattern**: every query attends to every allowed key. The attention matrix $A$ has $O(N^2)$ non-zero entries. This costs $\Theta(N^2 d)$ FLOPs and $\Theta(N^2)$ memory — the quadratic wall from the previous blog.
+### 4.2 Counting nonzero attention entries
 
-### What you can change
+For full bidirectional attention, each of the $N$ queries attends to all $N$ keys:
 
-**Local (sliding window) attention**: position $i$ only attends to positions $[i-w, i+w]$ for window size $w$. Non-zero entries: $O(Nw)$. FLOPs: $O(Nwd)$ — linear in $N$. Longformer uses this as the default pattern for most tokens.
+$$
+N \cdot N = N^2
+$$
 
-**Global + local**: a few special tokens (e.g., [CLS], task tokens) attend to all positions ($O(N)$ non-zeros for that token), while all other tokens use local windows. BigBird, Longformer for classification.
+attention scores per head.
 
-**Cross-attention**: queries come from one sequence (decoder), keys and values from another (encoder output). The pattern is fully dense but $N_q$ and $N_k$ may differ. Shape of $A$: $N_q \times N_k$.
+For causal attention, query position $i$ attends to positions $1, \ldots, i$. The total number of allowed entries is
 
-**Bidirectional vs. causal**: encoder self-attention uses $M = 0$ everywhere (no mask) — every position attends to every other. Decoder self-attention uses causal mask — only past and present.
+$$
+1 + 2 + \cdots + N
+$$
 
-**Block-sparse**: a learned or fixed pattern of $B \times B$ blocks that are computed; all others are set to $-\infty$. FlashAttention directly supports block-sparse patterns by skipping zero blocks in the tiling loop.
+By the **triangular number formula**:
 
-**Name**: the attention pattern is specified by the *attention bias* or *attention mask* $M$. Any function of positions $(i, j) \to \{0, -\infty\}$ defines a valid pattern. The pattern determines the sparsity structure of $A$.
+$$
+1 + 2 + \cdots + N = \frac{N(N+1)}{2}
+$$
 
-**Numerical check.** With our model ($N = 512$, $h = 8$, $d_k = 64$):
+So causal attention still has
 
-- Full attention: $N^2 = 512^2 = 262{,}144$ non-zero attention entries per head.
-- Local window $w = 64$: each of $N$ positions attends to $2w = 128$ neighbors (or fewer at boundaries), giving $N \cdot 2w = 512 \cdot 128 = 65{,}536$ entries — a $4\times$ reduction.
-- Global + local with $g = 16$ global tokens: global tokens add $g \cdot N = 16 \cdot 512 = 8{,}192$ extra entries, for a total of $65{,}536 + 8{,}192 = 73{,}728$ — still $3.6\times$ smaller than full attention.
+$$
+\Theta(N^2)
+$$
 
-**Key insight**: changing the pattern changes FLOPs and memory (some patterns reduce both to $O(N)$), but it also changes what information each position can access. Local windows are memory-efficient but cannot propagate information more than $w$ steps per layer. Global tokens recover long-range connectivity at $O(N)$ extra cost.
+nonzero entries. The factor of $1/2$ helps, but it does not change the scaling class.
+
+### 4.3 Local windows
+
+Suppose each position attends only to a window of width $w$ on each side. Then each query sees at most
+
+$$
+2w + 1
+$$
+
+keys.
+
+The total number of attention entries becomes
+
+$$
+N(2w + 1)
+$$
+
+which is linear in $N$ when $w$ is fixed.
+
+### 4.4 Numerical check
+
+Take $N = 512$ and $w = 64$.
+
+**Full attention:**
+
+$$
+N^2 = 512^2 = 262{,}144
+$$
+
+entries per head.
+
+**Local attention:**
+
+$$
+N(2w + 1) = 512(129) = 66{,}048
+$$
+
+entries per head.
+
+Reduction factor:
+
+$$
+\frac{262{,}144}{66{,}048} \approx 3.97
+$$
+
+So a width-64 local window already cuts the attention pattern by about $4\times$ at this sequence length.
+
+### 4.5 Variants on this axis
+
+**Sliding-window attention.** Each position attends only locally.
+
+**Local + global attention.** Most positions use local windows, but a few designated tokens attend globally.
+
+**Cross-attention.** Queries come from one sequence, keys and values from another, so the pattern is rectangular:
+
+$$
+N_q \times N_k
+$$
+
+instead of square.
+
+**Block-sparse attention.** The mask is sparse at the level of blocks rather than individual tokens.
+
+Axis 3 changes which interactions are computed at all. That is why it is the axis most directly tied to the quadratic wall from the previous post. Change this axis and you are changing the combinatorics of the attention matrix itself.
 
 ---
 
-## Axis 4: Storage and Caching
+## 5. Axis 4: Storage and Caching
 
-### The default: stateless (no cache)
+Axis 2 asked what representation keys and values live in. Axis 4 asks a different question: what information do we persist across time, and for how long?
 
-During training, attention is computed over the full context for all positions simultaneously. Nothing is saved between forward passes except the learned weights. Memory is dominated by activations: $O(N^2)$ per layer for the attention matrices, $O(Nd)$ for everything else.
+### 5.1 The vanilla choices
 
-### What you can change
+Training and inference behave differently here, and that difference is easy to blur if we only stare at the attention formula.
 
-**KV cache (autoregressive inference)**: when generating token $t+1$, all previous K and V tensors are cached. The new query attends over the full $[1, t]$ context using the cache. Per-token memory: $h \cdot 2 \cdot d_k \cdot L$ (as computed in Axis 2). Growth: linear in sequence length, constant per step.
+**Training.** We compute attention over the whole sequence in parallel. There is no persistent cache carried from one token to the next.
 
-**No KV cache (recurrent models)**: instead of caching the full K and V history, maintain a fixed-size state (typically $d_\text{state} \times d_\text{model}$ or similar). New tokens update the state. Memory: $O(1)$ per step. The tradeoff: lossy — the model cannot retrieve arbitrary past tokens.
+**Autoregressive inference.** We cache all previous K and V tensors so the next token can reuse them.
 
-**Sliding-window cache (Mistral, Gemma)**: only cache the last $w$ tokens. Memory: $O(w)$ regardless of sequence length. Positions outside the window cannot be attended to directly (but information propagates via multiple layers).
+So the default inference state is the full KV cache. Vanilla attention is not only an equation. It is also a policy about what survives from one decoding step to the next.
 
-**Paged attention (vLLM)**: physical memory for KV caches is managed in fixed-size pages, allocated on demand. This is an implementation detail (not a model change), but it drastically improves memory utilization when serving many requests with different context lengths simultaneously.
+### 5.2 Sliding-window cache
 
-**Quantized KV cache**: store K and V in int8 or int4 instead of fp16. Halves or quarters the cache size at the cost of some precision. In our running model: 24 KB/token → 12 KB/token in int8.
+Instead of storing all previous tokens, we can keep only the most recent $w$.
 
-**Numerical check.** From Axis 2, our running model costs 24 KB per token in the full KV cache. Comparing storage strategies at $N = 4096$ tokens:
+Then the cache cost becomes
 
-- Full KV cache: $4096 \times 24{,}576 = 100{,}663{,}296$ bytes $\approx$ 96 MB.
-- Sliding window $w = 512$: only $512 \times 24{,}576 = 12{,}582{,}912$ bytes $\approx$ 12 MB — regardless of sequence length. An $8\times$ reduction.
-- Quantized int8 (Axis 4 variant): halve the 2-byte fp16 elements to 1-byte int8, so $4096 \times 12{,}288 = 50{,}331{,}648$ bytes $\approx$ 48 MB — a $2\times$ reduction at the cost of quantization noise.
+$$
+L \cdot h \cdot (d_k + d_v) \cdot 2 \cdot w
+$$
 
-**Why this axis is separate from Axis 2.** Axis 2 modifies *what is computed* (fewer or compressed K/V projections). Axis 4 modifies *what is stored* across steps. MQA (Axis 2) reduces cache size by reducing $h$. Sliding-window cache (Axis 4) reduces cache size by bounding the stored history. Both help, and they compose: MQA + sliding window cuts the full-cache cost by $h \times$ (window/N).
+which no longer grows with total sequence length once the window is full.
+
+### 5.3 Numerical check
+
+Using vanilla MHA with our running model and a window of $w = 512$:
+
+$$
+12 \cdot 8 \cdot 128 \cdot 2 \cdot 512
+$$
+
+First compute the bytes per token:
+
+$$
+12 \cdot 8 \cdot 128 \cdot 2 = 24{,}576
+$$
+
+Now multiply by the window size:
+
+$$
+24{,}576 \cdot 512 = 12{,}582{,}912 \text{ bytes}
+$$
+
+So the full window cache is about
+
+$$
+12 \text{ MB}
+$$
+
+regardless of how long generation continues after that.
+
+### 5.4 Other variants on this axis
+
+**Quantized cache.** Keep the same logical KV tensors, but store them in int8 or int4 instead of fp16.
+
+**Paged cache.** Keep the same logical KV tensors, but manage physical memory in pages so serving systems waste less space.
+
+**Recurrent state instead of KV cache.** Replace the whole growing history with a fixed-size hidden state, as state-space models do.
+
+This axis is about persistence over time. It is not the same as Axis 2. GQA shrinks the cache by changing the number of KV heads, while a sliding-window cache shrinks it by changing how much history is retained. Those two changes compose cleanly because they are attacking different objects: one changes the representation, the other changes the retention rule.
 
 ---
 
-## Axis 5: Layer-Level Architecture
+## 6. Axis 5: Layer-Level Architecture
 
-### The default: Post-norm, sequential Attn → FFN
+So far, every axis changed some part of the attention computation itself. Axis 5 is different. It changes how the attention sublayer is embedded inside the larger transformer block.
 
-The vanilla transformer block (from "Attention Is All You Need") is:
+### 6.1 The vanilla block
+
+The original transformer uses a post-norm block:
 
 $$
 x' = \text{LayerNorm}(x + \text{Attention}(x))
@@ -221,100 +573,151 @@ $$
 x'' = \text{LayerNorm}(x' + \text{FFN}(x'))
 $$
 
-This is the *Post-norm* arrangement: normalization happens after the residual addition. It is numerically unstable at initialization and typically requires careful learning rate warmup.
+Attention is computed first. Then FFN. Normalization happens after each residual addition.
 
-### What you can change
+### 6.2 Pre-norm
 
-**Pre-norm (most modern models)**: normalize the input *before* the sublayer, not after:
-
-$$
-x' = x + \text{Attention}(\text{LayerNorm}(x))
-$$
+Modern language models usually move the normalization before the sublayer:
 
 $$
-x'' = x' + \text{FFN}(\text{LayerNorm}(x'))
+x' = x + \text{Attention}(\text{Norm}(x))
 $$
 
-Gradients flow through the residual path without passing through LayerNorm. Training is more stable; warmup requirements are reduced. GPT-2, LLaMA, and essentially every model trained after 2020 uses pre-norm.
-
-**Parallel attention + FFN (PaLM, Falcon)**: compute attention and FFN on the same input simultaneously and add both to the residual:
-
 $$
-x' = x + \text{Attention}(\text{LayerNorm}(x)) + \text{FFN}(\text{LayerNorm}(x))
+x'' = x' + \text{FFN}(\text{Norm}(x'))
 $$
 
-Saves one LayerNorm pass. More importantly, attention and FFN projections can be fused into a single matrix multiply on hardware. ~15% throughput improvement.
+This leaves a cleaner identity path through the residual stream and usually improves optimization stability.
 
-**RMSNorm instead of LayerNorm**: LayerNorm subtracts the mean and divides by standard deviation, then applies learned scale and shift. RMSNorm skips the mean subtraction — divides only by root mean square, applies only scale:
+### 6.3 Parallel attention and FFN
+
+Another choice is to compute the attention and FFN branches from the same normalized input and add them in parallel:
 
 $$
-\text{RMSNorm}(x)_i = \frac{x_i}{\sqrt{\frac{1}{d}\sum_j x_j^2 + \epsilon}} \cdot \gamma_i
+x' = x + \text{Attention}(\text{Norm}(x)) + \text{FFN}(\text{Norm}(x))
 $$
 
-Fewer operations, no shift parameter, comparable quality. LLaMA, Mistral, Gemma all use RMSNorm.
+This does not change the attention formula itself. It changes the larger layer wrapper.
 
-**No attention at certain layers**: some architectures (Jamba, Zamba) alternate between attention layers and SSM (state space model) layers. The motivation: SSM layers handle long-range dependencies with O(N) compute; attention layers are retained for precision on specific tasks. This is the most aggressive modification on this axis — replacing attention with a different mechanism entirely.
+### 6.4 LayerNorm vs RMSNorm
 
-**Numerical check.** For $d_\text{model} = 512$, count operations in one normalization pass:
+Normalization type also lives on Axis 5.
 
-*LayerNorm*: (1) compute mean over 512 elements — 512 additions; (2) subtract mean — 512 subtractions; (3) compute variance — 512 multiplications and 512 additions; (4) divide by standard deviation — 512 divisions; (5) apply learned scale $\gamma$ and shift $\beta$ — $2 \times 512$ multiplications. Total: roughly $4 \times 512 = 2{,}048$ scalar operations per token per LayerNorm call.
+**LayerNorm** subtracts the mean and divides by the standard deviation.
 
-*RMSNorm*: (1) compute root mean square — 512 multiplications and 512 additions, then one square root; (2) divide — 512 divisions; (3) apply scale $\gamma$ only — 512 multiplications. Total: roughly $3 \times 512 = 1{,}536$ scalar operations. RMSNorm uses $\approx 25\%$ fewer operations than LayerNorm by removing the mean-centering step. This is the **mean-centering identity**: when the downstream linear layer has a bias, the mean subtraction is redundant, which is the formal justification given in Zhang & Sennrich (2019).
+**RMSNorm** divides only by the root mean square:
 
-**Why this axis is rarely the punchline.** Layer-level changes (pre-norm, RMSNorm, parallel sublayers) are important engineering decisions, but they do not change what attention *does*. They change how the signal flows and how efficiently the computation runs. The papers that introduce these changes (GPT-2, LLaMA, PaLM) mention them as implementation details. They are axis 5, but the story is elsewhere.
+$$
+\text{RMSNorm}(x)_i
+= \frac{x_i}{\sqrt{\frac{1}{d}\sum_{j=1}^{d} x_j^2 + \epsilon}} \cdot \gamma_i
+$$
+
+### 6.5 Numerical check
+
+For one token with width $d = 512$, **LayerNorm** needs a mean over 512 elements, a variance over 512 elements, normalization, and then scale and shift. **RMSNorm** skips the mean subtraction and the learned shift, so it removes one whole reduction and one whole elementwise subtraction pass.
+
+The point is not the exact scalar-op count. The point is that Axis 5 changes optimization behavior, signal flow, and hardware efficiency without touching the core attention equation.
 
 ---
 
-## The Variant Map
+## 7. How the Axes Compose
 
-With five axes defined, every major attention variant maps to a specific location:
+Once the axes are separated, composition becomes much easier to reason about.
 
-| Variant | Axis 1 (Heads) | Axis 2 (KV rep) | Axis 3 (Pattern) | Axis 4 (Cache) | Axis 5 (Architecture) |
+### 7.1 Example 1: GQA + sliding window
+
+Here we combine an Axis 2 change and an Axis 4 change. Axis 2 reduces the number of KV heads from $h$ to $g$, and Axis 4 keeps only the last $w$ tokens.
+
+The cache becomes
+
+$$
+L \cdot g \cdot (d_k + d_v) \cdot 2 \cdot w
+$$
+
+In our running model with $g = 2$ and $w = 512$:
+
+$$
+12 \cdot 2 \cdot 128 \cdot 2 \cdot 512 = 3{,}145{,}728 \text{ bytes}
+$$
+
+which is about
+
+$$
+3 \text{ MB}
+$$
+
+Compare that to full MHA with an unrestricted history at $128{,}000$ tokens:
+
+$$
+24{,}576 \cdot 128{,}000 = 3{,}145{,}728{,}000 \text{ bytes} \approx 3 \text{ GB}
+$$
+
+So these two axes together give a $1000\times$ reduction in this simple accounting.
+
+### 7.2 Example 2: Longformer + pre-norm
+
+This time we combine an Axis 3 change and an Axis 5 change. Axis 3 introduces a local/global sparse pattern, and Axis 5 changes the larger layer wrapper.
+
+The pattern change reduces attention entries. The layer change affects optimization and throughput. They mostly act on different parts of the system.
+
+### 7.3 Example 3: What FlashAttention is not
+
+FlashAttention is extremely important, but this taxonomy is useful precisely because it tells us what FlashAttention is not. It does not naturally sit on one of the five axes because it does not change what the model computes. It changes how the same dense attention computation is scheduled on hardware.
+
+That is why it is better thought of as an implementation strategy than as a new point in the architectural design space.
+
+### 7.4 Why this taxonomy helps when reading papers
+
+Suppose a paper claims "8x smaller KV memory," "same dense attention pattern," and "same per-token arithmetic." Even before reading the experiments, we can infer that it is probably an Axis 2 or Axis 4 paper. It is Axis 2 if the KV representation itself changed, and Axis 4 if the persistence rule or cache duration changed.
+
+Now suppose a paper claims "same outputs as vanilla attention," "lower HBM traffic," and "faster kernels." That is probably not an axis change at all. It is much more likely an implementation paper in the FlashAttention family.
+
+This is the practical value of the taxonomy. It lets us classify a paper's claim before we get lost in its naming scheme.
+
+---
+
+## 8. A Practical Variant Map
+
+Here is a compact placement table for the most common variants we will meet later:
+
+| Variant | Axis 1 | Axis 2 | Axis 3 | Axis 4 | Axis 5 |
 |---|---|---|---|---|---|
-| Vanilla MHA | h heads | 1 KV per head | Full | No cache | Post-norm, sequential |
-| MQA | h heads | 1 shared KV | Full | KV cache | — |
-| GQA | $h$ heads | $g < h$ KV heads | Full | KV cache | — |
-| MLA | $h$ heads | Low-rank latent | Full | Latent cache | — |
-| Longformer | h heads | 1 KV per head | Local + global | KV cache | — |
-| Linear Attn | h heads | 1 KV per head | Kernel approx | Running state | — |
-| Mamba | No heads | No KV | No explicit pattern | Recurrent state | Replace Attn |
-| LLaMA | h heads | 1 KV per head | Full | KV cache | Pre-norm, RMSNorm |
+| Vanilla MHA | standard heads | one KV per head | dense full/causal | full KV cache at inference | standard residual block |
+| MQA | standard heads | one shared KV head | dense | KV cache | unchanged |
+| GQA | standard heads | $g < h$ KV heads | dense | KV cache | unchanged |
+| MLA | standard heads | latent KV representation | dense | latent cache | unchanged |
+| Longformer | standard heads | standard KV | local + global | standard cache | unchanged |
+| Sliding-window decoder | standard heads | standard or grouped KV | local causal | bounded cache window | unchanged |
+| Pre-norm transformer | standard heads | standard KV | dense | standard cache | pre-norm |
+| RMSNorm transformer | standard heads | standard KV | dense | standard cache | RMSNorm |
 
-**Reading the table**: LLaMA is vanilla MHA on axes 1–4, with axis 5 changed to pre-norm + RMSNorm. Mamba abandons attention entirely. Note that FlashAttention is absent — it is not a variant, it is a hardware-aware implementation of the same full attention. It does not appear in this table for the same reason CUDA kernels do not: it changes how attention runs, not what it computes.
+The table is useful because it answers a paper's main question immediately. If the paper changes Axis 2, expect KV-cache consequences. If it changes Axis 3, expect FLOP and access-pattern consequences. If it changes Axis 5, expect training-stability or throughput consequences.
+
+### 8.1 A roadmap for the rest of the series
+
+This taxonomy is also the scaffolding of the later attention posts in the series. [attention-kv-bottleneck.md](/home/pratham/prathamp/prathamp.com/src/content/blog/attention-kv-bottleneck.md) motivates Axis 2 and Axis 4 by deriving why KV storage dominates long-context inference. [attention-gqa.md](/home/pratham/prathamp/prathamp.com/src/content/blog/attention-gqa.md) is primarily an Axis 2 post: same dense pattern, fewer distinct KV heads. Sparse or sliding-window attention posts are Axis 3 posts, because they keep the basic retrieval rule but change the allowed interactions. Residual-layout and normalization posts are Axis 5 posts, because they keep the attention mechanism but change the block wrapper.
+
+So the taxonomy is not only a map of the literature. It is also a map of where the series goes next.
 
 ---
 
-## Why This Framing Matters
+## 9. Why This Framing Matters
 
-Most discussions of attention variants present each technique as a standalone invention. "Here is MQA. Here is GQA. Here is linear attention." After reading three such papers, you have three disconnected techniques.
+Without a taxonomy, the literature feels like a list of names. With a taxonomy, most papers turn back into concrete questions. Do we really need one KV head per query head? Do we really need every position to attend to every other? Do we really need to keep the whole history in fp16? Do we really need this exact residual or normalization layout?
 
-The taxonomy shows the underlying structure: each technique answers one of five questions about the vanilla attention formula. Once you understand which question is being answered and why, you can:
+Once we ask the questions directly, the variants stop looking mysterious. The payoff is practical. We can predict tradeoffs earlier, combine techniques more safely, and tell whether two "efficient attention" papers are actually solving the same problem.
 
-1. **Predict the tradeoff** before reading the evaluation. GQA modifies Axis 2 → smaller KV cache, possibly slightly reduced quality. Longformer modifies Axis 3 → O(N) compute, but each position has limited direct access to far-away positions.
-
-2. **Combine techniques correctly**. GQA and sliding-window cache are axes 2 and 4 — they are independent, so they compose. GQA + pre-norm is axes 2 and 5 — also independent. MQA + linear attention would modify axes 2 and 3 — may interact (the key sharing affects the linear factorization).
-
-3. **Understand what a new paper actually claims**. When a paper says "our method reduces memory by 8×," ask: which axis? If axis 2 (KV representation), it is a cache reduction. If axis 3 (pattern), it may also reduce FLOPs. If axis 4 (caching strategy), it may be a serving infrastructure improvement with no quality change at all.
+That is the map we will use for the rest of the series.
 
 ---
 
 ## Summary
 
-Vanilla attention has five independent axes of variation:
+Vanilla attention hides five major design axes in one compact formula: the number of heads, the representation used for keys and values, the attention pattern, the persistent storage strategy, and the larger layer architecture around the attention block. Different papers feel different because they modify different axes, but once we separate those axes, most variants become straightforward coordinates in one shared design space.
 
-**Axis 1 — Heads**: how many parallel Q/K/V projections. Almost always fixed; the interesting variation is in what the heads share (Axis 2).
-
-**Axis 2 — KV representation**: how many unique K and V projections exist across heads. Modifying this directly controls KV cache size. Variants: MQA, GQA, MLA.
-
-**Axis 3 — Attention pattern**: which positions attend to which. Full attention is O(N²). Sparse patterns (local, global, block) reduce to O(N) or O(Nw). Variants: Longformer, BigBird, block-sparse FlashAttention.
-
-**Axis 4 — Storage and caching**: what persists across inference steps. The standard KV cache is one choice; sliding windows, recurrent states, and quantized caches are others.
-
-**Axis 5 — Layer-level architecture**: pre/post-norm, norm type, sequential/parallel sublayers. These affect training stability and throughput, not what attention computes.
-
-Every paper in Phase 3 of this series modifies exactly one or two of these axes. The next blog begins Phase 3 with the first axis: KV representation.
+In this framing, MQA, GQA, and MLA live on the KV-representation axis; sparse and windowed methods live on the attention-pattern axis; cache truncation and quantization live on the storage axis; and pre-norm or RMSNorm live on the layer-architecture axis. The next post zooms into the first big efficiency story that this map explains: why vanilla attention breaks at scale at all.
 
 ---
 
 *Previous: [Why Vanilla Attention Breaks at Scale](/blog/attention-why-vanilla-breaks)*  
-*Next: Multi-Query and Grouped-Query Attention — Axis 2*
+*Next: [The KV Bottleneck Explained Deeply](/blog/attention-kv-bottleneck)*

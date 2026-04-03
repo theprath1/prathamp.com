@@ -8,7 +8,7 @@ order: 4
 
 Before the Transformer, before Q/K/V, before any of the modern terminology, there was a concrete failure mode: sequence-to-sequence models fell apart on long sentences. The fix that Bahdanau, Cho, and Bengio proposed in 2015 is what we now call attention. We will derive it from first principles, starting from the failure and arriving at the mechanism.
 
-The running example we will use for every derivation in this post: a 3-word source sequence with encoder hidden states $h_1 = 0.2$, $h_2 = 0.9$, $h_3 = 0.1$, and a decoder state $s_0 = 0.5$. We will compute alignment scores, attention weights, and a context vector entirely by hand, step by step.
+We will keep the entire post anchored to one tiny running example and compute the full mechanism by hand.
 
 ---
 
@@ -16,213 +16,453 @@ The running example we will use for every derivation in this post: a 3-word sour
 
 ### 1.1 The Encoder–Decoder Framework
 
-A **sequence-to-sequence** (seq2seq) model maps a source sequence $\mathbf{x} = (x_1, x_2, \ldots, x_{T_x})$ to a target sequence $\mathbf{y} = (y_1, y_2, \ldots, y_{T_y})$ with potentially different lengths. The standard approach before 2015 used an **encoder–decoder framework** with two components:
+A **sequence-to-sequence model** maps a source sequence
 
-1. An **encoder** that reads the source sequence and produces a fixed-size context vector $\mathbf{c}$.
-2. A **decoder** that generates each target word from $\mathbf{c}$, conditioned on previously generated words.
+$$
+\mathbf{x} = (x_1, x_2, \ldots, x_{T_x})
+$$
 
-The decoder models each conditional probability as:
+to a target sequence
+
+$$
+\mathbf{y} = (y_1, y_2, \ldots, y_{T_y})
+$$
+
+with potentially different lengths.
+
+Before attention, the standard design had two pieces: an **encoder** that reads the full source sequence and compresses it into one vector $\mathbf{c}$, and a **decoder** that generates each target token from that same vector $\mathbf{c}$.
+
+The conditional probability at target step $i$ is written as
 
 $$
 p(y_i \mid y_1, \ldots, y_{i-1}, \mathbf{x}) = g(y_{i-1}, s_i, \mathbf{c})
 $$
 
-where $s_i$ is the decoder's hidden state at step $i$, and $g$ is a nonlinear function. The same fixed vector $\mathbf{c}$ appears in every call to $g$ — for generating $y_1$, $y_2$, $\ldots$, $y_{T_y}$.
+where $s_i$ is the decoder hidden state and $g$ is a nonlinear output function.
+
+The important point is not the exact form of $g$. The important point is that the same $\mathbf{c}$ appears in every conditional.
 
 ### 1.2 The Bottleneck
 
-The encoder is a recurrent neural network (RNN) that reads $x_1, x_2, \ldots, x_{T_x}$ sequentially:
+The encoder is a recurrent neural network:
 
 $$
 h_t = f(x_t, h_{t-1})
 $$
 
-The context vector is computed from all hidden states, most commonly as just the final hidden state:
+and the simplest context choice is just the last hidden state:
 
 $$
 \mathbf{c} = h_{T_x}
 $$
 
-This is the problem. The entire source sentence — every word, every dependency, every long-range relationship — must be compressed into a single fixed-size vector. The decoder reads from this one vector to generate every target word.
+So the whole source sequence must be compressed into one vector before decoding even starts.
 
-Consider translating a 44-word sentence. Every piece of information about every word must fit inside $\mathbf{c} \in \mathbb{R}^{1000}$. When the decoder generates word 40 of the translation, it has access only to this same compressed summary — it cannot go back to look at specific source words.
+That means the decoder uses:
 
-Cho et al. (2014b) verified this empirically: the BLEU score of RNN encoder–decoders drops sharply as source sentence length increases. Bahdanau et al. (2015) called this the **fixed-length context vector bottleneck** and set out to remove it.
+$$
+g(y_0, s_1, \mathbf{c}),\qquad
+g(y_1, s_2, \mathbf{c}),\qquad
+g(y_2, s_3, \mathbf{c}),\ \ldots
+$$
+
+The target step changes. The decoder hidden state changes. The previous output token changes. But the source summary $\mathbf{c}$ does not.
+
+This is the problem. The entire source sentence has to survive inside one fixed-size summary, and the decoder has no way to go back and look at particular source positions later.
+
+### 1.3 Why one vector is too rigid
+
+Suppose the source sentence is long and the decoder is currently generating target word 17. The information needed for word 17 might live near source word 3. A few steps later, when generating target word 18, the useful information might live near source word 11.
+
+But with a fixed context vector, the decoder cannot ask for different source information at different times. It gets one precomputed summary and has to reuse it for every target position.
+
+This is the **fixed-length context vector bottleneck**. Bahdanau et al. showed empirically that translation quality degrades as source sentence length grows. The model is not failing because recurrent networks are impossible. It is failing because the decoder is forced to read the whole source through one frozen summary.
 
 ---
 
 ## 2. The Running Example
 
-We will use this concrete example throughout every derivation in this post.
+We will use one tiny source sequence throughout the post so that every derivation stays concrete.
 
-**Source sequence**: 3 words — word$_1$, word$_2$, word$_3$. After encoding through a bidirectional RNN, each word is represented by a scalar hidden state (annotation):
+After encoding three source words with a bidirectional RNN, suppose we obtain the scalar annotations
 
 $$
-h_1 = 0.2, \quad h_2 = 0.9, \quad h_3 = 0.1
+h_1 = 0.2, \qquad h_2 = 0.9, \qquad h_3 = 0.1
 $$
 
-Think of these numbers as capturing how informationally salient each source word is. Word$_2$ ($h_2 = 0.9$) is the most prominent; words 1 and 3 are quieter.
+These are deliberately one-dimensional so every arithmetic step stays visible.
 
-**Decoder initial state**: $s_0 = 0.5$. This represents the decoder's hidden state just before it generates the first target word.
+We also assume the decoder state just before generating the first target word is
 
-**Task**: Compute the context vector $c_1$ that the decoder should use when generating the first target word $y_1$.
+$$
+s_0 = 0.5
+$$
+
+Our goal is to compute the context vector used for generating the first target word.
+
+If we used the old fixed-vector design and took only the last encoder state, then the context would be
+
+$$
+\mathbf{c} = h_3 = 0.1
+$$
+
+for every target word. Attention replaces that fixed choice with a learned weighted sum.
 
 ---
 
 ## 3. The Fix: A Position-Dependent Context Vector
 
-The key insight of Bahdanau et al. is to replace the single fixed $\mathbf{c}$ with a **distinct context vector $c_i$ for each target position $i$**. Instead of forcing the entire source sentence into one summary, the decoder gets a customized view of the source at each generation step.
-
-We define:
+Instead of one context vector for the whole sentence, Bahdanau et al. define one context vector per target position:
 
 $$
 \boxed{c_i = \sum_{j=1}^{T_x} \alpha_{ij} h_j}
 $$
 
-The context vector $c_i$ is a **weighted sum** of all encoder hidden states. The weight $\alpha_{ij}$ answers: "when generating the $i$-th target word, how much should I attend to the $j$-th source word?"
+The new objects are the weights $\alpha_{ij}$.
 
-This is the entire core of attention. Everything else — the alignment model, the softmax — is machinery for computing the weights $\alpha_{ij}$.
+An **attention weight** is how much target position $i$ should use source position $j$.
 
-### 3.1 Why a Weighted Sum?
+For example, $\alpha_{2,3}$ means "how much should the second target word attend to the third source word?"
 
-There are two key properties we want from the weights $\alpha_{ij}$:
+### 3.1 The two properties the weights must satisfy
 
-1. **Non-negativity**: $\alpha_{ij} \geq 0$ for all $i, j$.
-2. **Normalization**: $\sum_{j=1}^{T_x} \alpha_{ij} = 1$ for each target position $i$.
+If the context vector is supposed to behave like a soft selection over source positions, the weights have to satisfy two basic constraints:
 
-Together, these make $c_i$ a **convex combination** of the encoder states $h_1, \ldots, h_{T_x}$. Geometrically, $c_i$ lies inside the convex hull of the hidden states. It can equal any one $h_j$ exactly (by setting $\alpha_{ij} = 1$ for that $j$ and 0 for the rest), or blend multiple states.
+$$
+\alpha_{ij} \ge 0 \quad \text{for all } j
+$$
 
-The alternative — a hard selection, where $\alpha_{ij} = 1$ for exactly one $j$ and 0 elsewhere — would be computationally clean, but it is not differentiable. We cannot compute gradients through a discrete argmax. The soft weighted sum is differentiable everywhere, so gradients flow cleanly from the decoder's loss all the way back through the attention weights into the encoder. This differentiability is the entire reason for using a soft sum rather than a hard selection.
+and
+
+$$
+\sum_{j=1}^{T_x} \alpha_{ij} = 1
+$$
+
+for each fixed target position $i$.
+
+These two conditions make $c_i$ a **convex combination** of the encoder states.
+
+### 3.2 What a convex combination means here
+
+A **convex combination** is a weighted average where the weights are nonnegative and sum to 1.
+
+In our scalar running example, that means $c_i$ must lie between the smallest and largest source annotations.
+
+The source values are:
+
+$$
+0.1,\ 0.2,\ 0.9
+$$
+
+So any valid context vector must satisfy
+
+$$
+0.1 \le c_i \le 0.9
+$$
+
+Why? Because weighted averages cannot leave the interval spanned by the values being averaged.
+
+### 3.3 Numerical checks
+
+If all weight goes to the second source word:
+
+$$
+(\alpha_{i1}, \alpha_{i2}, \alpha_{i3}) = (0, 1, 0)
+$$
+
+then
+
+$$
+c_i = 0 \cdot 0.2 + 1 \cdot 0.9 + 0 \cdot 0.1 = 0.9
+$$
+
+If the model splits evenly between the first two source words:
+
+$$
+(\alpha_{i1}, \alpha_{i2}, \alpha_{i3}) = \left(\tfrac{1}{2}, \tfrac{1}{2}, 0\right)
+$$
+
+then
+
+$$
+c_i = \tfrac{1}{2}\cdot 0.2 + \tfrac{1}{2}\cdot 0.9 + 0 \cdot 0.1 = 0.1 + 0.45 = 0.55
+$$
+
+If the weights are uniform:
+
+$$
+(\alpha_{i1}, \alpha_{i2}, \alpha_{i3}) = \left(\tfrac{1}{3}, \tfrac{1}{3}, \tfrac{1}{3}\right)
+$$
+
+then
+
+$$
+c_i = \tfrac{1}{3}(0.2 + 0.9 + 0.1) = \tfrac{1}{3}(1.2) = 0.4
+$$
+
+All three results lie inside $[0.1, 0.9]$, as they must.
+
+### 3.4 Why the weighted sum must be soft
+
+A natural question is why we do not simply pick one source position and stop there.
+
+That would mean using a hard argmax:
+
+$$
+j^* = \arg\max_j e_{ij}
+$$
+
+and then setting
+
+$$
+c_i = h_{j^*}
+$$
+
+The problem is that the argmax is discrete. Gradients do not flow cleanly through it during ordinary backpropagation. The weighted sum is differentiable, so the decoder can learn where to look by gradient descent rather than by a separate combinatorial procedure. That is the key engineering reason for soft attention.
 
 ---
 
-## 4. The Alignment Score
+## 4. Alignment Scores: How the Model Decides Where to Look
 
-To compute the weights $\alpha_{ij}$, we first need unnormalized **alignment scores** — numbers that quantify how well source position $j$ aligns with generating target position $i$.
-
-We define an **alignment model** $a$:
+To get attention weights, we first need unnormalized alignment scores:
 
 $$
 e_{ij} = a(s_{i-1}, h_j)
 $$
 
-where $s_{i-1}$ is the decoder hidden state just before generating $y_i$ (not after — we need to know what we are about to generate), and $h_j$ is the $j$-th encoder annotation.
+The function $a$ is the **alignment model**. It measures how compatible the decoder state $s_{i-1}$ is with encoder state $h_j$.
 
-The function $a$ is a learned **compatibility function**: it returns a high score when the decoder state $s_{i-1}$ and the encoder state $h_j$ are aligned in the sense that $h_j$ contains useful information for generating $y_i$.
+### 4.1 Bahdanau's alignment model
 
-### 4.1 Bahdanau's Alignment Model
-
-Bahdanau et al. parametrize $a$ as a single-hidden-layer feedforward network:
+Bahdanau et al. use a one-hidden-layer feedforward network:
 
 $$
 e_{ij} = \mathbf{v}_a^\top \tanh\!\left(W_a s_{i-1} + U_a h_j\right)
 $$
 
-where $W_a \in \mathbb{R}^{n' \times n}$ and $U_a \in \mathbb{R}^{n' \times 2n}$ are weight matrices, and $\mathbf{v}_a \in \mathbb{R}^{n'}$ is a weight vector. The scalar output $e_{ij}$ is the dot product of $\mathbf{v}_a$ with the $\tanh$ nonlinearity applied to the sum of two linear projections.
+This looks dense, so let us unpack it. We first project the decoder state with $W_a$ and the encoder state with $U_a$. We then add those projected vectors, apply $\tanh$, and finally take a dot product with $\mathbf{v}_a$. The result is one scalar score.
 
-A critical efficiency observation from the paper: since $U_a h_j$ does not depend on the decoder step $i$, it can be **precomputed once** for all $j$ before decoding starts. This saves $T_y \times T_x$ redundant matrix-vector multiplications.
-
-For our scalar running example ($n = n' = 1$), with all weight scalars set to 1 (i.e., $W_a = U_a = v_a = 1$), the alignment model becomes:
+A useful implementation detail from the paper is that
 
 $$
-e_{ij} = \tanh\!\left(s_{i-1} + h_j\right)
+U_a h_j
 $$
 
-This is the **hyperbolic tangent function** applied to the sum $s_{i-1} + h_j$. The hyperbolic tangent is defined as:
+depends only on the encoder side, not on the decoder step $i$, so it can be precomputed once for every source position.
+
+### 4.2 The scalar version of the running example
+
+To keep the arithmetic transparent, take the one-dimensional case
+
+$$
+W_a = 1,\qquad U_a = 1,\qquad v_a = 1
+$$
+
+Then the alignment model simplifies to
+
+$$
+e_{ij} = \tanh(s_{i-1} + h_j)
+$$
+
+This is not the full expressive model used in practice. It is a toy scalar version that lets us trace every number by hand without hiding the arithmetic.
+
+### 4.3 Numerical check: compute the three scores
+
+For the first target word we use $s_0 = 0.5$.
+
+**Source word 1**
+
+$$
+e_{1,1} = \tanh(0.5 + 0.2) = \tanh(0.7)
+$$
+
+Use the definition of the **hyperbolic tangent**:
 
 $$
 \tanh(x) = \frac{e^x - e^{-x}}{e^x + e^{-x}}
 $$
 
-and maps any real input to the interval $(-1, +1)$.
-
-### 4.2 Numerical Check: Alignment Scores for Target Word 1
-
-We compute $e_{1,j}$ for $j = 1, 2, 3$, using $s_0 = 0.5$.
-
-**Score for source word 1** ($h_1 = 0.2$):
+So
 
 $$
-e_{1,1} = \tanh(s_0 + h_1) = \tanh(0.5 + 0.2) = \tanh(0.7)
+\tanh(0.7)
+= \frac{e^{0.7} - e^{-0.7}}{e^{0.7} + e^{-0.7}}
+= \frac{2.0138 - 0.4966}{2.0138 + 0.4966}
+= \frac{1.5172}{2.5104}
+\approx 0.6044
 $$
 
-Computing $\tanh(0.7)$ from the definition:
+**Source word 2**
 
 $$
-\tanh(0.7) = \frac{e^{0.7} - e^{-0.7}}{e^{0.7} + e^{-0.7}} = \frac{2.0138 - 0.4966}{2.0138 + 0.4966} = \frac{1.5172}{2.5104} \approx 0.6044
-$$
-
-**Score for source word 2** ($h_2 = 0.9$):
-
-$$
-e_{1,2} = \tanh(s_0 + h_2) = \tanh(0.5 + 0.9) = \tanh(1.4)
+e_{1,2} = \tanh(0.5 + 0.9) = \tanh(1.4)
 $$
 
 $$
-\tanh(1.4) = \frac{e^{1.4} - e^{-1.4}}{e^{1.4} + e^{-1.4}} = \frac{4.0552 - 0.2466}{4.0552 + 0.2466} = \frac{3.8086}{4.3018} \approx 0.8854
+\tanh(1.4)
+= \frac{e^{1.4} - e^{-1.4}}{e^{1.4} + e^{-1.4}}
+= \frac{4.0552 - 0.2466}{4.0552 + 0.2466}
+= \frac{3.8086}{4.3018}
+\approx 0.8854
 $$
 
-**Score for source word 3** ($h_3 = 0.1$):
+**Source word 3**
 
 $$
-e_{1,3} = \tanh(s_0 + h_3) = \tanh(0.5 + 0.1) = \tanh(0.6)
+e_{1,3} = \tanh(0.5 + 0.1) = \tanh(0.6)
 $$
 
 $$
-\tanh(0.6) = \frac{e^{0.6} - e^{-0.6}}{e^{0.6} + e^{-0.6}} = \frac{1.8221 - 0.5488}{1.8221 + 0.5488} = \frac{1.2733}{2.3709} \approx 0.5370
+\tanh(0.6)
+= \frac{e^{0.6} - e^{-0.6}}{e^{0.6} + e^{-0.6}}
+= \frac{1.8221 - 0.5488}{1.8221 + 0.5488}
+= \frac{1.2733}{2.3709}
+\approx 0.5370
 $$
 
-Collecting the three scores:
+So the score vector is
 
 $$
-e_{1,1} \approx 0.6044, \quad e_{1,2} \approx 0.8854, \quad e_{1,3} \approx 0.5370
+\boxed{(e_{1,1}, e_{1,2}, e_{1,3}) \approx (0.6044, 0.8854, 0.5370)}
 $$
 
-These numbers say: source word 2 ($h_2 = 0.9$, the most prominent source word) aligns most strongly with generating target word 1. Word 1 and word 3 have similar, lower alignment scores.
+### 4.4 What the ordering means
+
+In our toy scalar setup:
+
+$$
+0.8854 > 0.6044 > 0.5370
+$$
+
+so source word 2 receives the highest score.
+
+That is consistent with the source values: $h_2 = 0.9$ is the largest annotation, and the scalar function
+
+$$
+\tanh(s_0 + h_j)
+$$
+
+is monotone increasing in $h_j$ because
+
+$$
+\frac{d}{dx}\tanh(x) = \text{sech}^2(x) > 0
+$$
+
+This derivative formula is the **derivative identity for hyperbolic tangent**.
+
+So in this toy setup, larger $h_j$ gives larger $e_{1j}$. The ranking is not mysterious. It is coming directly from monotonicity.
 
 ---
 
 ## 5. From Scores to Weights: Softmax
 
-The alignment scores $e_{ij}$ are real numbers in $(-1, +1)$ (because $\tanh$ is bounded). We need to convert them into proper weights: non-negative and summing to 1.
+The alignment scores are arbitrary real numbers. We still need to turn them into proper attention weights.
 
-The **softmax function** achieves this. For each target position $i$, we apply softmax over all source positions $j$:
+Bahdanau et al. apply the **softmax function**:
 
 $$
-\alpha_{ij} = \frac{\exp(e_{ij})}{\displaystyle\sum_{k=1}^{T_x} \exp(e_{ik})}
+\alpha_{ij} = \frac{\exp(e_{ij})}{\sum_{k=1}^{T_x} \exp(e_{ik})}
 $$
 
-### 5.1 Why Softmax?
+### 5.1 Why softmax gives valid weights
 
-We could normalize directly: $\alpha_{ij} = e_{ij} / \sum_k e_{ik}$. But this fails if any score is negative — the weights could be negative, violating non-negativity. Exponentiating first ensures all weights are strictly positive, since $\exp(x) > 0$ for all real $x$.
+We need two things: nonnegative weights, and weights that sum to 1.
 
-The softmax also has a sharpening effect: if one score is much larger than the others, the softmax concentrates nearly all weight on that one position. If all scores are equal, the softmax gives uniform weights.
+The exponential gives the first immediately:
 
-This sharpening connects to the **Boltzmann distribution** from statistical mechanics. If we interpret $e_{ij}$ as a negative energy and $\alpha_{ij}$ as the probability of "occupying state $j$," the softmax is exactly the Boltzmann distribution. At high temperature (scores close together), the distribution is diffuse. At low temperature (one score far larger than the rest), the distribution is sharply peaked.
+$$
+\exp(e_{ij}) > 0
+$$
 
-### 5.2 Numerical Check: Attention Weights for Target Word 1
+for every real $e_{ij}$.
 
-Starting from $e_{1,1} \approx 0.6044$, $e_{1,2} \approx 0.8854$, $e_{1,3} \approx 0.5370$.
+So
 
-**Exponentiate each score:**
+$$
+\alpha_{ij} > 0
+$$
+
+for every $j$.
+
+Now sum over all $j$:
+
+$$
+\sum_{j=1}^{T_x} \alpha_{ij}
+= \sum_{j=1}^{T_x} \frac{\exp(e_{ij})}{\sum_{k=1}^{T_x} \exp(e_{ik})}
+$$
+
+The denominator is the same in every term, so factor it out by the **common-denominator rule**:
+
+$$
+= \frac{\sum_{j=1}^{T_x} \exp(e_{ij})}{\sum_{k=1}^{T_x} \exp(e_{ik})}
+$$
+
+The numerator and denominator are the same sum, just with different dummy indices $j$ and $k$, so:
+
+$$
+\sum_{j=1}^{T_x} \alpha_{ij} = 1
+$$
+
+Exactly what we need.
+
+### 5.2 A useful identity: score differences turn into weight ratios
+
+Take two source positions $a$ and $b$ at the same target step $i$:
+
+$$
+\frac{\alpha_{ia}}{\alpha_{ib}}
+= \frac{\exp(e_{ia}) / \sum_k \exp(e_{ik})}{\exp(e_{ib}) / \sum_k \exp(e_{ik})}
+$$
+
+The shared denominator cancels:
+
+$$
+\frac{\alpha_{ia}}{\alpha_{ib}} = \frac{\exp(e_{ia})}{\exp(e_{ib})}
+$$
+
+Now apply the **exponential quotient identity**:
+
+$$
+\frac{e^u}{e^v} = e^{u-v}
+$$
+
+to get
+
+$$
+\boxed{\frac{\alpha_{ia}}{\alpha_{ib}} = \exp(e_{ia} - e_{ib})}
+$$
+
+This tells us something important: softmax cares about score differences, not absolute score levels.
+
+### 5.3 Numerical check: compute the weights
+
+We start from
+
+$$
+(e_{1,1}, e_{1,2}, e_{1,3}) \approx (0.6044, 0.8854, 0.5370)
+$$
+
+Exponentiate each score:
 
 $$
 \exp(0.6044) \approx 1.8302
 $$
+
 $$
 \exp(0.8854) \approx 2.4235
 $$
+
 $$
 \exp(0.5370) \approx 1.7108
 $$
 
-**Compute the normalizing constant:**
+Add them:
 
 $$
 Z_1 = 1.8302 + 2.4235 + 1.7108 = 5.9645
 $$
 
-**Divide each by $Z_1$:**
+Now divide:
 
 $$
 \alpha_{1,1} = \frac{1.8302}{5.9645} \approx 0.3069
@@ -236,153 +476,462 @@ $$
 \alpha_{1,3} = \frac{1.7108}{5.9645} \approx 0.2868
 $$
 
-**Verification**: $0.3069 + 0.4063 + 0.2868 = 1.0000$. ✓
+So
 
-The attention weights say: when generating target word 1, we place 40.6% of our attention on source word 2, 30.7% on source word 1, and 28.7% on source word 3. No source word is ignored entirely — all three contribute. But source word 2 (the most salient, with $h_2 = 0.9$) dominates.
+$$
+\boxed{(\alpha_{1,1}, \alpha_{1,2}, \alpha_{1,3}) \approx (0.3069, 0.4063, 0.2868)}
+$$
+
+Verification:
+
+$$
+0.3069 + 0.4063 + 0.2868 = 1.0000
+$$
+
+### 5.4 Numerical check of the ratio identity
+
+Take the ratio of the two largest attention weights:
+
+$$
+\frac{\alpha_{1,2}}{\alpha_{1,1}} = \frac{0.4063}{0.3069} \approx 1.324
+$$
+
+Now compute the exponential of the score difference:
+
+$$
+\exp(e_{1,2} - e_{1,1}) = \exp(0.8854 - 0.6044) = \exp(0.2810) \approx 1.324
+$$
+
+Both sides match.
+
+This identity is useful because it tells us exactly how much a score advantage translates into a weight advantage.
+
+### 5.5 Another useful identity: adding the same constant changes nothing
+
+Softmax has a second property that matters constantly in implementations. If we add the same constant $c$ to every score in one row, the attention weights do not change.
+
+Start from
+
+$$
+\tilde{\alpha}_{ij} = \frac{\exp(e_{ij} + c)}{\sum_k \exp(e_{ik} + c)}
+$$
+
+Use the **exponential product rule**
+
+$$
+e^{u+v} = e^u e^v
+$$
+
+in both numerator and denominator:
+
+$$
+\tilde{\alpha}_{ij} = \frac{\exp(e_{ij})\exp(c)}{\sum_k \exp(e_{ik})\exp(c)}
+$$
+
+The factor $\exp(c)$ is common to every term in the denominator, so factor it out:
+
+$$
+\tilde{\alpha}_{ij} = \frac{\exp(e_{ij})\exp(c)}{\exp(c)\sum_k \exp(e_{ik})}
+$$
+
+Now cancel the common factor:
+
+$$
+\tilde{\alpha}_{ij} = \frac{\exp(e_{ij})}{\sum_k \exp(e_{ik})} = \alpha_{ij}
+$$
+
+So we have the **softmax shift-invariance identity**:
+
+$$
+\boxed{\text{softmax}(e_i + c\mathbf{1}) = \text{softmax}(e_i)}
+$$
+
+### 5.6 Numerical check of shift invariance
+
+Take our score vector
+
+$$
+(0.6044,\ 0.8854,\ 0.5370)
+$$
+
+and add 5 to every entry:
+
+$$
+(5.6044,\ 5.8854,\ 5.5370)
+$$
+
+Exponentiate:
+
+$$
+e^{5.6044} \approx 271.60,\qquad e^{5.8854} \approx 359.58,\qquad e^{5.5370} \approx 253.89
+$$
+
+Add them:
+
+$$
+Z = 271.60 + 359.58 + 253.89 = 885.07
+$$
+
+Normalize:
+
+$$
+\left(
+\frac{271.60}{885.07},
+\frac{359.58}{885.07},
+\frac{253.89}{885.07}
+\right)
+\approx
+(0.3069,\ 0.4063,\ 0.2868)
+$$
+
+Exactly the same weights as before.
+
+This is why practical implementations subtract the row maximum before exponentiating. It changes nothing mathematically, but it prevents large exponentials from blowing up numerically.
 
 ---
 
 ## 6. The Context Vector
 
-With the attention weights computed, the context vector is a weighted sum:
+Now we finally have everything needed for the actual context vector:
 
 $$
-c_1 = \sum_{j=1}^{3} \alpha_{1,j} \cdot h_j = \alpha_{1,1} \cdot h_1 + \alpha_{1,2} \cdot h_2 + \alpha_{1,3} \cdot h_3
+c_1 = \sum_{j=1}^{3} \alpha_{1j} h_j
 $$
 
-This operation — a weighted sum of vectors with weights provided by a separate mechanism — is the **inner product** of the attention weight vector $[\alpha_{1,1},\, \alpha_{1,2},\, \alpha_{1,3}]$ with the hidden state vector $[h_1,\, h_2,\, h_3]$.
-
-### 6.1 Numerical Check
+Expand the sum:
 
 $$
-c_1 = 0.3069 \times 0.2 + 0.4063 \times 0.9 + 0.2868 \times 0.1
+c_1 = \alpha_{1,1} h_1 + \alpha_{1,2} h_2 + \alpha_{1,3} h_3
 $$
 
-Working through each term:
-- $0.3069 \times 0.2 = 0.0614$
-- $0.4063 \times 0.9 = 0.3657$
-- $0.2868 \times 0.1 = 0.0287$
+Substitute the numbers:
 
 $$
-\boxed{c_1 = 0.0614 + 0.3657 + 0.0287 = 0.4558}
+c_1 = 0.3069 \cdot 0.2 + 0.4063 \cdot 0.9 + 0.2868 \cdot 0.1
 $$
 
-### 6.2 Comparison: With vs. Without Attention
+### 6.1 Numerical check
 
-Without attention, the decoder would use a single fixed context for all target positions. In the simplest case — using only the last encoder hidden state — that would be $c = h_3 = 0.1$. The decoder would generate every target word from the same poor summary.
+Work through the three terms separately:
 
-With attention, the decoder uses $c_1 = 0.4558$ for generating word 1. For generating word 2, the decoder state $s_1$ will differ, producing different alignment scores, different weights $\alpha_{2,j}$, and a different context $c_2$. Each target word gets a customized view of the source sentence.
+$$
+0.3069 \cdot 0.2 = 0.0614
+$$
 
-The value $c_1 = 0.4558$ sits between $h_2 = 0.9$ (the most attended source word) and the others. The 40.6% weight on $h_2$ pulls $c_1$ toward 0.9; the remaining words temper it back toward their lower values.
+$$
+0.4063 \cdot 0.9 = 0.3657
+$$
+
+$$
+0.2868 \cdot 0.1 = 0.0287
+$$
+
+Add them:
+
+$$
+c_1 = 0.0614 + 0.3657 + 0.0287 = 0.4558
+$$
+
+So the first context vector is
+
+$$
+\boxed{c_1 = 0.4558}
+$$
+
+### 6.2 Interpretation
+
+The value $0.4558$ is not equal to any one source annotation. That is the whole point. The decoder is not copying one source state. It is retrieving a weighted mixture. Source word 2 pulls the context upward because it received the largest weight, while source words 1 and 3 pull it back down because their annotations are smaller.
+
+The result sits between the source values:
+
+$$
+0.1 \le 0.4558 \le 0.9
+$$
+
+as predicted by the convex-combination argument earlier.
+
+### 6.3 Compare with the no-attention baseline
+
+Without attention, we said the simplest old context would be
+
+$$
+c = h_3 = 0.1
+$$
+
+With attention, the decoder instead receives
+
+$$
+c_1 = 0.4558
+$$
+
+The difference is not a small tweak. It is a different access pattern. In the old model, every target word receives the same source summary. In the attention model, each target word performs its own retrieval from the full source memory bank.
+
+### 6.4 Rewriting the context to see what matters most
+
+Because the weights sum to 1, we can eliminate one of them. Write
+
+$$
+\alpha_{1,3} = 1 - \alpha_{1,1} - \alpha_{1,2}
+$$
+
+and substitute this into the context formula:
+
+$$
+c_1 = \alpha_{1,1} h_1 + \alpha_{1,2} h_2 + (1 - \alpha_{1,1} - \alpha_{1,2}) h_3
+$$
+
+Distribute $h_3$ by the **distributive law**:
+
+$$
+c_1 = \alpha_{1,1} h_1 + \alpha_{1,2} h_2 + h_3 - \alpha_{1,1} h_3 - \alpha_{1,2} h_3
+$$
+
+Group the $\alpha_{1,1}$ and $\alpha_{1,2}$ terms:
+
+$$
+c_1 = h_3 + \alpha_{1,1}(h_1 - h_3) + \alpha_{1,2}(h_2 - h_3)
+$$
+
+Now substitute our source annotations:
+
+$$
+c_1 = 0.1 + \alpha_{1,1}(0.2 - 0.1) + \alpha_{1,2}(0.9 - 0.1)
+$$
+
+So
+
+$$
+\boxed{c_1 = 0.1 + 0.1\alpha_{1,1} + 0.8\alpha_{1,2}}
+$$
+
+This form is easier to read. It tells us immediately which source positions matter most. Increasing $\alpha_{1,1}$ moves the context up only slightly, because $h_1$ sits just $0.1$ above $h_3$. Increasing $\alpha_{1,2}$ moves it much more strongly, because $h_2$ sits $0.8$ above $h_3$.
+
+### 6.5 Numerical check of the rewritten form
+
+Substitute the attention weights:
+
+$$
+c_1 = 0.1 + 0.1(0.3069) + 0.8(0.4063)
+$$
+
+Compute each term:
+
+$$
+0.1(0.3069) = 0.03069
+$$
+
+$$
+0.8(0.4063) = 0.32504
+$$
+
+Add them:
+
+$$
+c_1 = 0.1 + 0.03069 + 0.32504 = 0.45573
+$$
+
+which matches the earlier result up to rounding:
+
+$$
+0.45573 \approx 0.4558
+$$
+
+This rewritten form makes the dominant contribution of source word 2 completely explicit.
 
 ---
 
-## 7. The Encoder: Annotations from a Bidirectional RNN
+## 7. Why the Mechanism Is Trainable End to End
 
-We have been treating $h_1, h_2, h_3$ as given. Where do they come from?
+The weighted-sum formulation is not only expressive. It is differentiable from end to end.
 
-Bahdanau et al. use a **bidirectional RNN** (BiRNN) encoder, introduced by Schuster and Paliwal (1997). A unidirectional RNN produces hidden state $h_j$ from only the words $x_1, \ldots, x_j$ — the prefix. But a good annotation $h_j$ should summarize the full context around $x_j$, including what comes after.
+### 7.1 Gradient with respect to the attention weights
 
-The **Bidirectional Recurrent Neural Network** addresses this with two passes:
-
-**Forward pass**: Read $x_1, x_2, \ldots, x_{T_x}$ left to right:
-$$
-\overrightarrow{h}_t = f(x_t,\, \overrightarrow{h}_{t-1}), \quad \overrightarrow{h}_0 = \mathbf{0}
-$$
-
-**Backward pass**: Read $x_{T_x}, x_{T_x-1}, \ldots, x_1$ right to left:
-$$
-\overleftarrow{h}_t = f(x_t,\, \overleftarrow{h}_{t+1}), \quad \overleftarrow{h}_{T_x+1} = \mathbf{0}
-$$
-
-The annotation for word $j$ is the **concatenation** of both hidden states:
+Treat the encoder annotations as fixed for a moment. Then
 
 $$
-h_j = \left[\overrightarrow{h}_j^\top;\; \overleftarrow{h}_j^\top\right]^\top \in \mathbb{R}^{2n}
+c_i = \sum_j \alpha_{ij} h_j
 $$
 
-This makes $h_j$ a function of the entire source sequence, with strong focus on word $j$ — the forward state has just processed $x_j$ from the left, and the backward state has just processed $x_j$ from the right. In our running example, $h_1, h_2, h_3$ are these concatenated annotations, treated as scalars for simplicity.
+Differentiate with respect to one weight $\alpha_{ij}$:
+
+$$
+\frac{\partial c_i}{\partial \alpha_{ij}}
+= \frac{\partial}{\partial \alpha_{ij}} \left(\sum_{r} \alpha_{ir} h_r\right)
+$$
+
+By the **linearity of differentiation**, every term with $r \ne j$ differentiates to zero because it does not depend on $\alpha_{ij}$. Only the $r=j$ term remains:
+
+$$
+\frac{\partial c_i}{\partial \alpha_{ij}}
+= h_j
+$$
+
+So the gradient flowing into $\alpha_{ij}$ is directly modulated by the encoder annotation $h_j$.
+
+### 7.2 Why this matters
+
+This means the loss can push on the attention weights smoothly. Those weights are smooth functions of the alignment scores through softmax, and the alignment scores are smooth functions of the encoder and decoder states through the feedforward alignment model.
+
+So gradients can flow:
+
+$$
+\text{loss}
+\to c_i
+\to \alpha_{ij}
+\to e_{ij}
+\to (s_{i-1}, h_j)
+$$
+
+That is why the whole system can be trained end to end with backpropagation.
 
 ---
 
-## 8. The Full Decoder
+## 8. Where the Encoder Annotations Come From
 
-The decoder generates each target word $y_i$ using three things:
+So far we have treated $h_1, h_2, h_3$ as given. In the actual model, they come from a bidirectional encoder.
 
-1. The attention-based context vector $c_i$ (derived above).
-2. The decoder hidden state update: $s_i = f(s_{i-1}, y_{i-1}, c_i)$.
-3. The output probability: $p(y_i \mid s_i, y_{i-1}, c_i)$.
+Bahdanau et al. obtain them from a **Bidirectional Recurrent Neural Network**.
 
-The model is trained end-to-end to maximize the **log-likelihood** of the correct translations. By the **chain rule of probability** (the factorization of a joint distribution into a product of conditionals):
+### 8.1 Forward and backward states
+
+The forward encoder reads the source left to right:
 
 $$
-\log p(\mathbf{y} \mid \mathbf{x}) = \sum_{i=1}^{T_y} \log p(y_i \mid y_1, \ldots, y_{i-1}, \mathbf{x})
+\overrightarrow{h}_t = f(x_t, \overrightarrow{h}_{t-1})
 $$
 
-Gradients flow from the loss back through $g$, through $s_i$, through $c_i$, through $\alpha_{ij}$, through $e_{ij}$, and into both the encoder and the alignment model. Every parameter — encoder, alignment model, decoder — is trained jointly.
+The backward encoder reads right to left:
 
-The alignment model receives **no explicit supervision**. It discovers useful alignments purely from the translation objective. The model learns to align source and target words because doing so improves translation quality, not because we told it what alignment means.
+$$
+\overleftarrow{h}_t = f(x_t, \overleftarrow{h}_{t+1})
+$$
 
----
+The annotation at source position $j$ is the concatenation:
 
-## 9. What the Model Learns: The Alignment Matrix
+$$
+h_j = \begin{bmatrix}
+\overrightarrow{h}_j \\
+\overleftarrow{h}_j
+\end{bmatrix}
+$$
 
-One of the most striking results in Bahdanau et al. (2015) is qualitative: the model learns linguistically plausible alignments without any explicit alignment supervision.
+So each annotation contains both left context and right context.
 
-If we visualize the full attention weight matrix $\alpha_{ij}$ — with target positions on one axis and source positions on the other — we get an **alignment matrix**. Each entry $\alpha_{ij}$ is the weight the decoder placed on source word $j$ when generating target word $i$.
+### 8.2 Why this matters
 
-For English-to-French translation, this matrix is nearly diagonal — English and French have similar word order. But for multi-word phrases that translate differently, the alignment is non-monotone. The paper shows "European Economic Area" translating to "zone économique européenne": the noun comes last in French, so the alignment reorders. When generating "zone," the model attends to "Area." When generating "économique," it attends to "Economic." When generating "européenne," it attends to "European."
+If the source word is "bank," its meaning may depend on both the word before it and the word after it. A bidirectional annotation can encode that local context before attention ever begins.
 
-This reordering was learned automatically from translation data, with no instruction about French grammar.
-
-Another example: "the" in English can translate to "l'," "le," "la," or "les" in French depending on the following noun's gender and number. To translate "the" correctly, the decoder must look forward at the noun. Soft alignment handles this: "the" can simultaneously attend to itself and the following noun, blending their representations into a context vector that contains the information needed to choose the correct article.
-
----
-
-## 10. Attention as Soft Memory Retrieval
-
-Let us now name what we have built.
-
-The encoder hidden states $h_1, h_2, h_3$ form a **memory bank** — a collection of stored contextual representations, one for each source position. Each $h_j$ is not an isolated word embedding; it encodes the word and its surrounding context (because the BiRNN processes the entire sequence before and after $x_j$).
-
-The decoder current state $s_{i-1}$ acts as a **query**: "what do I need to know right now, given where I am in the generation?"
-
-The alignment model $a(s_{i-1}, h_j)$ computes a **compatibility score** between the query and each memory entry. Softmax converts these scores into a **probability distribution over memory positions**. The context vector $c_i$ is the **expected memory content** under this distribution — a soft retrieval.
-
-This framing — query, key, value — will be made explicit in the Transformer paper (Vaswani et al., 2017). In Bahdanau's model:
-
-- The **query** is $s_{i-1}$ (decoder state).
-- The **keys** are $h_1, \ldots, h_{T_x}$ (encoder states, used for scoring).
-- The **values** are also $h_1, \ldots, h_{T_x}$ (the same encoder states, used for retrieval).
-
-In Bahdanau's model, keys and values are the same vectors. The Transformer will separate them into independent projections. That separation turns out to matter — we will derive why in the next post.
+That is why the encoder states are a good memory bank. Each $h_j$ is not a raw word embedding. It is already a contextual summary centered on source position $j$.
 
 ---
 
-## 11. What Attention is NOT Doing
+## 9. The Full Decoder Objective
 
-This point trips people up, so let us be direct.
+The decoder does not stop at computing $c_i$. At target step $i$, it computes the attention-based context vector, updates the decoder state, and then predicts the next word.
 
-Attention does **not** select one thing. It computes a soft weighted average. Even if $\alpha_{1,2} = 0.9999$, the context vector is not exactly $h_2$ — it is $0.9999 \cdot h_2 + 0.0001 \cdot (h_1 + h_3)$. Hard selection requires discrete sampling; soft attention never does.
+The full translation probability factorizes by the **chain rule of probability**:
 
-Attention does **not** understand meaning. The weights $\alpha_{ij}$ are determined entirely by the alignment model $a(s_{i-1}, h_j)$, which is a learned function of two vectors. Whether the resulting attention patterns are semantically meaningful depends on what was learned during training, not on any intrinsic property of the mechanism.
+$$
+p(\mathbf{y}\mid\mathbf{x})
+= \prod_{i=1}^{T_y} p(y_i \mid y_1, \ldots, y_{i-1}, \mathbf{x})
+$$
 
-Attention does **not** inherently encode position. Bahdanau et al. use a BiRNN encoder, where each $h_j$ encodes position implicitly through the recurrence. The Transformer drops the RNN and must add explicit positional encodings — that story belongs to the next post.
+Taking logs and using the **logarithm product rule**
+
+$$
+\log(ab) = \log a + \log b
+$$
+
+gives
+
+$$
+\log p(\mathbf{y}\mid\mathbf{x})
+= \sum_{i=1}^{T_y} \log p(y_i \mid y_1, \ldots, y_{i-1}, \mathbf{x})
+$$
+
+This is the training objective the model maximizes. The alignment model receives no direct supervision. It learns useful alignments only because better alignments improve the translation log-likelihood.
+
+---
+
+## 10. The Alignment Matrix and the Memory-Retrieval View
+
+If we stack the attention weights over all target positions, we get the **alignment matrix**:
+
+$$
+\Alpha =
+\begin{bmatrix}
+\alpha_{1,1} & \alpha_{1,2} & \cdots & \alpha_{1,T_x} \\
+\alpha_{2,1} & \alpha_{2,2} & \cdots & \alpha_{2,T_x} \\
+\vdots & \vdots & \ddots & \vdots \\
+\alpha_{T_y,1} & \alpha_{T_y,2} & \cdots & \alpha_{T_y,T_x}
+\end{bmatrix}
+$$
+
+Each row is a probability distribution over source positions for one target token.
+
+This makes the memory interpretation explicit. The encoder annotations $h_j$ are the memory slots. The decoder state $s_{i-1}$ is the query. The scores $e_{ij}$ measure compatibility between that query and each slot. Softmax turns those compatibilities into a distribution, and the weighted sum returns the retrieved content.
+
+This is already most of the modern query-key-value story, just without the names.
+
+In Bahdanau attention, the query is the decoder state, the key is the encoder annotation, and the value is the encoder annotation as well.
+
+The Transformer will keep the same memory-retrieval pattern but separate keys and values into different learned projections.
+
+---
+
+## 11. Common Confusions
+
+### 11.1 Attention is not hard selection
+
+Attention does not pick one source token and ignore the rest.
+
+Even when one weight is large, the output is still a weighted average. In our running example, source word 2 has the largest weight:
+
+$$
+0.4063
+$$
+
+But it does not get all the mass. The other two source words still contribute.
+
+### 11.2 Attention weights are not explanations by default
+
+The attention weights tell us where the model routed information for this mechanism. They do not automatically tell us why the translation is correct or whether the model "understood" the sentence in a human sense.
+
+They are routing coefficients, not magical semantic certificates.
+
+### 11.3 The toy scalar model is less expressive than the real one
+
+This is the part that usually feels wrong on a first pass through a tiny example.
+
+In our scalar toy model,
+
+$$
+e_{ij} = \tanh(s_{i-1} + h_j)
+$$
+
+and $\tanh$ is increasing. So if $h_2 > h_1 > h_3$, then source word 2 will always receive the highest score for any fixed decoder state added equally to all three.
+
+That might make it seem like attention cannot change its ranking across target positions.
+
+That conclusion would be wrong.
+
+The full model is
+
+$$
+e_{ij} = \mathbf{v}_a^\top \tanh(W_a s_{i-1} + U_a h_j)
+$$
+
+where $s_{i-1}$ and $h_j$ are vectors and $W_a$, $U_a$, $\mathbf{v}_a$ are learned. Different decoder states can interact with different encoder annotations in different directions. The ranking can change from one target position to the next.
+
+Our scalar example is useful because it makes the arithmetic transparent. The full vector model is useful because it restores expressive power.
 
 ---
 
 ## Summary
 
-We started with the fixed-length bottleneck: compressing the entire source into one vector causes performance to degrade sharply on long sentences. The fix, derived step by step:
+Attention solves the fixed-length bottleneck by replacing one global source summary with a target-specific weighted sum of encoder annotations. Bahdanau's alignment model produces scores $e_{ij}$, softmax turns them into valid weights $\alpha_{ij}$, and the context vector $c_i = \sum_j \alpha_{ij} h_j$ becomes a differentiable soft retrieval from the source memory bank.
 
-1. Produce one hidden state $h_j$ per source position (BiRNN encoder).
-2. At each decoding step $i$, compute alignment scores $e_{ij} = \mathbf{v}_a^\top \tanh(W_a s_{i-1} + U_a h_j)$ — a learned compatibility function between decoder state and each source annotation.
-3. Apply softmax to get attention weights: $\alpha_{ij} = \exp(e_{ij}) / \sum_k \exp(e_{ik})$.
-4. Compute a position-specific context: $c_i = \sum_j \alpha_{ij} h_j$.
-
-In our running example: alignment scores $[0.6044,\, 0.8854,\, 0.5370]$, attention weights $[0.3069,\, 0.4063,\, 0.2868]$, context vector $c_1 = 0.4558$.
-
-In the next post, we ask: why use a feedforward network as the compatibility function? What if we used a dot product instead? And why would we want separate query, key, and value vectors — the three matrices that define the Transformer?
+In our running example, the mechanism turns source annotations $(0.2, 0.9, 0.1)$ and decoder state $s_0 = 0.5$ into attention weights $(0.3069, 0.4063, 0.2868)$ and the context value $c_1 = 0.4558$. The next post keeps this retrieval view intact but asks a new question: why use this feedforward alignment function at all, and how do we arrive at queries, keys, and values?
 
 ---
 

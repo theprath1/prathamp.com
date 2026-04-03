@@ -10,244 +10,726 @@ The first two blogs built attention from scratch: the alignment model, the Q/K/V
 
 Now double the sequence length. Double it again. Watch the cost explode.
 
-This blog is a precise accounting of *why* vanilla attention fails at scale. Not vague gestures at "quadratic complexity" — exact FLOP counts, byte counts, and a measurement of which bottleneck actually kills you first.
+This blog is a precise accounting of why vanilla attention fails at scale. Not vague gestures at "quadratic complexity" but exact FLOP counts, byte counts, and a measurement of which bottleneck actually kills you first.
 
 ---
 
-## The Running Example, Scaled Up
+## The Running Model, Scaled Up
 
 We've been working with three vectors. That was enough to derive the mechanism. It is not enough to understand the scaling problem.
 
-Fix a concrete model: $d_\text{model} = 512$, $d_k = d_v = 64$, $h = 8$ heads, $L = 12$ layers. This is roughly BERT-base. We'll vary sequence length $n$ from 128 to 16,384.
+Fix a concrete model: $d_\text{model} = 512$, $h = 8$ heads, $d_k = d_v = 64$, $L = 12$ layers, and fp16 throughout (2 bytes per element). We will vary sequence length $n$ during training and generated context length $t$ during autoregressive inference.
 
-For each bottleneck, we'll state a general formula, then plug in numbers.
+Two identities will be used repeatedly:
+
+$$
+h \cdot d_k = 8 \cdot 64 = 512 = d_\text{model}
+$$
+
+and
+
+$$
+d_k = d_v = 64
+$$
+
+These look innocent. They are not. Almost every scaling law in this post comes from expanding these two equalities inside the attention formulas.
 
 ---
 
-## Bottleneck 1: Compute
+## 1. What Actually Scales with Sequence Length?
 
-### Counting FLOPs in $QK^\top$
-
-The attention score matrix $S = QK^\top / \sqrt{d_k}$. Focus on $QK^\top$ first.
-
-$Q$ has shape $(n, d_k)$. $K$ has shape $(n, d_k)$. The product $QK^\top$ has shape $(n, n)$.
-
-**Entry-by-entry cost.** Each entry $S[i,j] = \mathbf{q}_i \cdot \mathbf{k}_j$ is a dot product of two $d_k$-dimensional vectors. That costs $d_k$ multiplications and $d_k - 1$ additions $\approx 2d_k$ floating-point operations.
-
-There are $n^2$ entries total, so:
+Before counting anything, let us write the per-head attention computation once:
 
 $$
-\text{FLOPs}(QK^\top) = 2 d_k \cdot n^2
+S = \frac{QK^\top}{\sqrt{d_k}}, \qquad P = \text{softmax}(S), \qquad O = PV
 $$
 
-**The remaining steps.** Scaling by $1/\sqrt{d_k}$: $n^2$ FLOPs (elementwise). Softmax over each row: 3 passes of $n$ operations per row (max, exp, divide), times $n$ rows $\approx 3n^2$ FLOPs. $AV$: same structure as $QK^\top$, this time $(n \times n) \cdot (n \times d_v)$, costing $2d_v \cdot n^2$ FLOPs.
+For one head, the tensors have shapes $Q \in \mathbb{R}^{n \times d_k}$, $K \in \mathbb{R}^{n \times d_k}$, $V \in \mathbb{R}^{n \times d_v}$, $S \in \mathbb{R}^{n \times n}$, $P \in \mathbb{R}^{n \times n}$, and $O \in \mathbb{R}^{n \times d_v}$.
 
-Factoring $n^2$ from every term — by the **distributive law** — gives the total per head:
+The source of the trouble is now visible. $Q$, $K$, $V$, and $O$ all scale like $n \cdot d$, but $S$ and $P$ scale like $n^2$.
+
+This is the whole story in one line. The trouble starts the moment we materialize pairwise interactions between all positions. The quadratic term is not a side effect. It is built into the object we are computing.
+
+### Numerical check
+
+At $n = 512$:
 
 $$
-\text{FLOPs}_{\text{head}} = 2d_k n^2 + n^2 + 3n^2 + 2d_v n^2 = n^2(2d_k + 2d_v + 4)
+n^2 = 512^2 = 262{,}144
 $$
 
-With $d_k = d_v = 64$:
+At $n = 4{,}096$:
 
 $$
-\text{FLOPs}_{\text{head}} = n^2 \cdot 132 \approx n^2 \cdot 128
+n^2 = 4{,}096^2 = 16{,}777{,}216
+$$
+
+The sequence length grew by a factor of
+
+$$
+\frac{4{,}096}{512} = 8
+$$
+
+but the number of pairwise interactions grew by
+
+$$
+\frac{16{,}777{,}216}{262{,}144} = 64 = 8^2
+$$
+
+This is the **quadratic growth law**. Doubling sequence length multiplies pairwise interactions by 4. Multiplying length by 8 multiplies interactions by 64.
+
+---
+
+## 2. Bottleneck 1: Compute
+
+Start with the arithmetic. This is the bottleneck people usually mention first, and for good reason: the FLOP count really does blow up.
+
+### 2.1 FLOPs in $QK^\top$
+
+The score matrix before scaling is $QK^\top$.
+
+$Q$ has shape $(n, d_k)$. $K^\top$ has shape $(d_k, n)$. Their product has shape $(n, n)$.
+
+By the **definition of matrix multiplication**, each entry is a dot product:
+
+$$
+[QK^\top]_{ij} = \sum_{r=1}^{d_k} Q_{ir} K_{jr}
+$$
+
+One dot product of length $d_k$ costs $d_k$ multiplications and $d_k - 1$ additions.
+
+Using the standard FLOP convention that a multiply and an add each count as one floating-point operation, this is approximately
+
+$$
+2d_k
+$$
+
+FLOPs per entry.
+
+There are $n^2$ entries, so:
+
+$$
+\text{FLOPs}(QK^\top) = 2 d_k n^2
+$$
+
+For our running model, $d_k = 64$:
+
+$$
+\text{FLOPs}(QK^\top) = 2 \cdot 64 \cdot n^2 = 128 n^2
+$$
+
+### 2.2 FLOPs in Scaling, Softmax, and $PV$
+
+Now add the rest of the attention computation. The dot-product score matrix is not the whole story.
+
+**Scaling.** Dividing each entry of $QK^\top$ by $\sqrt{d_k}$ is one elementwise operation per entry:
+
+$$
+\text{FLOPs}(\text{scale}) = n^2
+$$
+
+**Softmax.** For each of the $n$ rows, we need one pass to find the row maximum, one pass to exponentiate shifted scores, one pass to sum exponentials, and one pass to divide by the sum. That is approximately $4n$ scalar operations per row, hence
+
+$$
+\text{FLOPs}(\text{softmax}) \approx 4n^2
+$$
+
+**Value mixing.** The output matrix is $PV$ with shape $(n, n) \cdot (n, d_v) \to (n, d_v)$. By the same dot-product counting as above:
+
+$$
+\text{FLOPs}(PV) = 2 d_v n^2
+$$
+
+Since $d_v = 64$:
+
+$$
+\text{FLOPs}(PV) = 128 n^2
+$$
+
+### 2.3 Total FLOPs Per Head
+
+Summing the four terms:
+
+$$
+\text{FLOPs}_\text{head}
+= 2d_k n^2 + n^2 + 4n^2 + 2d_v n^2
+$$
+
+Factor out $n^2$ by the **distributive law of multiplication over addition**:
+
+$$
+\text{FLOPs}_\text{head}
+= n^2(2d_k + 2d_v + 5)
+$$
+
+Substitute $d_k = d_v = 64$:
+
+$$
+\text{FLOPs}_\text{head}
+= n^2(128 + 128 + 5)
+= 261 n^2
+$$
+
+For all $h = 8$ heads:
+
+$$
+\text{FLOPs}_\text{attn}
+= 8 \cdot 261 n^2
+= 2{,}088 n^2
+$$
+
+To keep the scaling law readable, we approximate this as
+
+$$
+\boxed{\text{FLOPs}_\text{attn} \approx 2{,}048\, n^2 = 4 d_\text{model} n^2}
+$$
+
+The approximation comes from ignoring the small softmax/scaling constant and using $h \cdot 2d_k + h \cdot 2d_v = 4d_\text{model}$.
+
+### 2.4 Compare to the FFN
+
+The raw number $2{,}088 n^2$ does not mean much by itself. The right comparison inside a transformer block is the feed-forward network.
+
+The standard FFN maps
+
+$$
+d_\text{model} \to 4d_\text{model} \to d_\text{model}
+$$
+
+For one token, the first linear layer costs
+
+$$
+2 \cdot d_\text{model} \cdot 4d_\text{model} = 8 d_\text{model}^2
+$$
+
+FLOPs, and the second linear layer costs the same:
+
+$$
+8 d_\text{model}^2
+$$
+
+So the FFN cost per token is
+
+$$
+16 d_\text{model}^2
+$$
+
+Across $n$ tokens:
+
+$$
+\text{FLOPs}_\text{FFN} = 16 d_\text{model}^2 n
+$$
+
+With $d_\text{model} = 512$:
+
+$$
+\text{FLOPs}_\text{FFN} = 16 \cdot 512^2 \cdot n
+= 4{,}194{,}304\, n
+$$
+
+### 2.5 The Compute Crossover
+
+Attention is quadratic in $n$. The FFN is linear in $n$. So there must be a sequence length at which attention stops being the secondary cost and becomes the dominant one.
+
+Using the clean approximation $\text{FLOPs}_\text{attn} \approx 2{,}048 n^2$:
+
+$$
+2{,}048 n^2 = 4{,}194{,}304 n
+$$
+
+Cancel one factor of $n$ from both sides:
+
+$$
+2{,}048 n = 4{,}194{,}304
+$$
+
+Divide both sides by $2{,}048$:
+
+$$
+n = 2{,}048
+$$
+
+So the approximate compute crossover is
+
+$$
+\boxed{n^* \approx 4 d_\text{model} = 2{,}048}
+$$
+
+If we keep the exact $2{,}088 n^2$ coefficient, the crossover is slightly lower:
+
+$$
+n^* = \frac{4{,}194{,}304}{2{,}088} \approx 2{,}009
+$$
+
+### 2.6 Numerical table
+
+| $n$ | Attn FLOPs / layer | FFN FLOPs / layer | Dominant |
+|---|---|---|---|
+| 128 | 0.034 B | 0.537 B | FFN |
+| 512 | 0.545 B | 2.147 B | FFN |
+| 1,024 | 2.190 B | 4.295 B | FFN |
+| 2,048 | 8.760 B | 8.590 B | Near tie |
+| 4,096 | 35.041 B | 17.180 B | Attention |
+| 8,192 | 140.164 B | 34.360 B | Attention |
+
+At short sequences, the FFN dominates compute. Around 2K tokens, attention catches up. Beyond that, attention becomes the arithmetic bottleneck. This is the first way vanilla attention breaks.
+
+---
+
+## 3. Bottleneck 2: Training Memory
+
+The compute bottleneck hurts. The memory bottleneck usually hurts earlier.
+
+### 3.1 What gets materialized
+
+This is the crucial implementation detail that the compact formula hides. Standard attention does not merely imply an $n \times n$ interaction pattern. It usually materializes two dense $n \times n$ matrices per head. The first is the score matrix
+
+$$
+S = \frac{QK^\top}{\sqrt{d_k}}
+$$
+
+and the second is the attention weight matrix
+
+$$
+P = \text{softmax}(S)
+$$
+
+Each has exactly
+
+$$
+n^2
+$$
+
+elements.
+
+In fp16, each element is 2 bytes. Therefore one matrix costs
+
+$$
+2 n^2 \text{ bytes}
+$$
+
+and the pair costs
+
+$$
+4 n^2 \text{ bytes}
+$$
+
+per head, per layer.
+
+### 3.2 Numerical check
+
+At $n = 4{,}096$:
+
+$$
+n^2 = 4{,}096^2 = 16{,}777{,}216
+$$
+
+So one $n \times n$ fp16 matrix costs
+
+$$
+2 \cdot 16{,}777{,}216 = 33{,}554{,}432 \text{ bytes}
+$$
+
+which is
+
+$$
+32 \text{ MB}
+$$
+
+to a good binary-unit approximation.
+
+Two matrices per head means
+
+$$
+64 \text{ MB/head/layer}
 $$
 
 Multiply by $h = 8$ heads:
 
 $$
-\boxed{\text{FLOPs}_{\text{attention}} \approx 1024 \cdot n^2}
+64 \text{ MB} \times 8 = 512 \text{ MB/layer}
 $$
 
-**Compared to the FFN.** The feed-forward sublayer in each transformer block is two linear projections: $d_\text{model} \to 4 \cdot d_\text{model} \to d_\text{model}$. Cost per token: $2 \cdot d_\text{model} \cdot 4 \cdot d_\text{model} + 2 \cdot 4 \cdot d_\text{model} \cdot d_\text{model} = 16 \cdot d_\text{model}^2$ multiplied by $n$ tokens $= 16 \cdot d_\text{model}^2 \cdot n$. With $d_\text{model} = 512$:
+Multiply by $L = 12$ layers:
 
 $$
-\text{FLOPs}_{\text{FFN}} = 16 \cdot 512^2 \cdot n = 4{,}194{,}304 \cdot n
+512 \text{ MB} \times 12 = 6{,}144 \text{ MB} \approx 6 \text{ GB}
 $$
 
-### The Crossover Table
+This is only for the two attention matrices. It does not include Q, K, V activations, FFN activations, residual streams, optimizer state, or gradients.
 
-Attention is $O(n^2)$ and FFN is $O(n)$. At short sequences, FFN dominates. At some crossover $n^*$, attention takes over.
+### 3.3 Memory table
 
-Set $\text{FLOPs}_\text{attention} = \text{FLOPs}_\text{FFN}$:
+| $n$ | One matrix $S$ or $P$ | Two matrices / head | All heads / layer | All heads / 12 layers |
+|---|---|---|---|---|
+| 512 | 0.5 MB | 1 MB | 8 MB | 96 MB |
+| 1,024 | 2 MB | 4 MB | 32 MB | 384 MB |
+| 2,048 | 8 MB | 16 MB | 128 MB | 1.5 GB |
+| 4,096 | 32 MB | 64 MB | 512 MB | 6 GB |
+| 8,192 | 128 MB | 256 MB | 2 GB | 24 GB |
+| 16,384 | 512 MB | 1 GB | 8 GB | 96 GB |
+
+By 8K tokens, the attention matrices alone already consume tens of gigabytes across layers. This is the second way vanilla attention breaks.
+
+### 3.4 Why the $n \times n$ matrices dominate everything else
+
+It is worth making the comparison explicit, because otherwise "quadratic memory" can still sound abstract.
+
+One Q, K, or V tensor has shape
 
 $$
-1024 \cdot n^2 = 4{,}194{,}304 \cdot n \implies n^* = 4{,}096
+n \times d_k
 $$
 
-| n | FLOPs (attn, billion) | FLOPs (FFN, billion) | Dominant |
-|---|---|---|---|
-| 128 | 0.017 | 0.537 | FFN |
-| 512 | 0.268 | 2.147 | FFN |
-| 1 024 | 1.074 | 4.295 | FFN |
-| 2 048 | 4.295 | 8.590 | FFN |
-| **4 096** | **17.180** | **17.180** | **tie** |
-| 8 192 | 68.719 | 34.360 | **Attention** |
-| 16 384 | 274.878 | 68.719 | **Attention** |
+or
 
-Beyond 4K tokens, attention dominates compute. At 16K tokens, attention costs 4× the FFN. Modern long-context models at 128K tokens spend essentially all their compute budget in attention.
+$$
+n \times d_v
+$$
+
+At $n = 4{,}096$ and $d_k = d_v = 64$, one such tensor costs
+
+$$
+4{,}096 \cdot 64 \cdot 2 = 524{,}288 \text{ bytes}
+$$
+
+which is only
+
+$$
+0.5 \text{ MB}
+$$
+
+So all three linear activations together cost about
+
+$$
+1.5 \text{ MB/head}
+$$
+
+Compare that to the two dense matrices:
+
+$$
+64 \text{ MB/head}
+$$
+
+The ratio is
+
+$$
+\frac{64}{1.5} \approx 42.7
+$$
+
+So at 4K tokens, the $n \times n$ attention matrices are already more than forty times larger than the combined Q, K, and V activations.
+
+This is the practical meaning of "quadratic memory dominates linear activations." The $n \times n$ objects are not just asymptotically larger. They are already dominating by large constants at practical sequence lengths.
 
 ---
 
-## Bottleneck 2: Memory
+## 4. Why Memory Gets Worse Than Compute: HBM Traffic
 
-The compute bottleneck is painful but manageable with faster hardware. The memory bottleneck is structurally different: you cannot parallelize your way out of it.
+Compute tells us how many arithmetic operations happen. It does not tell us how fast the hardware can feed data to those operations.
 
-### The $N \times N$ Matrices
+That is where the real training bottleneck appears. Long-context attention is often limited less by multiplication than by movement.
 
-Standard attention materializes two full $n \times n$ matrices:
+### 4.1 SRAM vs HBM
 
-- $S = QK^\top / \sqrt{d_k}$, the raw score matrix ($n \times n$ floats)
-- $P = \text{softmax}(S)$, the attention weight matrix ($n \times n$ floats)
+Modern GPUs have fast on-chip SRAM and registers with very high bandwidth, and much larger off-chip HBM with much lower bandwidth. The exact numbers vary by device, but the pattern is stable: SRAM is extremely fast and extremely small; HBM is much larger and much slower.
 
-In fp16 (2 bytes per float), each matrix costs:
+The problem is that $S$ and $P$ stop fitting on-chip surprisingly early. Once they spill to HBM, every pass over them becomes a bandwidth problem.
 
-$$
-\text{bytes}(S) = \text{bytes}(P) = 2 \cdot n^2 \text{ bytes}
-$$
+### 4.2 Exact forward-pass traffic
 
-For $n = 4{,}096$, one head, one layer:
+Let us count the dominant tensor traffic for one head in a standard forward pass. This is the bookkeeping FlashAttention is designed around.
 
-$$
-2 \times 2 \times 4096^2 = 67{,}108{,}864 \text{ bytes} = 64 \text{ MB}
-$$
-
-Scale to $h = 8$ heads and $L = 12$ layers:
+**Step 1.** Read $Q$ and $K$ to compute $QK^\top$:
 
 $$
-64 \text{ MB} \times 8 \times 12 = 6{,}144 \text{ MB} \approx 6 \text{ GB}
+2nd_k
 $$
 
-Just for the attention weight matrices. No activations, no parameters. At $n = 8{,}192$ this quadruples to 24 GB. At $n = 16{,}384$ it is 96 GB — already exceeding the VRAM of most GPUs.
+elements read.
 
-### Why HBM Bandwidth Matters More Than VRAM Size
-
-You might think: buy a GPU with more VRAM and the problem goes away. It does not. The real bottleneck is *bandwidth* to high-bandwidth memory (HBM).
-
-Modern GPUs have two tiers of memory:
-
-| Memory | Capacity | Bandwidth |
-|---|---|---|
-| SRAM (on-chip) | 20 MB (A100) | ~19 TB/s |
-| HBM (off-chip) | 40–80 GB | ~1.5–2 TB/s |
-
-SRAM is 10× faster than HBM. But it is also 2000× smaller. Matrices larger than ~20 MB must live in HBM.
-
-**Standard attention's HBM access pattern.** Count the reads and writes. We use **Big-Theta notation**: $\Theta(f(N))$ means the count grows proportional to $f(N)$ — bounded above and below by positive constants times $f(N)$.
-
-1. Load $Q$, $K$ from HBM → compute $QK^\top$ → write $S$ to HBM: $\Theta(Nd)$ reads + $\Theta(N^2)$ writes
-2. Load $S$ from HBM → compute $\text{softmax}(S)$ → write $P$ to HBM: $\Theta(N^2)$ reads + $\Theta(N^2)$ writes
-3. Load $P$, $V$ from HBM → compute $PV$ → write $O$ to HBM: $\Theta(N^2)$ reads + $\Theta(Nd)$ writes
-
-Total HBM accesses: $\boldsymbol{\Theta(Nd + N^2)}$
-
-At $n = 4{,}096$, $d = 64$ (per head):
+Write the score matrix $S$:
 
 $$
-\text{HBM reads/writes} = 4 \cdot 4096 \cdot 64 + 3 \cdot 4096^2 = 1{,}048{,}576 + 50{,}331{,}648 \approx 51 \text{ M elements}
+n^2
 $$
 
-The $N^2$ term is $48\times$ larger than the $Nd$ term. The attention computation is *memory-bandwidth-bound*, not compute-bound. The GPU's arithmetic units sit idle, waiting for data from HBM.
+elements written.
 
-This is the core insight behind FlashAttention: attention is not limited by how fast your GPU can multiply — it is limited by how fast data can flow from HBM to SRAM. Reducing HBM accesses matters far more than reducing FLOPs.
+**Step 2.** Read $S$ to apply softmax:
+
+$$
+n^2
+$$
+
+elements read.
+
+Write $P$:
+
+$$
+n^2
+$$
+
+elements written.
+
+**Step 3.** Read $P$ and $V$ to compute $PV$:
+
+$$
+n^2 + nd_v
+$$
+
+elements read.
+
+Write $O$:
+
+$$
+nd_v
+$$
+
+elements written.
+
+Add everything:
+
+$$
+2nd_k + n^2 + n^2 + n^2 + nd_v + nd_v
+$$
+
+Since $d_k = d_v = d$, this becomes
+
+$$
+4nd + 3n^2
+$$
+
+elements moved per head in the forward pass.
+
+### 4.3 Numerical check
+
+For our running model, $d = 64$ and $n = 4{,}096$.
+
+First compute the linear term:
+
+$$
+4nd = 4 \cdot 4{,}096 \cdot 64 = 1{,}048{,}576
+$$
+
+Now the quadratic term:
+
+$$
+3n^2 = 3 \cdot 4{,}096^2 = 3 \cdot 16{,}777{,}216 = 50{,}331{,}648
+$$
+
+Total:
+
+$$
+4nd + 3n^2 = 1{,}048{,}576 + 50{,}331{,}648 = 51{,}380{,}224
+$$
+
+elements moved.
+
+The linear term is only about 1 million elements. The quadratic term is over 50 million.
+
+The ratio is
+
+$$
+\frac{50{,}331{,}648}{1{,}048{,}576} = 48
+$$
+
+So at 4K tokens, the $n^2$ traffic is already 48 times larger than the $nd$ traffic.
+
+This is the core reason FlashAttention exists. The bottleneck is not only arithmetic. It is moving those $n^2$ matrices to and from HBM.
 
 ---
 
-## Bottleneck 3: KV Cache During Autoregressive Inference
+## 5. Bottleneck 3: KV Cache During Autoregressive Inference
 
-The $O(n^2)$ compute and memory costs are training-time problems. During inference, there is a third, distinct problem: **KV cache growth**.
+The first two bottlenecks are primarily training-time problems. Inference introduces a different one, and in modern long-context generation it is often the decisive one.
 
-### What the KV Cache Is
+### 5.1 Why the cache exists at all
 
-Autoregressive generation produces tokens one at a time. At step $t$, the model attends over all previous $t$ tokens. Recomputing keys and values from scratch at each step would cost $O(t^2)$ total — the same quadratic we saw at training.
+During autoregressive generation, token $t+1$ attends over all previous tokens $1, \ldots, t$.
 
-The fix: cache the $K$ and $V$ tensors for all previous tokens. When generating token $t+1$, compute only one new row of $Q$, $K$, $V$; concatenate $K_\text{new}$ and $V_\text{new}$ to the cache; compute attention with the full cached $K$ and $V$.
+If we recomputed all keys and values from scratch at every generation step, total work over the full generated sequence would become quadratic again. So practical decoders cache the keys and values from previous steps. That cache is what makes autoregressive decoding feasible in the first place.
 
-This turns per-step compute from $O(t^2)$ to $O(t)$ at the cost of storing the cache.
+### 5.2 Cache bytes per token
 
-### Cost per Token
-
-At each layer, for each head, the cache holds one K vector of $d_k$ elements and one V vector of $d_v$ elements per token. In fp16 (2 bytes per element):
+For one token, one head, one layer, we store one key vector of length $d_k$ and one value vector of length $d_v$. That is
 
 $$
-\text{cache bytes per token} = L \cdot h \cdot (d_k + d_v) \cdot 2
+d_k + d_v
 $$
 
-Expanding each factor for our running model ($d_\text{model} = 512$, $h = 8$, $d_k = d_v = 64$, $L = 12$):
+elements.
 
-- $L = 12$ layers: factor 12
-- $h = 8$ heads per layer: factor 8
-- one K of $d_k = 64$ floats plus one V of $d_v = 64$ floats: $d_k + d_v = 128$ elements per head
-- fp16: 2 bytes per element
+In fp16, each element is 2 bytes, so:
 
 $$
-\text{bytes per token} = 12 \cdot 8 \cdot (64 + 64) \cdot 2 = 12 \cdot 8 \cdot 128 \cdot 2 = 24{,}576 \text{ bytes} \approx 24 \text{ KB/token}
+\text{bytes}_{1,1,1} = (d_k + d_v) \cdot 2
 $$
 
-This is 24 KB per context token. Not per batch — per *token*.
+Across $h$ heads and $L$ layers:
 
-### KV Cache Growth Table
+$$
+\boxed{\text{KV bytes/token} = L \cdot h \cdot (d_k + d_v) \cdot 2}
+$$
 
-| Context length | KV cache size | % of A100 (40 GB) |
-|---|---|---|
-| 1 024 | 24 MB | 0.06% |
-| 4 096 | 96 MB | 0.24% |
-| 16 384 | 384 MB | 0.96% |
-| 32 768 | 768 MB | 1.92% |
-| 65 536 | 1.5 GB | 3.75% |
-| **128 000** | **~3 GB** | **7.5%** |
+### 5.3 Numerical check
 
-At 128K tokens, the KV cache consumes ~3 GB. The model parameters require ~220 MB in fp16 (110 million parameters × 2 bytes). The KV cache is therefore 14× the model's own parameter memory — a striking inversion. And this is for a small 12-layer model. Scale to $L = 96$ layers, $h = 96$ heads, $d_k = d_v = 128$ (GPT-3 order of magnitude), and the per-token cost becomes $96 \cdot 96 \cdot 256 \cdot 2 = 4{,}718{,}592$ bytes ≈ 4.7 MB/token; at 128K tokens that is over 600 GB — far beyond any single GPU. Longer contexts require either fewer layers, narrower heads, or a fundamentally different caching strategy.
+Substitute the running model:
+
+$$
+L \cdot h \cdot (d_k + d_v) \cdot 2
+= 12 \cdot 8 \cdot (64 + 64) \cdot 2
+$$
+
+First add the key and value widths:
+
+$$
+64 + 64 = 128
+$$
+
+Then multiply:
+
+$$
+12 \cdot 8 \cdot 128 \cdot 2
+= 12 \cdot 8 \cdot 256
+= 12 \cdot 2{,}048
+= 24{,}576 \text{ bytes}
+$$
+
+So the cache cost is
+
+$$
+\boxed{24{,}576 \text{ bytes/token} \approx 24 \text{ KB/token}}
+$$
+
+### 5.4 Growth table
+
+| Context length $t$ | KV cache size |
+|---|---|
+| 1,024 | 24 MB |
+| 4,096 | 96 MB |
+| 16,384 | 384 MB |
+| 32,768 | 768 MB |
+| 65,536 | 1.5 GB |
+| 128,000 | 3.0 GB |
+
+This is for our small 12-layer model. The important point is not just the number. It is the scaling law:
+
+$$
+\text{KV cache} \propto t
+$$
+
+The cache grows linearly with generated context length and never shrinks unless we explicitly evict or compress it.
+
+### 5.5 A cleaner closed form
+
+Because $d_k = d_v$ and $h d_k = d_\text{model}$, the cache formula simplifies in a surprisingly clean way.
+
+Start from
+
+$$
+\text{KV bytes/token} = L \cdot h \cdot (d_k + d_v) \cdot 2
+$$
+
+Since $d_k = d_v$:
+
+$$
+d_k + d_v = 2d_k
+$$
+
+Substitute:
+
+$$
+\text{KV bytes/token} = L \cdot h \cdot 2d_k \cdot 2
+$$
+
+Group the $h d_k$ term:
+
+$$
+\text{KV bytes/token} = 4L(h d_k)
+$$
+
+Now use $h d_k = d_\text{model}$:
+
+$$
+\boxed{\text{KV bytes/token} = 4L d_\text{model}}
+$$
+
+### 5.6 Numerical check of the closed form
+
+Substitute $L = 12$ and $d_\text{model} = 512$:
+
+$$
+4 \cdot 12 \cdot 512 = 24{,}576
+$$
+
+bytes per token, exactly matching the earlier derivation.
+
+This form is worth remembering because it shows that, for standard MHA, the per-token KV cost depends only on model depth and width. The head count disappears once we use the conventional relation $h d_k = d_\text{model}$.
+
+### 5.7 Why this is different from the $n^2$ wall
+
+This is the part that confuses almost everyone. The KV cache is **not** another version of the training-time $n^2$ wall.
+
+It is different in two ways. First, the stored memory grows linearly with context length:
+
+$$
+O(t)
+$$
+
+Second, every new token must read the whole cache accumulated so far, so the per-step bandwidth cost also grows linearly with $t$.
+
+That is why long-context inference feels slow even when we generate only one token at a time. Each step drags a longer and longer KV history through memory.
+
+The next blog will derive this bandwidth bottleneck in much more detail. For now, the key fact is simple:
+
+$$
+\text{training breaks on } n^2,\qquad
+\text{inference breaks on the KV cache}
+$$
 
 ---
 
-## Three Problems, Three Lineages of Solutions
+## 6. Three Problems, Three Lineages of Solutions
 
-Each bottleneck independently motivated a research direction. Understanding which bottleneck each addresses is the key to understanding why these techniques look so different.
+Different attention papers look different because they are attacking different bottlenecks. Once we separate the bottlenecks, the literature becomes much easier to parse.
 
-### The $O(n^2)$ Memory Bottleneck → FlashAttention
+### 6.1 Compute bottleneck
 
-**Problem**: Materializing $S$ and $P$ requires $O(n^2)$ HBM reads and writes, making standard attention memory-bandwidth-bound.
+**Problem:** $QK^\top$ and $PV$ scale quadratically in sequence length.
 
-**Solution**: Never write S or P to HBM. Fuse all three attention steps into a single kernel. Use tiling and the **online softmax algorithm** (Milakov & Gimelshein, 2018) to compute the correct result from blocks of Q, K, V that fit in SRAM.
+Typical fixes include sparse attention, local-window attention, linear attention, and state-space replacements. These change what pairwise interactions are computed.
 
-**Result**: HBM accesses drop from $\Theta(Nd + N^2)$ to $\Theta(N^2 d^2 / M)$ where $M$ is SRAM size. For typical $M \gg d^2$, this is a large constant-factor reduction. The computation is now compute-bound, not memory-bound.
+### 6.2 Memory / HBM bottleneck
 
-FlashAttention solves this by tiling $Q$, $K$, $V$ into blocks that fit in SRAM and using the **online softmax algorithm** to accumulate the correct result block-by-block without ever writing $S$ or $P$ to HBM. It is an implementation optimization, not an architectural change — it computes exactly the same attention, just without the $N \times N$ materialization.
+**Problem:** materializing $S$ and $P$ forces large $n^2$ tensors through HBM.
 
-### The KV Cache Bottleneck → GQA, MQA, MLA
+The canonical fix here is FlashAttention. It does not change the attention formula. It changes the schedule: tile the computation so the large matrices are never written to HBM in the first place.
 
-**Problem**: Each layer, each head needs its own K and V cache. Memory grows as $L \times h \times d$ per token.
+### 6.3 KV-cache bottleneck
 
-**Solutions**:
-- **Multi-Query Attention (MQA)**: all query heads share one K and one V head. Cache shrinks by factor h.
-- **Grouped-Query Attention (GQA)**: query heads are grouped; each group shares one K/V pair. Intermediate tradeoff.
-- **Multi-head Latent Attention (MLA, DeepSeek)**: compress K and V into a low-rank latent vector; only cache the latent. Cache shrinks by factor $d_{kv}/d_\text{latent}$.
+**Problem:** inference stores and rereads one K and one V vector per layer, per head, per token.
 
-### The $O(n^2)$ Compute Bottleneck → Sparse and Linear Attention
+Typical fixes include Multi-Query Attention (MQA), Grouped-Query Attention (GQA), Multi-head Latent Attention (MLA), sliding-window caches, and KV quantization. These change what gets stored across decoding steps.
 
-**Problem**: Even with memory solved, FLOPs grow as $n^2$ for long sequences.
+### 6.4 Why one fix does not solve the others
 
-**Solutions**:
-- **Sparse attention** (Longformer, BigBird): only attend to a local window plus a few global tokens. FLOPs drop to $O(n)$.
-- **Linear attention**: replace the softmax with a kernel function that can be factored. The order of operations changes: instead of $(QK^\top)V$, compute $Q(K^\top V)$. This is $O(nd^2)$ per step — linear in $n$.
-- **State-space models** (Mamba, S4): replace attention entirely with a recurrent update. $O(n)$ compute and $O(1)$ inference state.
+This is the unifying insight of the whole post.
+
+FlashAttention solves the training memory traffic problem. It does **not** shrink the inference KV cache.
+
+GQA shrinks the inference KV cache. It does **not** remove the quadratic training-time $n \times n$ interaction pattern.
+
+Sparse or linear attention reduce quadratic arithmetic. They may or may not help the KV cache, depending on whether they also change what is stored.
+
+So when two papers claim to make attention "efficient," they may not be addressing the same bottleneck at all.
 
 ---
 
 ## Summary
 
-| Bottleneck | Cause | Scaling | Typical threshold | Primary fix |
-|---|---|---|---|---|
-| Compute | $QK^\top$ and $AV$ matrix multiplies | $O(n^2 d)$ | $n > 4{,}096$ | Sparse attention, linear attention |
-| Memory | Materializing $S$ and $P$ | $O(n^2)$ bytes | $n > 2{,}048$ | FlashAttention |
-| HBM bandwidth | Reading/writing $S$ and $P$ | $\Theta(Nd + N^2)$ accesses | $n > 1{,}024$ | FlashAttention |
-| KV cache | Caching $K$, $V$ for autoregression | $O(L \cdot h \cdot d)$ per token | $> 16\text{K}$ tokens | MQA, GQA, MLA |
+Vanilla attention breaks in three distinct ways. First, its arithmetic cost grows as $O(n^2)$ because every token interacts with every other token. Second, its training-time memory and HBM traffic are dominated by the dense $n \times n$ score and probability matrices. Third, its autoregressive inference path accumulates a KV cache whose size grows linearly with context and whose bandwidth cost grows with every generated token.
 
-None of these is a quirk that will be engineered away. They are structural consequences of how matrix multiplication scales. The only way out is to change what computation is done (sparse/linear), how it is scheduled on hardware (FlashAttention), or what gets stored (MQA/GQA/MLA).
-
-The next blog maps all five axes you can modify in attention — and shows how every variant in the literature is a specific point in that space.
+These three bottlenecks are why the literature branches: sparse and linear methods attack quadratic compute, FlashAttention attacks training-time memory traffic, and MQA/GQA/MLA attack the KV cache. The next blog zooms in on that third bottleneck and derives the KV-cache story much more deeply.
 
 ---
 
