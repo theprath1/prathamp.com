@@ -1,5 +1,5 @@
 ---
-title: "The KV Bottleneck Explained Deeply: Why Inference Is Memory-Bound"
+title: "The KV Bottleneck Explained: Why Inference Is Memory-Bound"
 description: "Building from exact byte counts to the fundamental insight: autoregressive inference is bottlenecked not by arithmetic but by memory bandwidth from loading keys and values. Every KV cache optimization in the literature is a response to this single bottleneck — derived step by step with concrete numbers."
 date: 2026-04-02
 tags: [machine-learning, attention, transformers, kv-cache, inference, memory-bandwidth]

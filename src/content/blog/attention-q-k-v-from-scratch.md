@@ -55,15 +55,7 @@ But the Transformer wants something else in addition. It wants the score functio
 
 ### 2.1 What Bahdanau's Alignment Model Does
 
-The additive alignment model mixes the two inputs inside a nonlinearity:
-
-$$
-\tanh(W_a s_{i-1} + U_a h_j)
-$$
-
-The query and the key are each projected into a shared hidden space, added, passed through $\tanh$, and then dotted with $\mathbf{v}_a$. That makes the compatibility function expressive, but it also means we cannot precompute a representation of the query alone and a representation of the key alone and then combine them with one large matrix multiply. The interaction happens before the final dot product with $\mathbf{v}_a$.
-
-This is not wrong. It is just much less GPU-friendly.
+The additive alignment model mixes the two inputs inside a nonlinearity: $\tanh(W_a s_{i-1} + U_a h_j)$. The query and the key are each projected into a shared hidden space, added, passed through $\tanh$, and then dotted with $\mathbf{v}_a$. That makes the compatibility function expressive, but it also means we cannot precompute a representation of the query alone and a representation of the key alone and then combine them with one large matrix multiply — the interaction happens before the final dot product with $\mathbf{v}_a$. This is not wrong. It is just much less GPU-friendly.
 
 ### 2.2 The Dot-Product Compatibility Function
 
@@ -155,41 +147,15 @@ Once the compatibility function has been factorized, the three projections appea
 
 ### 3.1 Query
 
-A **query** is what the current position is asking for.
-
-If token $i$ wants to find relevant information elsewhere in the sequence, its query is
-
-$$
-q_i = x_i W_Q
-$$
+A **query** is what the current position is asking for. If token $i$ wants to find relevant information elsewhere in the sequence, its query is $q_i = x_i W_Q$.
 
 ### 3.2 Key
 
-A **key** is how a position advertises what kind of information it contains.
-
-At position $j$:
-
-$$
-k_j = x_j W_K
-$$
-
-The query and key interact only to produce scores.
+A **key** is how a position advertises what kind of information it contains. At position $j$, the key is $k_j = x_j W_K$. The query and key interact only to produce scores.
 
 ### 3.3 Value
 
-A **value** is the actual content retrieved once a position is selected.
-
-At position $j$:
-
-$$
-v_j = x_j W_V
-$$
-
-This gives the third projection:
-
-$$
-v_j = x_j W_V
-$$
+A **value** is the actual content retrieved once a position is selected. At position $j$, the value is $v_j = x_j W_V$.
 
 ### 3.4 Matrix form
 
@@ -215,7 +181,7 @@ $$
 
 ### 3.5 Why keys and values are separated
 
-This is the key conceptual difference from Bahdanau attention. In Bahdanau's model, the encoder states $h_j$ served two roles at once. They were the things scored against, and they were also the things retrieved. In the Transformer, those roles are separated. Keys decide how positions are matched, while values decide what content is actually mixed into the output. A token might be easy to find for one reason and useful to retrieve for another.
+This is the key conceptual difference from Bahdanau attention. In Bahdanau's model, the encoder states $h_j$ served two roles at once: they were the things scored against, and they were also the things retrieved. In the Transformer, those roles are separated — keys decide how positions are matched, while values decide what content is actually mixed into the output. A token might be easy to find for one reason and useful to retrieve for another.
 
 ### 3.6 A concrete check: scores can stay the same while values change
 
@@ -275,45 +241,15 @@ $$
 
 ### 4.2 Row-wise softmax
 
-For each query position $i$, apply softmax over all keys:
-
-$$
-A_{ij} = \frac{\exp(S_{ij})}{\sum_{r=1}^{n} \exp(S_{ir})}
-$$
-
-This gives a full attention weight matrix
-
-$$
-A = \text{softmax}(S)
-$$
-
-where the softmax is applied row by row.
+For each query position $i$, we apply softmax over all keys: $A_{ij} = \frac{\exp(S_{ij})}{\sum_{r=1}^{n} \exp(S_{ir})}$. This gives a full attention weight matrix $A = \text{softmax}(S)$, where the softmax is applied row by row.
 
 ### 4.3 Weighted value retrieval
 
-Now retrieve content by multiplying those weights by the values:
-
-$$
-O = AV
-$$
-
-Entry-wise, this says
-
-$$
-o_i = \sum_{j=1}^{n} A_{ij} v_j
-$$
-
-This is exactly the same weighted-memory-retrieval structure as Bahdanau attention, except that the weights came from a batched dot product instead of an additive feedforward score.
+Now retrieve content by multiplying those weights by the values: $O = AV$. Entry-wise, this says $o_i = \sum_{j=1}^{n} A_{ij} v_j$. This is exactly the same weighted-memory-retrieval structure as Bahdanau attention, except that the weights came from a batched dot product instead of an additive feedforward score.
 
 ### 4.4 The scaling factor
 
-The Transformer inserts one additional factor:
-
-$$
-\frac{1}{\sqrt{d_k}}
-$$
-
-So the final formula becomes
+The Transformer inserts one additional factor of $\frac{1}{\sqrt{d_k}}$, so the final formula becomes
 
 $$
 \boxed{\text{Attention}(Q,K,V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V}
@@ -329,31 +265,9 @@ This is the part that confuses almost everyone. The scaling is not cosmetic. It 
 
 ### 5.1 Variance of a dot product
 
-Assume the components of a query and key are independent standard normal variables:
+Assume the components of a query and key are independent standard normal variables, $q_r \sim \mathcal{N}(0,1)$ and $k_r \sim \mathcal{N}(0,1)$ for $r = 1, \ldots, d_k$. We want the variance of $q^\top k = \sum_{r=1}^{d_k} q_r k_r$.
 
-$$
-q_r \sim \mathcal{N}(0,1),
-\qquad
-k_r \sim \mathcal{N}(0,1),
-\qquad
-r = 1, \ldots, d_k
-$$
-
-We want the variance of
-
-$$
-q^\top k = \sum_{r=1}^{d_k} q_r k_r
-$$
-
-First, the mean of one product term:
-
-$$
-\mathbb{E}[q_r k_r] = \mathbb{E}[q_r]\mathbb{E}[k_r] = 0 \cdot 0 = 0
-$$
-
-This uses independence and the **multiplication rule for expectations of independent variables**.
-
-Now the variance of one term:
+First, the mean of one product term is $\mathbb{E}[q_r k_r] = \mathbb{E}[q_r]\mathbb{E}[k_r] = 0 \cdot 0 = 0$, using independence and the **multiplication rule for expectations of independent variables**. Now the variance of one term:
 
 $$
 \text{Var}(q_r k_r) = \mathbb{E}[(q_r k_r)^2] - (\mathbb{E}[q_r k_r])^2
@@ -365,23 +279,7 @@ $$
 \text{Var}(q_r k_r) = \mathbb{E}[q_r^2]\mathbb{E}[k_r^2]
 $$
 
-again by independence.
-
-Because each variable has variance 1 and mean 0:
-
-$$
-\mathbb{E}[q_r^2] = 1,
-\qquad
-\mathbb{E}[k_r^2] = 1
-$$
-
-So
-
-$$
-\text{Var}(q_r k_r) = 1
-$$
-
-Now sum over all $d_k$ terms. Since the terms are independent, apply the **additivity of variance for independent random variables**:
+again by independence. Because each variable has variance 1 and mean 0, we have $\mathbb{E}[q_r^2] = 1$ and $\mathbb{E}[k_r^2] = 1$, so $\text{Var}(q_r k_r) = 1$. Now sum over all $d_k$ terms. Since the terms are independent, apply the **additivity of variance for independent random variables**:
 
 $$
 \text{Var}\!\left(\sum_{r=1}^{d_k} q_r k_r\right)
@@ -404,11 +302,7 @@ $$
 
 ### 5.2 Why large variance hurts softmax
 
-If $d_k$ is large, the dot products become large in magnitude.
-
-Large positive gaps in the score vector make softmax almost one-hot. When that happens, the softmax saturates and its gradients become tiny.
-
-Dividing by $\sqrt{d_k}$ rescales the variance back to 1:
+If $d_k$ is large, the dot products become large in magnitude. Large positive gaps in the score vector make softmax almost one-hot, and when that happens the softmax saturates and its gradients become tiny. Dividing by $\sqrt{d_k}$ rescales the variance back to 1:
 
 $$
 \text{Var}\!\left(\frac{q^\top k}{\sqrt{d_k}}\right)
@@ -652,21 +546,7 @@ $$
 
 ### 6.6 Interpretation
 
-Token 1 started as a pure noun-like vector:
-
-$$
-[1,\ 0]
-$$
-
-After self-attention it became
-
-$$
-[0.616,\ 0.385]
-$$
-
-It kept mostly noun content, but absorbed some verb content from the other tokens.
-
-That is the core role of self-attention: contextual mixing through learned, content-dependent weighted averages.
+Token 1 started as a pure noun-like vector $[1,\ 0]$ and after self-attention became $[0.616,\ 0.385]$. It kept mostly noun content but absorbed some verb content from the other tokens. That is the core role of self-attention: contextual mixing through learned, content-dependent weighted averages.
 
 ---
 
@@ -722,13 +602,7 @@ A single head gives one attention pattern. If we want the model to track several
 
 ### 8.1 Definition
 
-Head $r$ computes
-
-$$
-\text{head}_r = \text{Attention}(QW_r^Q, KW_r^K, VW_r^V)
-$$
-
-Then concatenate:
+Each head $r$ computes $\text{head}_r = \text{Attention}(QW_r^Q, KW_r^K, VW_r^V)$, and the results are concatenated and projected:
 
 $$
 \text{MultiHead}(Q,K,V) = \text{concat}(\text{head}_1, \ldots, \text{head}_h)\, W^O
@@ -736,33 +610,11 @@ $$
 
 ### 8.2 Parameter count
 
-With $h$ heads and $d_k = d_v = d_\text{model}/h$, the attention parameter count is
+With $h$ heads and $d_k = d_v = d_\text{model}/h$, the attention parameter count is $4 d_\text{model}^2$, as we will re-derive in more detail later in the series. For $d_\text{model} = 512$, that gives $4 \cdot 512^2 = 1{,}048{,}576$ parameters in the attention block. The main point of multi-head attention is not more total parameters — it is more parallel attention subspaces.
 
-$$
-4 d_\text{model}^2
-$$
+### 8.3 Why multiple heads help
 
-as we will re-derive in more detail later in the series.
-
-### 8.3 Numerical check
-
-For $d_\text{model} = 512$:
-
-$$
-4 \cdot 512^2 = 1{,}048{,}576
-$$
-
-parameters in the attention block.
-
-The main point of multi-head attention is not more total parameters. It is more parallel attention subspaces.
-
-### 8.4 Why multiple heads help
-
-A single head produces one attention distribution per token. If token 1 needs to look at token 2 for syntax and token 3 for semantics, one head has to blend those two requirements into one row of weights.
-
-Multiple heads let the model keep several attention patterns alive at once. One head can specialize in one relation, another head in another relation, and the output projection $W^O$ can recombine them afterward.
-
-This is not a proof that heads always specialize cleanly. It is the representational reason the design exists.
+A single head produces one attention distribution per token. If token 1 needs to look at token 2 for syntax and token 3 for semantics, one head has to blend those two requirements into one row of weights. Multiple heads let the model keep several attention patterns alive at once — one head can specialize in one relation, another head in another relation, and the output projection $W^O$ can recombine them afterward. This is not a proof that heads always specialize cleanly. It is the representational reason the design exists.
 
 ---
 
@@ -770,33 +622,15 @@ This is not a proof that heads always specialize cleanly. It is the representati
 
 ### 9.1 Self-attention
 
-In **self-attention**, queries, keys, and values all come from the same sequence:
-
-$$
-Q = XW_Q,\qquad K = XW_K,\qquad V = XW_V
-$$
-
-This is what we computed above.
+In **self-attention**, queries, keys, and values all come from the same sequence: $Q = XW_Q$, $K = XW_K$, $V = XW_V$. This is what we computed above.
 
 ### 9.2 Cross-attention
 
-In **cross-attention**, the queries come from one sequence and the keys/values come from another:
-
-$$
-Q = X_\text{query} W_Q,
-\qquad
-K = X_\text{memory} W_K,
-\qquad
-V = X_\text{memory} W_V
-$$
-
-This is the Transformer version of Bahdanau-style encoder-decoder attention.
+In **cross-attention**, the queries come from one sequence and the keys/values come from another: $Q = X_\text{query} W_Q$, $K = X_\text{memory} W_K$, $V = X_\text{memory} W_V$. This is the Transformer version of Bahdanau-style encoder-decoder attention.
 
 ### 9.3 Masked self-attention
 
-In decoder self-attention, a token must not look at future tokens.
-
-So we add a **causal mask**:
+In decoder self-attention, a token must not look at future tokens, so we add a **causal mask**:
 
 $$
 S_\text{masked} = \frac{QK^\top + M}{\sqrt{d_k}}
@@ -870,21 +704,7 @@ So the interaction path length between any two positions inside one self-attenti
 
 ### 10.1 Numerical check
 
-In our running example, token 3 attends to token 1 with score
-
-$$
-0.5
-$$
-
-before scaling and
-
-$$
-0.3536
-$$
-
-after scaling. That direct token-3-to-token-1 interaction is present immediately in the score matrix. No recurrence is needed to transmit it across intermediate positions.
-
-This shorter path length is one of the reasons self-attention handles long-range interactions so well.
+In our running example, token 3 attends to token 1 with score $0.5$ before scaling and $0.3536$ after scaling. That direct token-3-to-token-1 interaction is present immediately in the score matrix — no recurrence is needed to transmit it across intermediate positions. This shorter path length is one of the reasons self-attention handles long-range interactions so well.
 
 ---
 
@@ -894,11 +714,7 @@ Self-attention has one major omission: the formula itself does not know token or
 
 ### 11.1 Why order is missing
 
-If we permute the rows of $X$, then the rows of $Q$, $K$, and $V$ are permuted in the same way. The output rows are then permuted in the same way.
-
-That means the bare self-attention mechanism is **permutation equivariant**.
-
-This is good for set processing. It is bad for language, where "dog bites man" and "man bites dog" must not mean the same thing.
+If we permute the rows of $X$, then the rows of $Q$, $K$, and $V$ are permuted in the same way, and the output rows are then permuted in the same way. That means the bare self-attention mechanism is **permutation equivariant**. This is good for set processing, but bad for language, where "dog bites man" and "man bites dog" must not mean the same thing.
 
 ### 11.2 Positional encodings
 
@@ -972,7 +788,7 @@ In Transformer attention, the query is a learned projection of the current token
 
 ### 12.3 The unified view
 
-Both compute
+Both mechanisms compute
 
 $$
 \text{weights} = \text{softmax}(\text{compatibility scores})
@@ -984,7 +800,7 @@ $$
 \text{output} = \text{weighted average of stored values}
 $$
 
-So the Transformer does not abandon attention. It re-expresses the same retrieval idea in a form that is easier to batch, easier to parallelize, and better suited to self-attention over one sequence.
+So the Transformer does not abandon attention — it re-expresses the same retrieval idea in a form that is easier to batch, easier to parallelize, and better suited to self-attention over one sequence.
 
 ---
 

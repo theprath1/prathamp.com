@@ -30,9 +30,7 @@ $$
 
 with potentially different lengths.
 
-Before attention, the standard design had two pieces: an **encoder** that reads the full source sequence and compresses it into one vector $\mathbf{c}$, and a **decoder** that generates each target token from that same vector $\mathbf{c}$.
-
-The conditional probability at target step $i$ is written as
+Before attention, the standard design had two pieces: an **encoder** that reads the full source sequence and compresses it into one vector $\mathbf{c}$, and a **decoder** that generates each target token from that same vector $\mathbf{c}$. The conditional probability at target step $i$ is written as
 
 $$
 p(y_i \mid y_1, \ldots, y_{i-1}, \mathbf{x}) = g(y_{i-1}, s_i, \mathbf{c})
@@ -40,7 +38,7 @@ $$
 
 where $s_i$ is the decoder hidden state and $g$ is a nonlinear output function.
 
-The important point is not the exact form of $g$. The important point is that the same $\mathbf{c}$ appears in every conditional.
+The important point is not the exact form of $g$ — the important point is that the same $\mathbf{c}$ appears in every conditional.
 
 ### 1.2 The Bottleneck
 
@@ -56,27 +54,11 @@ $$
 \mathbf{c} = h_{T_x}
 $$
 
-So the whole source sequence must be compressed into one vector before decoding even starts.
-
-That means the decoder uses:
-
-$$
-g(y_0, s_1, \mathbf{c}),\qquad
-g(y_1, s_2, \mathbf{c}),\qquad
-g(y_2, s_3, \mathbf{c}),\ \ldots
-$$
-
-The target step changes. The decoder hidden state changes. The previous output token changes. But the source summary $\mathbf{c}$ does not.
-
-This is the problem. The entire source sentence has to survive inside one fixed-size summary, and the decoder has no way to go back and look at particular source positions later.
+So the whole source sequence must be compressed into one vector before decoding even starts. That means the decoder uses $g(y_0, s_1, \mathbf{c})$, then $g(y_1, s_2, \mathbf{c})$, then $g(y_2, s_3, \mathbf{c})$, and so on. The target step changes, the decoder hidden state changes, and the previous output token changes — but the source summary $\mathbf{c}$ does not. This is the problem. The entire source sentence has to survive inside one fixed-size summary, and the decoder has no way to go back and look at particular source positions later.
 
 ### 1.3 Why one vector is too rigid
 
-Suppose the source sentence is long and the decoder is currently generating target word 17. The information needed for word 17 might live near source word 3. A few steps later, when generating target word 18, the useful information might live near source word 11.
-
-But with a fixed context vector, the decoder cannot ask for different source information at different times. It gets one precomputed summary and has to reuse it for every target position.
-
-This is the **fixed-length context vector bottleneck**. Bahdanau et al. showed empirically that translation quality degrades as source sentence length grows. The model is not failing because recurrent networks are impossible. It is failing because the decoder is forced to read the whole source through one frozen summary.
+Suppose the source sentence is long and the decoder is currently generating target word 17. The information needed for word 17 might live near source word 3, but a few steps later, when generating target word 18, the useful information might live near source word 11. With a fixed context vector, the decoder cannot ask for different source information at different times — it gets one precomputed summary and has to reuse it for every target position. This is the **fixed-length context vector bottleneck**. Bahdanau et al. showed empirically that translation quality degrades as source sentence length grows. The model is not failing because recurrent networks are impossible. It is failing because the decoder is forced to read the whole source through one frozen summary.
 
 ---
 
@@ -120,27 +102,11 @@ $$
 
 The new objects are the weights $\alpha_{ij}$.
 
-An **attention weight** is how much target position $i$ should use source position $j$.
-
-For example, $\alpha_{2,3}$ means "how much should the second target word attend to the third source word?"
+An **attention weight** $\alpha_{ij}$ tells us how much target position $i$ should use source position $j$. For example, $\alpha_{2,3}$ means "how much should the second target word attend to the third source word?"
 
 ### 3.1 The two properties the weights must satisfy
 
-If the context vector is supposed to behave like a soft selection over source positions, the weights have to satisfy two basic constraints:
-
-$$
-\alpha_{ij} \ge 0 \quad \text{for all } j
-$$
-
-and
-
-$$
-\sum_{j=1}^{T_x} \alpha_{ij} = 1
-$$
-
-for each fixed target position $i$.
-
-These two conditions make $c_i$ a **convex combination** of the encoder states.
+If the context vector is supposed to behave like a soft selection over source positions, the weights have to satisfy two basic constraints: they must be nonnegative, $\alpha_{ij} \ge 0$ for all $j$, and they must sum to one, $\sum_{j=1}^{T_x} \alpha_{ij} = 1$, for each fixed target position $i$. These two conditions make $c_i$ a **convex combination** of the encoder states.
 
 ### 3.2 What a convex combination means here
 
@@ -204,21 +170,7 @@ All three results lie inside $[0.1, 0.9]$, as they must.
 
 ### 3.4 Why the weighted sum must be soft
 
-A natural question is why we do not simply pick one source position and stop there.
-
-That would mean using a hard argmax:
-
-$$
-j^* = \arg\max_j e_{ij}
-$$
-
-and then setting
-
-$$
-c_i = h_{j^*}
-$$
-
-The problem is that the argmax is discrete. Gradients do not flow cleanly through it during ordinary backpropagation. The weighted sum is differentiable, so the decoder can learn where to look by gradient descent rather than by a separate combinatorial procedure. That is the key engineering reason for soft attention.
+A natural question is why we do not simply pick one source position and stop there. That would mean using a hard argmax $j^* = \arg\max_j e_{ij}$ and then setting $c_i = h_{j^*}$. The problem is that the argmax is discrete — gradients do not flow cleanly through it during ordinary backpropagation. The weighted sum is differentiable, so the decoder can learn where to look by gradient descent rather than by a separate combinatorial procedure. That is the key engineering reason for soft attention.
 
 ---
 
@@ -240,15 +192,7 @@ $$
 e_{ij} = \mathbf{v}_a^\top \tanh\!\left(W_a s_{i-1} + U_a h_j\right)
 $$
 
-This looks dense, so let us unpack it. We first project the decoder state with $W_a$ and the encoder state with $U_a$. We then add those projected vectors, apply $\tanh$, and finally take a dot product with $\mathbf{v}_a$. The result is one scalar score.
-
-A useful implementation detail from the paper is that
-
-$$
-U_a h_j
-$$
-
-depends only on the encoder side, not on the decoder step $i$, so it can be precomputed once for every source position.
+This looks dense, so let us unpack it. We first project the decoder state with $W_a$ and the encoder state with $U_a$, add those projected vectors, apply $\tanh$, and finally take a dot product with $\mathbf{v}_a$ to produce one scalar score. A useful implementation detail from the paper is that the term $U_a h_j$ depends only on the encoder side, not on the decoder step $i$, so it can be precomputed once for every source position.
 
 ### 4.2 The scalar version of the running example
 
@@ -328,15 +272,7 @@ $$
 
 ### 4.4 What the ordering means
 
-In our toy scalar setup:
-
-$$
-0.8854 > 0.6044 > 0.5370
-$$
-
-so source word 2 receives the highest score.
-
-That is consistent with the source values: $h_2 = 0.9$ is the largest annotation, and the scalar function
+In our toy scalar setup, $0.8854 > 0.6044 > 0.5370$, so source word 2 receives the highest score. That is consistent with the source values: $h_2 = 0.9$ is the largest annotation, and the scalar function
 
 $$
 \tanh(s_0 + h_j)
@@ -366,25 +302,7 @@ $$
 
 ### 5.1 Why softmax gives valid weights
 
-We need two things: nonnegative weights, and weights that sum to 1.
-
-The exponential gives the first immediately:
-
-$$
-\exp(e_{ij}) > 0
-$$
-
-for every real $e_{ij}$.
-
-So
-
-$$
-\alpha_{ij} > 0
-$$
-
-for every $j$.
-
-Now sum over all $j$:
+We need two things: nonnegative weights, and weights that sum to 1. The exponential gives the first immediately, since $\exp(e_{ij}) > 0$ for every real $e_{ij}$, which means $\alpha_{ij} > 0$ for every $j$. Now sum over all $j$:
 
 $$
 \sum_{j=1}^{T_x} \alpha_{ij}
@@ -407,14 +325,7 @@ Exactly what we need.
 
 ### 5.2 A useful identity: score differences turn into weight ratios
 
-Take two source positions $a$ and $b$ at the same target step $i$:
-
-$$
-\frac{\alpha_{ia}}{\alpha_{ib}}
-= \frac{\exp(e_{ia}) / \sum_k \exp(e_{ik})}{\exp(e_{ib}) / \sum_k \exp(e_{ik})}
-$$
-
-The shared denominator cancels:
+Take two source positions $a$ and $b$ at the same target step $i$. Their weight ratio is $\frac{\alpha_{ia}}{\alpha_{ib}} = \frac{\exp(e_{ia}) / \sum_k \exp(e_{ik})}{\exp(e_{ib}) / \sum_k \exp(e_{ik})}$. The shared denominator cancels:
 
 $$
 \frac{\alpha_{ia}}{\alpha_{ib}} = \frac{\exp(e_{ia})}{\exp(e_{ib})}
@@ -640,9 +551,7 @@ $$
 
 ### 6.2 Interpretation
 
-The value $0.4558$ is not equal to any one source annotation. That is the whole point. The decoder is not copying one source state. It is retrieving a weighted mixture. Source word 2 pulls the context upward because it received the largest weight, while source words 1 and 3 pull it back down because their annotations are smaller.
-
-The result sits between the source values:
+The value $0.4558$ is not equal to any one source annotation, and that is the whole point. The decoder is not copying one source state — it is retrieving a weighted mixture. Source word 2 pulls the context upward because it received the largest weight, while source words 1 and 3 pull it back down because their annotations are smaller. The result sits between the source values:
 
 $$
 0.1 \le 0.4558 \le 0.9
@@ -652,19 +561,7 @@ as predicted by the convex-combination argument earlier.
 
 ### 6.3 Compare with the no-attention baseline
 
-Without attention, we said the simplest old context would be
-
-$$
-c = h_3 = 0.1
-$$
-
-With attention, the decoder instead receives
-
-$$
-c_1 = 0.4558
-$$
-
-The difference is not a small tweak. It is a different access pattern. In the old model, every target word receives the same source summary. In the attention model, each target word performs its own retrieval from the full source memory bank.
+Without attention, we said the simplest old context would be $c = h_3 = 0.1$. With attention, the decoder instead receives $c_1 = 0.4558$. The difference is not a small tweak — it is a different access pattern. In the old model, every target word receives the same source summary. In the attention model, each target word performs its own retrieval from the full source memory bank.
 
 ### 6.4 Rewriting the context to see what matters most
 
@@ -746,20 +643,7 @@ The weighted-sum formulation is not only expressive. It is differentiable from e
 
 ### 7.1 Gradient with respect to the attention weights
 
-Treat the encoder annotations as fixed for a moment. Then
-
-$$
-c_i = \sum_j \alpha_{ij} h_j
-$$
-
-Differentiate with respect to one weight $\alpha_{ij}$:
-
-$$
-\frac{\partial c_i}{\partial \alpha_{ij}}
-= \frac{\partial}{\partial \alpha_{ij}} \left(\sum_{r} \alpha_{ir} h_r\right)
-$$
-
-By the **linearity of differentiation**, every term with $r \ne j$ differentiates to zero because it does not depend on $\alpha_{ij}$. Only the $r=j$ term remains:
+Treat the encoder annotations as fixed for a moment. The context vector is $c_i = \sum_j \alpha_{ij} h_j$, so differentiating with respect to one weight $\alpha_{ij}$ gives $\frac{\partial c_i}{\partial \alpha_{ij}} = \frac{\partial}{\partial \alpha_{ij}} \left(\sum_{r} \alpha_{ir} h_r\right)$. By the **linearity of differentiation**, every term with $r \ne j$ differentiates to zero because it does not depend on $\alpha_{ij}$, and only the $r=j$ term remains:
 
 $$
 \frac{\partial c_i}{\partial \alpha_{ij}}
@@ -770,19 +654,7 @@ So the gradient flowing into $\alpha_{ij}$ is directly modulated by the encoder 
 
 ### 7.2 Why this matters
 
-This means the loss can push on the attention weights smoothly. Those weights are smooth functions of the alignment scores through softmax, and the alignment scores are smooth functions of the encoder and decoder states through the feedforward alignment model.
-
-So gradients can flow:
-
-$$
-\text{loss}
-\to c_i
-\to \alpha_{ij}
-\to e_{ij}
-\to (s_{i-1}, h_j)
-$$
-
-That is why the whole system can be trained end to end with backpropagation.
+This means the loss can push on the attention weights smoothly. Those weights are smooth functions of the alignment scores through softmax, and the alignment scores are smooth functions of the encoder and decoder states through the feedforward alignment model. So gradients flow from the loss through $c_i$, then through the attention weights $\alpha_{ij}$, then through the alignment scores $e_{ij}$, and finally into the encoder and decoder states $(s_{i-1}, h_j)$. That is why the whole system can be trained end to end with backpropagation.
 
 ---
 
@@ -794,19 +666,7 @@ Bahdanau et al. obtain them from a **Bidirectional Recurrent Neural Network**.
 
 ### 8.1 Forward and backward states
 
-The forward encoder reads the source left to right:
-
-$$
-\overrightarrow{h}_t = f(x_t, \overrightarrow{h}_{t-1})
-$$
-
-The backward encoder reads right to left:
-
-$$
-\overleftarrow{h}_t = f(x_t, \overleftarrow{h}_{t+1})
-$$
-
-The annotation at source position $j$ is the concatenation:
+The forward encoder reads the source left to right, computing $\overrightarrow{h}_t = f(x_t, \overrightarrow{h}_{t-1})$, while the backward encoder reads right to left, computing $\overleftarrow{h}_t = f(x_t, \overleftarrow{h}_{t+1})$. The annotation at source position $j$ is the concatenation of both directions:
 
 $$
 h_j = \begin{bmatrix}
@@ -815,21 +675,13 @@ h_j = \begin{bmatrix}
 \end{bmatrix}
 $$
 
-So each annotation contains both left context and right context.
-
-### 8.2 Why this matters
-
-If the source word is "bank," its meaning may depend on both the word before it and the word after it. A bidirectional annotation can encode that local context before attention ever begins.
-
-That is why the encoder states are a good memory bank. Each $h_j$ is not a raw word embedding. It is already a contextual summary centered on source position $j$.
+So each annotation contains both left context and right context. If the source word is "bank," its meaning may depend on both the word before it and the word after it, and a bidirectional annotation can encode that local context before attention ever begins. That is why the encoder states are a good memory bank — each $h_j$ is not a raw word embedding but already a contextual summary centered on source position $j$.
 
 ---
 
 ## 9. The Full Decoder Objective
 
-The decoder does not stop at computing $c_i$. At target step $i$, it computes the attention-based context vector, updates the decoder state, and then predicts the next word.
-
-The full translation probability factorizes by the **chain rule of probability**:
+The decoder does not stop at computing $c_i$. At target step $i$, it computes the attention-based context vector, updates the decoder state, and then predicts the next word. The full translation probability factorizes by the **chain rule of probability**:
 
 $$
 p(\mathbf{y}\mid\mathbf{x})
@@ -867,15 +719,9 @@ $$
 \end{bmatrix}
 $$
 
-Each row is a probability distribution over source positions for one target token.
+Each row is a probability distribution over source positions for one target token. This makes the memory interpretation explicit: the encoder annotations $h_j$ are the memory slots, the decoder state $s_{i-1}$ is the query, the scores $e_{ij}$ measure compatibility between that query and each slot, softmax turns those compatibilities into a distribution, and the weighted sum returns the retrieved content.
 
-This makes the memory interpretation explicit. The encoder annotations $h_j$ are the memory slots. The decoder state $s_{i-1}$ is the query. The scores $e_{ij}$ measure compatibility between that query and each slot. Softmax turns those compatibilities into a distribution, and the weighted sum returns the retrieved content.
-
-This is already most of the modern query-key-value story, just without the names.
-
-In Bahdanau attention, the query is the decoder state, the key is the encoder annotation, and the value is the encoder annotation as well.
-
-The Transformer will keep the same memory-retrieval pattern but separate keys and values into different learned projections.
+This is already most of the modern query-key-value story, just without the names. In Bahdanau attention, the query is the decoder state, the key is the encoder annotation, and the value is the encoder annotation as well. The Transformer will keep the same memory-retrieval pattern but separate keys and values into different learned projections.
 
 ---
 
@@ -883,27 +729,15 @@ The Transformer will keep the same memory-retrieval pattern but separate keys an
 
 ### 11.1 Attention is not hard selection
 
-Attention does not pick one source token and ignore the rest.
-
-Even when one weight is large, the output is still a weighted average. In our running example, source word 2 has the largest weight:
-
-$$
-0.4063
-$$
-
-But it does not get all the mass. The other two source words still contribute.
+Attention does not pick one source token and ignore the rest. Even when one weight is large, the output is still a weighted average. In our running example, source word 2 has the largest weight at $0.4063$, but it does not get all the mass — the other two source words still contribute.
 
 ### 11.2 Attention weights are not explanations by default
 
-The attention weights tell us where the model routed information for this mechanism. They do not automatically tell us why the translation is correct or whether the model "understood" the sentence in a human sense.
-
-They are routing coefficients, not magical semantic certificates.
+The attention weights tell us where the model routed information for this mechanism. They do not automatically tell us why the translation is correct or whether the model "understood" the sentence in a human sense. They are routing coefficients, not magical semantic certificates.
 
 ### 11.3 The toy scalar model is less expressive than the real one
 
-This is the part that usually feels wrong on a first pass through a tiny example.
-
-In our scalar toy model,
+This is the part that usually feels wrong on a first pass through a tiny example. In our scalar toy model,
 
 $$
 e_{ij} = \tanh(s_{i-1} + h_j)
@@ -913,17 +747,13 @@ and $\tanh$ is increasing. So if $h_2 > h_1 > h_3$, then source word 2 will alwa
 
 That might make it seem like attention cannot change its ranking across target positions.
 
-That conclusion would be wrong.
-
-The full model is
+That conclusion would be wrong. The full model is
 
 $$
 e_{ij} = \mathbf{v}_a^\top \tanh(W_a s_{i-1} + U_a h_j)
 $$
 
-where $s_{i-1}$ and $h_j$ are vectors and $W_a$, $U_a$, $\mathbf{v}_a$ are learned. Different decoder states can interact with different encoder annotations in different directions. The ranking can change from one target position to the next.
-
-Our scalar example is useful because it makes the arithmetic transparent. The full vector model is useful because it restores expressive power.
+where $s_{i-1}$ and $h_j$ are vectors and $W_a$, $U_a$, $\mathbf{v}_a$ are learned. Different decoder states can interact with different encoder annotations in different directions, so the ranking can change from one target position to the next. Our scalar example is useful because it makes the arithmetic transparent, while the full vector model is useful because it restores expressive power.
 
 ---
 
