@@ -810,5 +810,5 @@ The KV cache during autoregressive inference costs $L \cdot h \cdot (d_k + d_v) 
 
 ---
 
-*Previous: [The KV Bottleneck Explained Deeply](/blog/attention-kv-bottleneck)*
-*Next: Multi-Query Attention — The Extreme Compression (MQA)*
+*Previous: [The KV Bottleneck Explained Deeply](/blog/attention-kv-bottleneck)*  
+*Next: [Mathematical Prerequisites for DeepSeek-V2](/blog/math-prerequisites-for-deepseek-v2)*

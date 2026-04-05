@@ -3,7 +3,7 @@ title: "Mathematical Prerequisites for DeepSeek-V2"
 description: "Building the linear algebra foundations for Multi-head Latent Attention — matrix-vector multiplication, transpose, associativity, non-commutativity, the bilinear identity, linearity over sums, low-rank factorization, and the dot product of concatenated vectors — all derived step by step with one consistent 3-dimensional example."
 date: 2026-04-05
 tags: [machine-learning, linear-algebra, mathematics, attention, deepseek]
-order: 3
+order: 2
 ---
 
 The [DeepSeek-V2 blog](/blog/deepseek-v2-mla-and-deepseekmoe) derives Multi-head Latent Attention (MLA), an attention mechanism that compresses keys and values into a shared low-rank latent vector and then recovers them through up-projection matrices. The central computational trick — matrix absorption — rewrites the attention formula so that keys and values are never explicitly computed for cached tokens. Every step of that trick relies on basic linear algebra identities: the transpose, associativity, non-commutativity, and linearity of matrix multiplication.
@@ -529,3 +529,8 @@ The content similarity and the positional similarity contribute additively. They
 We built eight linear algebra tools. **Matrix-vector multiplication** takes a matrix and a vector and produces a new vector whose dimension equals the number of rows of the matrix — this is how every projection in MLA works. **The transpose** swaps rows and columns, and the **transpose of a product** reverses the order: $(XY)^T = Y^T X^T$. **Matrix-matrix multiplication** extends the row-dot-column rule to two matrices. **Associativity** says $(AB)C = A(BC)$ — this lets us precompute combined projection matrices in MLA. **Non-commutativity** says $AB \neq BA$ in general — this is why RoPE cannot be pushed inside the up-projection. The **bilinear identity** $\mathbf{a}^T M \mathbf{b} = (M^T \mathbf{a})^T \mathbf{b}$ moves a matrix from one side of a dot product to the other — this is the heart of the key absorption trick. **Linearity** lets us pull a matrix out of a weighted sum — this is how the value absorption works. **Low-rank factorization** writes $W = UV$ with a small intermediate dimension — this is the compression that makes MLA's cache so small. And the **dot product of concatenated vectors** decomposes into independent terms — this is why decoupled RoPE works.
 
 With these tools in hand, we are ready for the [DeepSeek-V2 blog](/blog/deepseek-v2-mla-and-deepseekmoe), where we put them all together to derive Multi-head Latent Attention and DeepSeekMoE from scratch.
+
+---
+
+*Previous: [Grouped-Query Attention: Fewer KV Heads, Same Quality](/blog/attention-gqa)*  
+*Next: [DeepSeek-V2 from Scratch: Multi-head Latent Attention and DeepSeekMoE](/blog/deepseek-v2-mla-and-deepseekmoe)*

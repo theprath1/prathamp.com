@@ -3,7 +3,7 @@ title: "DeepSeek-V2 from Scratch: Multi-head Latent Attention and DeepSeekMoE"
 description: "Building DeepSeek-V2's two core innovations from the ground up — low-rank KV joint compression, decoupled RoPE, matrix absorption, fine-grained expert segmentation, shared experts, and three-level load balancing — all derived step by step with concrete numbers."
 date: 2026-04-05
 tags: [machine-learning, attention, transformers, mla, kv-cache, mixture-of-experts, deepseek]
-order: 2
+order: 1
 ---
 
 The previous blogs derived how GQA reduces the KV cache by sharing key-value heads across query groups. GQA with $g$ groups cuts the cache by a factor of $h/g$, and MQA ($g = 1$) goes all the way down to a single KV head — but at a quality cost. The fundamental tension was clear: fewer KV heads means less memory, but also less representational capacity.
@@ -763,3 +763,7 @@ DeepSeek-V2 contributes two architectural innovations that are independent and c
 **Multi-head Latent Attention** replaces the standard practice of caching separate key and value vectors with a single low-rank latent vector $\mathbf{c}_t^{KV} \in \mathbb{R}^{d_c}$, from which keys and values are recovered via learned up-projections. Position information is carried by a separate decoupled RoPE key $\mathbf{k}_t^R$ that avoids the incompatibility between RoPE and low-rank compression. During inference, the up-projection matrices are absorbed into the query and output projections via the associative law of matrix multiplication, so keys and values are never explicitly computed for cached tokens. The result: a KV cache equivalent to GQA with only 2.25 groups, but with performance stronger than full MHA.
 
 **DeepSeekMoE** replaces dense FFNs with a mixture of fine-grained experts (160 small routed experts plus 2 shared experts), of which only 8 are evaluated per token. Fine-grained segmentation enables $\binom{160}{6} \approx 21.2$ billion possible expert combinations per token, vastly more than coarse-grained alternatives. Shared expert isolation prevents common knowledge from being redundantly stored across routed experts. Three levels of auxiliary losses (expert, device, communication) and device-limited routing ensure balanced, efficient training across multi-device setups.
+
+---
+
+*Previous: [Mathematical Prerequisites for DeepSeek-V2](/blog/math-prerequisites-for-deepseek-v2)*
