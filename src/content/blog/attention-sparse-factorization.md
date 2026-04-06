@@ -432,10 +432,10 @@ $$
 | $n$ | $l = \lfloor\sqrt{n}\rfloor$ | Full causal | Sparse total | Reduction |
 |---|---|---|---|---|
 | 16 | 4 | 136 | 110 | $1.2\times$ |
-| 256 | 16 | 32,896 | 6,408 | $5.1\times$ |
-| 1,024 | 32 | 524,800 | 49,632 | $10.6\times$ |
-| 4,096 | 64 | 8,390,656 | 393,344 | $21.3\times$ |
-| 16,384 | 128 | 134,225,920 | 3,162,112 | $42.5\times$ |
+| 256 | 16 | 32,896 | 6,392 | $5.1\times$ |
+| 1,024 | 32 | 524,800 | 50,160 | $10.5\times$ |
+| 4,096 | 64 | 8,390,656 | 397,280 | $21.1\times$ |
+| 16,384 | 128 | 134,225,920 | 3,162,048 | $42.4\times$ |
 
 The savings grow as $\sqrt{n}/3$. At $n = 16{,}384$ (the sequence length the paper uses for training dense attention with recomputation), sparse attention computes roughly $42\times$ fewer entries.
 
@@ -461,15 +461,15 @@ In full causal attention, token 15 attends directly to token 0 — the informati
 
 ### 7.2 The two-hop path
 
-But consider what happens across two layers. In the first layer, Head 2 moves information from token 0 to token 4 (because $0 \in A_4^{(2)} = \{0, 4\}$). In the second layer, Head 1 moves information from token 4 to token 8 (because $4 \in A_8^{(1)} = \{4, 5, 6, 7, 8\}$). And in a third layer, Head 1 moves information from token 8 to token 12 (because $8 \in A_{12}^{(1)} = \{8, 9, 10, 11, 12\}$). Finally, Head 2 moves information from token 12 to token 15 (because $12 \in A_{15}^{(2)} = \{3, 7, 11, 15\}$).
+But consider what happens across multiple layers. In the first layer, Head 2 moves information from token 0 to token 4 (because $0 \in A_4^{(2)} = \{0, 4\}$). In the second layer, Head 1 moves information from token 4 to token 8 (because $4 \in A_8^{(1)} = \{4, 5, 6, 7, 8\}$). And in a third layer, Head 1 moves information from token 8 to token 12 (because $8 \in A_{12}^{(1)} = \{8, 9, 10, 11, 12\}$). Finally, Head 1 moves information from token 12 to token 15 (because $12 \in A_{15}^{(1)} = \{11, 12, 13, 14, 15\}$).
 
 Wait — that was four hops. Can we do better?
 
 ### 7.3 The optimal two-hop path
 
-Yes. For any positions $j$ and $i$ with $j < i$, there exists a path of length at most $p + 1 = 3$ (two attention steps plus the start). Here is how:
+Yes. For any positions $j$ and $i$ with $j < i$, there exists a two-hop path (three positions including the start). Here is how:
 
-**Step 1.** Find the position $k$ that is the nearest multiple of $l$ that is $\geq j$ and $\leq i$. Specifically, let $k$ be the smallest multiple of $l$ in $\{j, j+1, \ldots, i\}$ that satisfies $k \bmod l = i \bmod l$ — or more simply, let $k$ be a position such that $j \in A_k^{(1)}$ (Head 1 can reach $j$ from $k$) and $k \in A_i^{(2)}$ (Head 2 can reach $k$ from $i$).
+**Step 1.** Find an intermediate position $k$ that lies in the same residue class as $i$ modulo $l$ and also falls in the interval $[j, j + l]$. Equivalently, we want $j \in A_k^{(1)}$ (Head 1 can reach $j$ from $k$) and $k \in A_i^{(2)}$ (Head 2 can reach $k$ from $i$).
 
 Let us trace this for $j = 0$ and $i = 15$:
 

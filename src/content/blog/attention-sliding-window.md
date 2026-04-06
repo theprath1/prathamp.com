@@ -236,7 +236,7 @@ $$
 \text{RF}_{12} = 12 \times 256 = 3{,}072
 $$
 
-Total reachable width: $2 \times 3{,}072 + 1 = 6{,}145$. This covers sequences up to 6,145 tokens through local information propagation alone.
+Total reachable width: $2 \times 3{,}072 + 1 = 6{,}145$. For a token far from the boundaries, this is enough to cover a sequence of up to 6,145 positions through local information propagation alone. Boundary tokens see less because the receptive field is clipped by the start or end of the sequence.
 
 ### 2.4 The CNN analogy
 
@@ -248,7 +248,7 @@ The key difference from a CNN is that within each window, the attention weights 
 
 ### 2.5 When the receptive field is not enough
 
-The receptive field of $\ell \cdot w + 1$ grows linearly with depth, but this growth relies on information propagating one window at a time through the network. For a 4,096-token document with $w = 512$ and $L = 12$, the receptive field covers 6,145 positions — enough to span the document. But the information must travel through $\lceil 4{,}096 / 256 \rceil = 16$ hops to get from one end to the other, and the representation at each hop is lossy.
+The receptive field of $\ell \cdot w + 1$ grows linearly with depth, but this growth relies on information propagating one window at a time through the network. For a 4,096-token document with $w = 512$ and $L = 12$, an interior token's receptive field of 6,145 positions is wide enough to cover the full document. But information from the far end still propagates one window at a time: traversing the full 4,096-token span requires about $\lceil 4{,}096 / 256 \rceil = 16$ overlapping-window transfers, and the representation at each hop is lossy.
 
 For tasks that require direct global access — classification from a [CLS] token, comparing a question to an answer span far away in the document — the receptive field argument is not sufficient. We need some tokens to have direct access to the entire sequence. That is the role of global attention, which we introduce in Section 4.
 
@@ -499,7 +499,7 @@ When a global token computes its attention over the entire sequence, it uses $Q_
 
 ### 5.3 Why this matters
 
-The paper shows through ablation (Table 10, WikiHop) that removing the separate linear projections for global attention costs 1.6 points of accuracy ($75.0 \to 73.4$). Removing both the separate projections and global attention entirely costs 8.3 points ($75.0 \to 66.7$). So the separate projections account for about $1.6 / 8.3 \approx 19\%$ of the total benefit of global attention.
+The paper shows through ablation (Table 10, WikiHop) that removing the separate linear projections for global attention drops accuracy from 73.8 to 72.2, a loss of 1.6 points. Removing both the separate projections and global attention entirely drops it to 65.5, a loss of 8.3 points. So the separate projections account for about $1.6 / 8.3 \approx 19\%$ of the total benefit of global attention in that ablation.
 
 The separate projections are initialized from the values of $Q_s$, $K_s$, $V_s$ so that at the start of finetuning, the global attention mechanism behaves identically to the sliding window attention. During finetuning, the global projections specialize: $Q_g$ learns to produce queries that are effective for whole-sequence retrieval, while $K_g$ and $V_g$ learn to present information in a way that is useful for global aggregation.
 
