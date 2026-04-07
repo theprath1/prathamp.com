@@ -3,7 +3,7 @@ title: "DeepSeek Sparse Attention: Learned Token Selection from Scratch"
 description: "Building DSA from the ground up — why fixed sparse patterns leave performance on the table, the lightning indexer that scores every token in the context, content-dependent top-k selection, two-stage training with KL-divergence alignment, instantiation under Multi-head Latent Attention, and O(nk) complexity — all derived step by step with a 16-token running example."
 date: 2026-04-07
 tags: [machine-learning, attention, transformers, sparse-attention, deepseek, efficiency]
-order: 2
+order: 5
 ---
 
 The previous two blogs derived two approaches to sparse attention, both living on the same axis: reduce the number of entries each token attends to.

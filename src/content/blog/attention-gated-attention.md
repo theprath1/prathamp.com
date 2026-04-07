@@ -3,7 +3,7 @@ title: "Gated Attention: Replacing Residuals and ReLU with Learned Gates"
 description: "Building gated transformer blocks from the ground up — why standard residual connections and ReLU activations leave performance on the table, identity map reordering (pre-norm), five gating variants from input gating to GRU-type gates, gated identity initialization, GLU and its variants (SwiGLU, GEGLU, ReGLU, Bilinear), the 2/3 parameter budget trick, and the unified view of gating as multiplicative control — all derived step by step with a 4-dimensional running example."
 date: 2026-04-07
 tags: [machine-learning, attention, transformers, gating, gtrxl, swiglu, geglu, glu, efficiency]
-order: 1
+order: 4
 ---
 
 The previous three blogs derived methods for reducing the attention pattern — which tokens attend to which. Sparse Transformer (Blog 9) used fixed factorized patterns at $O(n\sqrt{n})$. Longformer (Blog 10) used sliding windows plus global tokens at $O(n)$. DeepSeek Sparse Attention (Blog 11) learned the pattern itself at $O(nk)$.
@@ -956,4 +956,5 @@ Gating replaces the fixed, unconditional operations in a transformer block — t
 
 ---
 
-*Previous: [DeepSeek Sparse Attention: Learned Token Selection from Scratch](/blog/attention-deepseek-sparse)*
+*Previous: [DeepSeek Sparse Attention: Learned Token Selection from Scratch](/blog/attention-deepseek-sparse)*  
+*Next: [Why Replace Attention? The Softmax Bottleneck and the Path to Linear Time](/blog/attention-why-replace)*
