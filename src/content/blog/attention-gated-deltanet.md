@@ -855,3 +855,5 @@ The RetNet blog showed that uniform decay $\gamma$ enables the hybrid architectu
 ---
 
 *Previous: [Hybrid Architectures: RetNet and the Three Computation Paradigms](/blog/attention-retnet)*
+
+*Next: [The Kernel Zoo: Performers, Fast Weight Programmers, and the Capacity-Approximation Tradeoff in Linear Attention](/blog/attention-linear-attention)*
