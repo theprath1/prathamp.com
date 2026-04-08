@@ -6,7 +6,7 @@ tags: [machine-learning, attention, transformers, linear-attention, kernels, eff
 order: 3
 ---
 
-The previous twelve blogs modified attention. We changed the number of KV heads (Blogs 6–7), compressed the KV representation (Blog 8), sparsified the attention pattern with fixed rules (Blog 9), sliding windows (Blog 10), learned selection (Blog 11), and replaced the residual connections and FFN activations with learned gates (Blog 12). Every modification improved something — memory, compute, stability, quality.
+The previous twelve blogs modified attention. We changed the number of KV heads (the GQA and KV Bottleneck blogs), compressed the KV representation (the KV Bottleneck blog), sparsified the attention pattern with fixed rules (the Sparse Factorization blog), sliding windows (the Sliding Window blog), learned selection (the DeepSeek Sparse Attention blog), and replaced the residual connections and FFN activations with learned gates (the Gated Attention blog). Every modification improved something — memory, compute, stability, quality.
 
 But every modification preserved something too: the core attention operation. Every blog kept the formula
 
@@ -30,7 +30,7 @@ We continue with the same model parameters from the series:
 
 - $d_\text{model} = 512$, $h = 8$ heads, $d_k = d_v = 64$, $L = 12$ layers, fp16
 
-For cost analysis, we use $n = 16$ tokens (same sequence from Blogs 9–11) and scale up to $n = 128{,}000$ to show how costs grow.
+For cost analysis, we use $n = 16$ tokens (same sequence from the Sparse Factorization, Sliding Window, and DeepSeek Sparse Attention blogs) and scale up to $n = 128{,}000$ to show how costs grow.
 
 For the kernel and associativity derivations, we need to trace every matrix entry by hand. We use a tiny example:
 
@@ -50,7 +50,7 @@ Each row is one token. $Q$ has 4 rows (one per query), $K$ has 4 rows (one per k
 
 ### 1.1 What we modified, axis by axis
 
-Every blog in the series made a change to exactly one axis of the taxonomy from Blog 4. Here is the complete map:
+Every blog in the series made a change to exactly one axis of the taxonomy from the Taxonomy blog. Here is the complete map:
 
 | Blog | Topic | Axis | What changed |
 |---|---|---|---|
@@ -175,14 +175,14 @@ At $n = 128{,}000$: attention is $1.678 \times 10^{13}$, FFN is $2.68 \times 10^
 
 ### 2.5 What sparse methods achieve
 
-Our sparse methods from Blogs 9–11 reduce the attention cost:
+Our sparse methods from the Sparse Factorization, Sliding Window, and DeepSeek Sparse Attention blogs reduce the attention cost:
 
 | Method | Attention FLOPs per layer | At $n = 128{,}000$ |
 |---|---|---|
 | Full | $2n^2 d_\text{model}$ | $1.678 \times 10^{13}$ |
 | Sparse Transformer ($O(n\sqrt{n})$) | $2n^{3/2} d_\text{model} \cdot c$ | $\sim 4.7 \times 10^{10}$ |
-| Sliding window ($w = 512$) | $2nw \, d_\text{model}$ | $\sim 1.34 \times 10^{11}$ |
-| DSA ($k = 2{,}048$) | $2nk \, d_\text{model}$ | $\sim 5.37 \times 10^{11}$ |
+| Sliding window ($w = 512$) | $2nw \, d_\text{model}$ | $\sim 6.71 \times 10^{10}$ |
+| DSA ($k = 2{,}048$) | $2nk \, d_\text{model}$ | $\sim 2.68 \times 10^{11}$ |
 
 These are enormous improvements. But notice: even the cheapest method (Sparse Transformer) still has a cost that grows super-linearly with $n$. And all three methods still require the softmax over the selected pairs — the $O(|S_t|)$ normalization per query token. The cost is reduced but the mechanism is the same.
 

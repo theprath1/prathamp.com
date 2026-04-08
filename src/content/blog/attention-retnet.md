@@ -6,7 +6,7 @@ tags: [machine-learning, attention, transformers, retnet, retention, linear-atte
 order: 2
 ---
 
-The previous twelve blogs modified attention, and Blog 13 replaced it entirely — rewriting the softmax as a kernel and discovering that the result is an RNN with constant-size state. That blog ended with a landscape: the boundary between transformers and RNNs is algebraic, not architectural. But it left an open question: if transformers and RNNs are two views of the same computation, why must we choose one?
+The previous twelve blogs modified attention, and the Why Replace Attention blog replaced it entirely — rewriting the softmax as a kernel and discovering that the result is an RNN with constant-size state. That blog ended with a landscape: the boundary between transformers and RNNs is algebraic, not architectural. But it left an open question: if transformers and RNNs are two views of the same computation, why must we choose one?
 
 Transformers are parallel but expensive at inference ($O(n)$ per token, growing KV cache). RNNs are cheap at inference ($O(1)$ per token, constant state) but sequential during training. Linear attention showed that the same formula can be computed both ways — but its quality lagged behind softmax transformers.
 
@@ -20,7 +20,7 @@ The core paper is Sun et al. (2023), "Retentive Network: A Successor to Transfor
 
 ## The Running Example
 
-We continue with the same tiny example from Blog 13:
+We continue with the same tiny example from the Why Replace Attention blog:
 
 - $n = 4$ tokens, $d_k = d_v = 2$, single head
 
@@ -48,13 +48,13 @@ For cost analysis, we use the same model parameters from the series:
 
 ### 1.1 Problem 1: Unbounded state accumulation
 
-Blog 13 derived the linear attention recurrence:
+The Why Replace Attention blog derived the linear attention recurrence:
 
 $$
 S_i = S_{i-1} + \phi(k_i) \, v_i^\top, \qquad z_i = z_{i-1} + \phi(k_i)
 $$
 
-Every token adds to the state. Nothing is ever forgotten. Let us trace what happens to the state matrix as tokens accumulate, using the linear attention values from Blog 13 (with $\phi(x) = \text{elu}(x) + 1$):
+Every token adds to the state. Nothing is ever forgotten. Let us trace what happens to the state matrix as tokens accumulate, using the linear attention values from the Why Replace Attention blog (with $\phi(x) = \text{elu}(x) + 1$):
 
 $$
 S_1 = \begin{pmatrix} 1 & 0 \\ 2 & 0 \end{pmatrix}, \qquad S_2 = \begin{pmatrix} 1 & 2 \\ 2 & 1 \end{pmatrix}, \qquad S_3 = \begin{pmatrix} 3 & 4 \\ 4 & 3 \end{pmatrix}, \qquad S_4 = \begin{pmatrix} 5 & 4 \\ 10 & 3 \end{pmatrix}
@@ -119,7 +119,7 @@ $$
 
 where $S_n \in \mathbb{R}^{d_k \times d_v}$ is the state matrix, $k_n \in \mathbb{R}^{d_k}$ is the key vector for token $n$, $v_n \in \mathbb{R}^{d_v}$ is the value vector, $q_n \in \mathbb{R}^{d_k}$ is the query vector, and $o_n \in \mathbb{R}^{d_v}$ is the output. The initial state is $S_0 = 0$ (the zero matrix).
 
-Compare this to the linear attention recurrence from Blog 13:
+Compare this to the linear attention recurrence from the Why Replace Attention blog:
 
 $$
 S_n^{\text{linear}} = S_{n-1}^{\text{linear}} + \phi(k_n) \, v_n^\top
@@ -378,7 +378,7 @@ $$
 \boxed{\text{Retention}(X) = (QK^\top \odot D) \, V}
 $$
 
-where $\odot$ is the **Hadamard product** (element-wise multiplication, defined in Blog 12). This says: compute the $n \times n$ query-key similarity matrix $QK^\top$, multiply it element-wise by the decay matrix $D$ (which simultaneously applies causal masking and exponential decay), then multiply by the value matrix $V$.
+where $\odot$ is the **Hadamard product** (element-wise multiplication, defined in the Gated Attention blog). This says: compute the $n \times n$ query-key similarity matrix $QK^\top$, multiply it element-wise by the decay matrix $D$ (which simultaneously applies causal masking and exponential decay), then multiply by the value matrix $V$.
 
 ### 4.4 Numerical verification
 
@@ -990,13 +990,13 @@ $$
 
 where $W_G \in \mathbb{R}^{d_\text{model} \times d_\text{model}}$ and $W_O \in \mathbb{R}^{d_\text{model} \times d_\text{model}}$ are learned parameter matrices. The **swish** activation (Ramachandran et al., 2017) is $\text{swish}(x) = x \cdot \sigma(x)$ where $\sigma$ is the sigmoid function.
 
-The swish gate $\text{swish}(X W_G) \odot Y$ is a multiplicative interaction between the raw input (passed through a linear layer and swish) and the retention output. This is the same gating principle we derived in Blog 12 — learned, per-dimension multiplicative control of information flow. The gate increases the non-linearity of the retention layer, which is important because the retention mechanism itself (without softmax) is a linear function of the values.
+The swish gate $\text{swish}(X W_G) \odot Y$ is a multiplicative interaction between the raw input (passed through a linear layer and swish) and the retention output. This is the same gating principle we derived in the Gated Attention blog — learned, per-dimension multiplicative control of information flow. The gate increases the non-linearity of the retention layer, which is important because the retention mechanism itself (without softmax) is a linear function of the values.
 
 The ablation from Sun et al. (2023) confirms: removing the swish gate degrades perplexity from 26.05 to 27.84 (a 1.79 increase). This is the largest single-component degradation in the ablation, even larger than removing decay ($+1.81$) — indicating that the gate is essential for model quality.
 
 ### 9.2 The full RetNet block
 
-Each RetNet layer consists of an MSR module and a feed-forward network (FFN), with pre-norm residual connections (the same layout we derived in Blog 12, Section 2.2):
+Each RetNet layer consists of an MSR module and a feed-forward network (FFN), with pre-norm residual connections (the same layout we derived in the Gated Attention blog, Section 2.2):
 
 $$
 Y^l = \text{MSR}(\text{LN}(X^l)) + X^l
@@ -1097,7 +1097,7 @@ At 200M parameters with 16 layers and hidden dimension 1024:
 | Linear Transformer | 40.24 | 63.86 | 28.45 | 25.33 | 32.02 |
 | **RetNet** | **26.05** | **45.27** | **21.33** | **16.52** | **22.48** |
 
-RetNet outperforms all other efficient architectures on both in-domain and out-of-domain corpora. The Linear Transformer (Blog 13's architecture) is the weakest — confirming that replacing softmax with a simple kernel without decay or position encoding loses too much modeling capacity.
+RetNet outperforms all other efficient architectures on both in-domain and out-of-domain corpora. The Linear Transformer (the Why Replace Attention blog's architecture) is the weakest — confirming that replacing softmax with a simple kernel without decay or position encoding loses too much modeling capacity.
 
 ### 10.6 Context length results
 
@@ -1142,9 +1142,9 @@ The retention mechanism is not the only formula with this property. The mathemat
 
 Any mechanism built on a linear recurrence inherits this hybrid property. This is why the pattern appears repeatedly in the architectures that followed RetNet: Mamba (Gu and Dao, 2023), RWKV (Peng et al., 2023), Griffin (De et al., 2024), and others all have parallel training and recurrent inference modes derived from the same linear recurrence structure. The specific choices — what goes into the state, how the state decays, how position is encoded — differ across architectures, but the hybrid pattern is the same.
 
-### 11.3 From Blog 13 to RetNet
+### 11.3 From the Why Replace Attention blog to RetNet
 
-Blog 13 showed that linear attention is an RNN:
+The Why Replace Attention blog showed that linear attention is an RNN:
 
 $$
 S_n^{\text{linear}} = S_{n-1}^{\text{linear}} + \phi(k_n) v_n^\top
@@ -1168,7 +1168,7 @@ RetNet is the first architecture to convincingly demonstrate that the hybrid pat
 
 ## Summary
 
-Blog 13's linear attention was the first hybrid architecture: one formula with both a parallel form and a recurrent form. But it failed at quality because the accumulate-only recurrence ($S_n = S_{n-1} + \phi(k_n)v_n^\top$) grows without bound and has no position information. RetNet fixes both problems by adding exponential decay $\gamma$ (bounding the state at $c/(1-\gamma)$ via the geometric series limit) and relative position encoding via complex exponentials ($e^{i(n-m)\theta}$, derived from diagonalizing the state transition matrix $A$). The result is a hybrid architecture with three equivalent computation paradigms — parallel for training ($(QK^\top \odot D)V$, cost $O(n^2 d_k)$), recurrent for inference ($O(d_k^2)$ per token, constant memory), and chunkwise for long sequences ($O(n d_k(B + d_k))$) — all verified to produce identical outputs on a 4-token running example. Multi-scale retention assigns different decay rates per head ($\gamma$ from $0.969$ to $0.9998$ for 8 heads), giving effective attention windows from 145 to 18,882 tokens, and the swish gate plus GroupNorm complete the architecture to match transformer parameter counts while achieving 8.4$\times$ faster inference, 15.6$\times$ lower latency, and competitive-or-better perplexity. This is the hybrid architecture pattern: one formula, multiple computation modes, exact equivalence — the template that Mamba, RWKV, Griffin, and other post-transformer architectures all follow.
+The Why Replace Attention blog's linear attention was the first hybrid architecture: one formula with both a parallel form and a recurrent form. But it failed at quality because the accumulate-only recurrence ($S_n = S_{n-1} + \phi(k_n)v_n^\top$) grows without bound and has no position information. RetNet fixes both problems by adding exponential decay $\gamma$ (bounding the state at $c/(1-\gamma)$ via the geometric series limit) and relative position encoding via complex exponentials ($e^{i(n-m)\theta}$, derived from diagonalizing the state transition matrix $A$). The result is a hybrid architecture with three equivalent computation paradigms — parallel for training ($(QK^\top \odot D)V$, cost $O(n^2 d_k)$), recurrent for inference ($O(d_k^2)$ per token, constant memory), and chunkwise for long sequences ($O(n d_k(B + d_k))$) — all verified to produce identical outputs on a 4-token running example. Multi-scale retention assigns different decay rates per head ($\gamma$ from $0.969$ to $0.9998$ for 8 heads), giving effective attention windows from 145 to 18,882 tokens, and the swish gate plus GroupNorm complete the architecture to match transformer parameter counts while achieving 8.4$\times$ faster inference, 15.6$\times$ lower latency, and competitive-or-better perplexity. This is the hybrid architecture pattern: one formula, multiple computation modes, exact equivalence — the template that Mamba, RWKV, Griffin, and other post-transformer architectures all follow.
 
 ---
 

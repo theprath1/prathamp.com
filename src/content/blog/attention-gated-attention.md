@@ -6,7 +6,7 @@ tags: [machine-learning, attention, transformers, gating, gtrxl, swiglu, geglu, 
 order: 4
 ---
 
-The previous three blogs derived methods for reducing the attention pattern — which tokens attend to which. Sparse Transformer (Blog 9) used fixed factorized patterns at $O(n\sqrt{n})$. Longformer (Blog 10) used sliding windows plus global tokens at $O(n)$. DeepSeek Sparse Attention (Blog 11) learned the pattern itself at $O(nk)$.
+The previous three blogs derived methods for reducing the attention pattern — which tokens attend to which. The Sparse Factorization blog covered fixed factorized patterns at $O(n\sqrt{n})$. The Sliding Window blog covered sliding windows plus global tokens at $O(n)$. The DeepSeek Sparse Attention blog covered learning the pattern itself at $O(nk)$.
 
 All three blogs lived on Axis 3 of our taxonomy: the attention pattern. They modified the mask $M$ in the attention formula. The attention mechanism itself — the projections, the softmax, the weighted sum — remained unchanged. And the wrapper around the attention block — the residual connection, the normalization, the feed-forward network — was untouched entirely.
 
@@ -679,7 +679,7 @@ $$
 \text{ReLU gate} = \begin{cases} 1 & \text{if } (xW_1)_i > 0 \\ 0 & \text{if } (xW_1)_i \leq 0 \end{cases}
 $$
 
-This is a hard, binary, input-independent (for a fixed $W_1$) decision. The network has no way to say "this dimension is positive but I want to scale it down to 30%."
+This is a hard, binary decision — the gate value is always 0 or 1, with no intermediate scaling. While the gate does depend on the input through $xW_1$, it cannot modulate magnitude: the network has no way to say "this dimension is positive but I want to scale it down to 30%."
 
 In the GLU, the gating decision is a separate learned function $\sigma(xW)$, which can produce any value in $(0, 1)$:
 

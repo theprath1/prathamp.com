@@ -8,9 +8,9 @@ order: 5
 
 The previous two blogs derived two approaches to sparse attention, both living on the same axis: reduce the number of entries each token attends to.
 
-The Sparse Transformer (Blog 9) used fixed factorized patterns — strided and fixed — achieving $O(n\sqrt{n})$. The patterns were rigid: which tokens attend to which was determined entirely by position, independent of content.
+The Sparse Transformer (the Sparse Factorization blog) used fixed factorized patterns — strided and fixed — achieving $O(n\sqrt{n})$. The patterns were rigid: which tokens attend to which was determined entirely by position, independent of content.
 
-Longformer (Blog 10) used sliding windows plus global attention, achieving $O(n)$. The windows were local and fixed-width, the global tokens were chosen by task (like [CLS] for classification), not by content. This was simpler and faster, but still static — token 7 always attends to tokens 5 through 9 regardless of what those tokens contain.
+Longformer (the Sliding Window blog) used sliding windows plus global attention, achieving $O(n)$. The windows were local and fixed-width, the global tokens were chosen by task (like [CLS] for classification), not by content. This was simpler and faster, but still static — token 7 always attends to tokens 5 through 9 regardless of what those tokens contain.
 
 Both approaches make the same fundamental bet: the *structure* of attention can be decided in advance. Neither approach asks the question: "given what this token actually says, which other tokens in the context are most relevant to it?"
 
@@ -52,9 +52,9 @@ In the real DeepSeek-V3.2 deployment, $k = 2{,}048$ tokens are selected from con
 
 Both previous approaches define the connectivity set $S_i$ — the set of tokens that position $i$ attends to — using a fixed rule based on position alone:
 
-**Sparse Transformer (Blog 9):** $S_i$ is determined by strided or fixed factorization patterns. Token $i$ attends to tokens at positions $\{i, i - 1, i - 2, \ldots\}$ within its stride group and to designated summary positions. The rule depends on $i \bmod \sqrt{n}$.
+**Sparse Transformer (Sparse Factorization blog):** $S_i$ is determined by strided or fixed factorization patterns. Token $i$ attends to tokens at positions $\{i, i - 1, i - 2, \ldots\}$ within its stride group and to designated summary positions. The rule depends on $i \bmod \sqrt{n}$.
 
-**Longformer (Blog 10):** $S_i = \{j : |i - j| \leq r\} \cup G$, where $r$ is the window radius and $G$ is a fixed set of global positions. The rule depends on $|i - j|$ and whether $j \in G$.
+**Longformer (Sliding Window blog):** $S_i = \{j : |i - j| \leq r\} \cup G$, where $r$ is the window radius and $G$ is a fixed set of global positions. The rule depends on $|i - j|$ and whether $j \in G$.
 
 In both cases, $S_i$ is the same regardless of what the tokens contain. If token 5 is the word "the" or the word "catastrophe," it attends to exactly the same set of positions.
 
@@ -573,11 +573,11 @@ DSA uses roughly 6.6% of the compute of full attention — a $\sim\!15\times$ re
 
 | $n$ | Full $\frac{n^2}{2}$ | Sparse $\frac{3}{2}n^{3/2}$ | Window $(w{+}1)n$ | DSA $nk$ |
 |---|---|---|---|---|
-| 1,024 | 524,288 | 49,152 | 525,312 | 2,097,152 |
+| 1,024 | 524,288 | 49,152 | 525,312 | 524,288 \* |
 | 16,384 | 134,217,728 | 3,145,728 | 8,404,992 | 33,554,432 |
 | 128,000 | 8,192,000,000 | 68,567,040 | 65,664,000 | 262,144,000 |
 
-For $w = 512$ (Longformer) and $k = 2{,}048$ (DSA). At first glance, DSA's entry count is larger than Longformer's — because $k > w$. But the comparison is misleading: DSA selects the $k$ most relevant tokens from anywhere in the context, while Longformer is restricted to a local window of width $w$. DSA's selected tokens carry more information per entry because they are chosen by content relevance, not by proximity.
+For $w = 512$ (Longformer) and $k = 2{,}048$ (DSA). \*When $n < k$ (as in the $n = 1{,}024$ row), DSA cannot select more tokens than exist — it collapses to full attention, so the entry count equals $\frac{n^2}{2}$. At first glance, DSA's entry count is larger than Longformer's — because $k > w$. But the comparison is misleading: DSA selects the $k$ most relevant tokens from anywhere in the context, while Longformer is restricted to a local window of width $w$. DSA's selected tokens carry more information per entry because they are chosen by content relevance, not by proximity.
 
 The real comparison is quality-adjusted: DSA with $k = 2{,}048$ achieves the same model quality as full attention with $n$ entries. Longformer with $w = 512$ may miss important long-range dependencies that fall outside the window.
 
@@ -669,7 +669,7 @@ DSA is the first method in this series where the sparse pattern is determined by
 
 ### 10.3 Interpretation
 
-The trajectory from Blog 9 through Blog 11 traces a shift from structural assumptions to learned decisions.
+The trajectory from the Sparse Factorization blog through this blog traces a shift from structural assumptions to learned decisions.
 
 The Sparse Transformer assumed periodicity — strided patterns for images, fixed patterns for text. This was a strong inductive bias that worked well for structured data but could not adapt to the actual content.
 

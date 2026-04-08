@@ -6,7 +6,7 @@ tags: [machine-learning, attention, transformers, linear-attention, delta-rule, 
 order: 1
 ---
 
-Blog 13 replaced softmax attention with a linear recurrence: $S_n = S_{n-1} + \phi(k_n)v_n^\top$. Blog 14 added uniform exponential decay: $S_n = \gamma S_{n-1} + k_n v_n^\top$. Both are hybrid architectures — the same formula computes in parallel (for training) or recurrently (for inference). But both manage memory with a single, blunt tool: accumulate everything (Blog 13) or decay everything uniformly (Blog 14).
+The Why Replace Attention blog replaced softmax attention with a linear recurrence: $S_n = S_{n-1} + \phi(k_n)v_n^\top$. The RetNet blog added uniform exponential decay: $S_n = \gamma S_{n-1} + k_n v_n^\top$. Both are hybrid architectures — the same formula computes in parallel (for training) or recurrently (for inference). But both manage memory with a single, blunt tool: accumulate everything (Why Replace Attention) or decay everything uniformly (RetNet).
 
 Consider what happens when a model processes a long document. Early paragraphs establish a topic. Middle paragraphs introduce a character. Late paragraphs contradict information from the middle. The model needs to:
 
@@ -30,7 +30,7 @@ The core papers are Yang et al. (2024b), "Parallelizing Linear Transformers with
 
 ## The Running Example
 
-We continue with the same tiny example from Blogs 13–14:
+We continue with the same tiny example from the Why Replace Attention and RetNet blogs:
 
 - $n = 4$ tokens, $d_k = d_v = 2$, single head
 
@@ -72,7 +72,7 @@ For cost analysis, we use the same model parameters from the series:
 
 ### 1.1 The state as a lookup table
 
-Blog 13 derived the state matrix $S_t \in \mathbb{R}^{d_v \times d_k}$ as accumulating outer products: $S_t = \sum_{i=1}^t \phi(k_i) v_i^\top$. Blog 14 added decay: $S_t = \sum_{i=1}^t \gamma^{t-i} k_i v_i^\top$. In both cases, reading from the state works by multiplying with a query:
+The Why Replace Attention blog derived the state matrix $S_t \in \mathbb{R}^{d_v \times d_k}$ as accumulating outer products: $S_t = \sum_{i=1}^t \phi(k_i) v_i^\top$. The RetNet blog added decay: $S_t = \sum_{i=1}^t \gamma^{t-i} k_i v_i^\top$. In both cases, reading from the state works by multiplying with a query:
 
 $$
 o_t = S_t^\top q_t
@@ -287,9 +287,9 @@ This is exactly the scenario tested by the **S-NIAH** (Single Needle In A Haysta
 
 **S-NIAH-1** (pass-key retrieval with synthetic context): Models memorize a key-value pair embedded in repeated synthetic text. This tests long-term retention with minimal interference. DeltaNet excels (99.0% at 4K) because there is little irrelevant information to manage. Mamba2 degrades beyond 2K (65.4% at 4K) because uniform decay erases the needle too quickly.
 
-**S-NIAH-2** (number in haystack with real-world context): The haystack is real-world essays — dense, information-rich content. The model must store the relevant key-value pair while filtering out thousands of plausible but irrelevant associations. DeltaNet's performance drops sharply (18.6% at 2K, 14.4% at 8K) — without global forgetting, the memory becomes saturated with irrelevant essay content, causing collisions that bury the needle. Mamba2 does better (98.8% at 2K) because its global decay clears old information, keeping the state clean.
+**S-NIAH-2** (number in haystack with real-world context): The haystack is real-world essays — dense, information-rich content. The model must store the relevant key-value pair while filtering out thousands of plausible but irrelevant associations. DeltaNet's performance drops sharply (45.6% at 2K, 18.6% at 4K, 14.4% at 8K) — without global forgetting, the memory becomes saturated with irrelevant essay content, causing collisions that bury the needle. Mamba2 does better (98.8% at 2K) because its global decay clears old information, keeping the state clean.
 
-**S-NIAH-3** (UUID in haystack): Values change from numbers to UUIDs — complex patterns that are hard to memorize. Mamba2 degrades (64.4% at 2K) while DeltaNet retains more (85.2% at 1K) thanks to its precise association mechanism.
+**S-NIAH-3** (UUID in haystack): Values change from numbers to UUIDs — complex patterns that are hard to memorize. Mamba2 degrades (47.6% at 2K) while DeltaNet retains more (85.2% at 1K) thanks to its precise association mechanism.
 
 The pattern is clear:
 - **DeltaNet** (delta rule only): strong at precise memorization, weak at filtering irrelevant information
@@ -666,7 +666,7 @@ All models trained on 100B tokens from FineWeb-Edu with identical hyperparameter
 | DeltaNet | 17.71 | 16.88 | 52.14 |
 | **Gated DeltaNet** | **16.42** | **12.17** | **55.32** |
 | Transformer++ | 18.53 | 18.32 | 52.25 |
-| Samba | 16.13 | 13.39 | 54.00 |
+| Samba | 16.13 | 13.29 | 54.00 |
 | **GatedDeltaNet-H2** | **15.91** | **12.55** | **56.18** |
 
 Gated DeltaNet surpasses all pure recurrent models. The hybrid H2 variant is the overall best.
@@ -850,7 +850,7 @@ The delta rule's superiority over simple accumulation is the same reason SGD out
 
 ## Summary
 
-Blog 14 showed that uniform decay $\gamma$ enables the hybrid architecture pattern — one formula, three computation modes. But decay is a blunt instrument: it forgets everything at the same rate, regardless of content. This blog introduced targeted memory management through the delta rule, derived as one step of online gradient descent on the reconstruction loss $\frac{1}{2}\|S^\top k_t - v_t\|^2$, yielding the update $S_t = (I - \beta_t k_t k_t^\top) S_{t-1} + \beta_t k_t v_t^\top$ — a generalized Householder transformation that erases only the component stored at the current key while preserving all other associations (verified numerically: querying with $\hat{k}_4$ after overwriting retrieves $(1.85, 0.03) \approx v_4 = (2,0)$, not the superimposed sum $(3,0)$ that linear attention would return). The S-NIAH benchmark revealed that neither the delta rule (strong memorization, weak filtering) nor gating (strong filtering, weak memorization) alone suffices, motivating the Gated DeltaNet: $S_t = \alpha_t(I - \beta_t k_t k_t^\top)S_{t-1} + \beta_t k_t v_t^\top$, which combines scalar global decay with targeted erasure to achieve the best of both on all three S-NIAH variants. Kimi Delta Attention (KDA) refines this further by replacing the scalar gate with a per-dimension gate: $S_t = (I - \beta_t k_t k_t^\top)\text{Diag}(\alpha_t)S_{t-1} + \beta_t k_t v_t^\top$, enabling fine-grained memory control analogous to RoPE's per-dimension frequency encoding. The WY representation parallelizes the product of Householder matrices for hardware-efficient chunkwise training, and the online learning framework unifies all variants through their optimization objectives — from Hebbian correlation (linear attention) through fixed regularization (RetNet) to adaptive per-dimension SGD with weight decay (KDA). Kimi Linear validates this at production scale: a 48B-parameter MoE model (3B activated) interleaving KDA with full MLA attention at a 3:1 ratio, using NoPE for the global attention layers, trained on 1.4T tokens — outperforming the full-attention MLA baseline on nearly every benchmark while achieving $6.3\times$ faster decoding at 1M tokens and 75% KV cache reduction.
+The RetNet blog showed that uniform decay $\gamma$ enables the hybrid architecture pattern — one formula, three computation modes. But decay is a blunt instrument: it forgets everything at the same rate, regardless of content. This blog introduced targeted memory management through the delta rule, derived as one step of online gradient descent on the reconstruction loss $\frac{1}{2}\|S^\top k_t - v_t\|^2$, yielding the update $S_t = (I - \beta_t k_t k_t^\top) S_{t-1} + \beta_t k_t v_t^\top$ — a generalized Householder transformation that erases only the component stored at the current key while preserving all other associations (verified numerically: querying with $\hat{k}_4$ after overwriting retrieves $(1.85, 0.03) \approx v_4 = (2,0)$, not the superimposed sum $(3,0)$ that linear attention would return). The S-NIAH benchmark revealed that neither the delta rule (strong memorization, weak filtering) nor gating (strong filtering, weak memorization) alone suffices, motivating the Gated DeltaNet: $S_t = \alpha_t(I - \beta_t k_t k_t^\top)S_{t-1} + \beta_t k_t v_t^\top$, which combines scalar global decay with targeted erasure to achieve the best of both on all three S-NIAH variants. Kimi Delta Attention (KDA) refines this further by replacing the scalar gate with a per-dimension gate: $S_t = (I - \beta_t k_t k_t^\top)\text{Diag}(\alpha_t)S_{t-1} + \beta_t k_t v_t^\top$, enabling fine-grained memory control analogous to RoPE's per-dimension frequency encoding. The WY representation parallelizes the product of Householder matrices for hardware-efficient chunkwise training, and the online learning framework unifies all variants through their optimization objectives — from Hebbian correlation (linear attention) through fixed regularization (RetNet) to adaptive per-dimension SGD with weight decay (KDA). Kimi Linear validates this at production scale: a 48B-parameter MoE model (3B activated) interleaving KDA with full MLA attention at a 3:1 ratio, using NoPE for the global attention layers, trained on 1.4T tokens — outperforming the full-attention MLA baseline on nearly every benchmark while achieving $6.3\times$ faster decoding at 1M tokens and 75% KV cache reduction.
 
 ---
 
