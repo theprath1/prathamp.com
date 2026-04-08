@@ -1,9 +1,9 @@
 ---
 title: "The Kernel Zoo: Performers, Fast Weight Programmers, and the Capacity-Approximation Tradeoff in Linear Attention"
-description: "Building the right feature map for linear attention from the ground up — reframing linear transformers as 1990s fast weight programmers that program memory through outer products, deriving the capacity limit that says a state of dimension d_dot can store at most d_dot orthogonal key-value pairs before retrieval breaks, three approaches to choosing the feature map φ (the ELU+1 baseline, the Performer's FAVOR+ that approximates the actual softmax kernel with positive orthogonal random features, and the FWP paper's DPFP that deterministically increases capacity through ReLU-gated quadrant projections), why positive features avoid the variance explosion that makes trigonometric random features unstable for small kernel values, why orthogonal features provably reduce mean squared error over independent samples, sum normalization and why attention normalization can diverge with the delta rule, and the capacity-versus-approximation tradeoff that defines the entire design space — all derived step by step with concrete examples."
+description: "Navigating the capacity-approximation tradeoff in linear attention feature maps from the ground up — reframing linear transformers as 1990s fast weight programmers that program memory through outer products, deriving the capacity limit that says a state of dimension d_dot can store at most d_dot orthogonal key-value pairs before retrieval breaks, three approaches to choosing the feature map φ (the ELU+1 baseline, the Performer's FAVOR+ that approximates the actual softmax kernel with positive orthogonal random features, and the FWP paper's DPFP that deterministically increases capacity through ReLU-gated quadrant projections), why positive features avoid the variance explosion that makes trigonometric random features unstable for small kernel values, why orthogonal features provably reduce mean squared error over independent samples, sum normalization and why attention normalization can diverge with the delta rule, and the capacity-versus-approximation tradeoff that defines the entire design space — all derived step by step with concrete examples."
 date: 2026-04-08
 tags: [machine-learning, attention, transformers, linear-attention, kernels, performers, fast-weight-programmers, favor-plus, dpfp, efficiency]
-order: 1
+order: 2
 ---
 
 The Why Replace Attention blog established a powerful framework: replace the softmax similarity $\exp(q^\top k / \sqrt{d_k})$ with a kernel $\phi(q)^\top \phi(k)$ where $\phi : \mathbb{R}^{d_k} \to \mathbb{R}^{d_\phi}$ is a finite-dimensional feature map, apply the associativity of matrix multiplication to change the computation order from $(\phi(Q)\phi(K)^\top)V$ to $\phi(Q)(\phi(K)^\top V)$, and obtain an RNN with constant-size state $S \in \mathbb{R}^{d_\phi \times d_v}$ that computes in linear time. That blog used the simplest possible feature map — $\phi(x) = \text{elu}(x) + 1$ from Katharopoulos et al. (2020) — and left a question open: how should we choose $\phi$?
@@ -1033,3 +1033,5 @@ The Why Replace Attention blog established the kernel framework: replace softmax
 ---
 
 *Previous: [Targeted Memory: The Delta Rule, Gated DeltaNet, and Kimi Delta Attention](/blog/attention-gated-deltanet)*
+
+*Next: [Mamba and Mamba-2: Selective State Spaces and Structured State Space Duality](/blog/attention-mamba)*
