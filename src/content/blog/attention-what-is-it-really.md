@@ -10,6 +10,8 @@ Before the Transformer, before Q/K/V, before any of the modern terminology, ther
 
 We will keep the entire post anchored to one tiny running example and compute the full mechanism by hand.
 
+If you haven't read [Mathematical Prerequisites for the Attention Series](/blog/math-prerequisites-for-attention), start there — we will use tanh, exponentials, and a few basic algebraic identities throughout this post.
+
 ---
 
 ## 1. Before Attention: The Fixed-Length Bottleneck
@@ -36,7 +38,7 @@ $$
 p(y_i \mid y_1, \ldots, y_{i-1}, \mathbf{x}) = g(y_{i-1}, s_i, \mathbf{c})
 $$
 
-where $s_i$ is the decoder hidden state and $g$ is a nonlinear output function.
+where $y_{i-1}$ is the previous target token, $s_i$ is the decoder hidden state at step $i$, and $g$ is a nonlinear function that uses the decoder's current state and source context to assign probabilities to possible next target words.
 
 The important point is not the exact form of $g$ — the important point is that the same $\mathbf{c}$ appears in every conditional.
 
@@ -48,13 +50,15 @@ $$
 h_t = f(x_t, h_{t-1})
 $$
 
-and the simplest context choice is just the last hidden state:
+Here $x_t$ is the $t$-th source word, and $h_t$ is the encoder hidden state after reading up to that position. You can think of $h_t$ as the encoder's running summary of the source sequence so far.
+
+The simplest context choice is just the last hidden state:
 
 $$
 \mathbf{c} = h_{T_x}
 $$
 
-So the whole source sequence must be compressed into one vector before decoding even starts. That means the decoder uses $g(y_0, s_1, \mathbf{c})$, then $g(y_1, s_2, \mathbf{c})$, then $g(y_2, s_3, \mathbf{c})$, and so on. The target step changes, the decoder hidden state changes, and the previous output token changes — but the source summary $\mathbf{c}$ does not. This is the problem. The entire source sentence has to survive inside one fixed-size summary, and the decoder has no way to go back and look at particular source positions later.
+So the whole source sequence must be compressed into one vector before decoding even starts. That means the decoder uses $g(y_0, s_1, \mathbf{c})$, then $g(y_1, s_2, \mathbf{c})$, then $g(y_2, s_3, \mathbf{c})$, and so on. The previous target token changes, the decoder hidden state changes, and the target step changes — but the source summary $\mathbf{c}$ does not. This is the problem. The entire source sentence has to survive inside one fixed-size summary, and the decoder has no way to go back and look at particular source positions later.
 
 ### 1.3 Why one vector is too rigid
 
@@ -652,7 +656,31 @@ $$
 
 So the gradient flowing into $\alpha_{ij}$ is directly modulated by the encoder annotation $h_j$.
 
-### 7.2 Why this matters
+### 7.2 Numerical check
+
+In our running example,
+
+$$
+c_1 = \alpha_{1,1} h_1 + \alpha_{1,2} h_2 + \alpha_{1,3} h_3
+$$
+
+so
+
+$$
+\frac{\partial c_1}{\partial \alpha_{1,2}} = h_2 = 0.9
+$$
+
+and likewise
+
+$$
+\frac{\partial c_1}{\partial \alpha_{1,1}} = h_1 = 0.2,
+\qquad
+\frac{\partial c_1}{\partial \alpha_{1,3}} = h_3 = 0.1
+$$
+
+This makes the derivative formula concrete. A small change in $\alpha_{1,2}$ changes the context more strongly than the same-sized change in $\alpha_{1,1}$ or $\alpha_{1,3}$, because source position 2 carries the largest annotation in this toy example.
+
+### 7.3 Why this matters
 
 This means the loss can push on the attention weights smoothly. Those weights are smooth functions of the alignment scores through softmax, and the alignment scores are smooth functions of the encoder and decoder states through the feedforward alignment model. So gradients flow from the loss through $c_i$, then through the attention weights $\alpha_{ij}$, then through the alignment scores $e_{ij}$, and finally into the encoder and decoder states $(s_{i-1}, h_j)$. That is why the whole system can be trained end to end with backpropagation.
 
@@ -677,11 +705,55 @@ $$
 
 So each annotation contains both left context and right context. If the source word is "bank," its meaning may depend on both the word before it and the word after it, and a bidirectional annotation can encode that local context before attention ever begins. That is why the encoder states are a good memory bank — each $h_j$ is not a raw word embedding but already a contextual summary centered on source position $j$.
 
+### 8.2 Numerical check
+
+Our scalar running example hid this structure by collapsing each annotation to one number. In an actual bidirectional encoder, each annotation would contain one part from the left-to-right pass and one part from the right-to-left pass.
+
+For example, suppose that at source position 2 the forward encoder produces
+
+$$
+\overrightarrow{h}_2 = 0.4
+$$
+
+and the backward encoder produces
+
+$$
+\overleftarrow{h}_2 = 0.7
+$$
+
+Then the bidirectional annotation at that position is
+
+$$
+h_2 =
+\begin{bmatrix}
+0.4 \\
+0.7
+\end{bmatrix}
+$$
+
+The important point is not the specific numbers. The important point is that one source position now carries information from both directions at once. Attention does not read from raw source words. It reads from contextualized source annotations.
+
 ---
 
 ## 9. The Full Decoder Objective
 
-The decoder does not stop at computing $c_i$. At target step $i$, it computes the attention-based context vector, updates the decoder state, and then predicts the next word. The full translation probability factorizes by the **chain rule of probability**:
+The decoder does not stop at computing $c_i$. At target step $i$, it computes the attention-based context vector, updates the decoder state, and then predicts the next word.
+
+A standard attention-based decoder step can be written abstractly as
+
+$$
+s_i = f(s_{i-1}, y_{i-1}, c_i)
+$$
+
+followed by
+
+$$
+p(y_i \mid y_1, \ldots, y_{i-1}, \mathbf{x}) = g(y_{i-1}, s_i, c_i)
+$$
+
+The first equation says that the new decoder state is built from three things: the old decoder state, the previous target token, and the source information retrieved for the current step. The second says that this updated state and retrieved context are then used to predict the next target word. So attention does not replace the decoder. It gives the decoder a better source-dependent input at each step.
+
+The full translation probability factorizes by the **chain rule of probability**:
 
 $$
 p(\mathbf{y}\mid\mathbf{x})
@@ -700,6 +772,36 @@ $$
 \log p(\mathbf{y}\mid\mathbf{x})
 = \sum_{i=1}^{T_y} \log p(y_i \mid y_1, \ldots, y_{i-1}, \mathbf{x})
 $$
+
+### 9.1 Numerical check
+
+Suppose a target sentence has two words, and the model assigns
+
+$$
+p(y_1 \mid \mathbf{x}) = 0.8,
+\qquad
+p(y_2 \mid y_1, \mathbf{x}) = 0.6
+$$
+
+Then the full sentence probability is
+
+$$
+p(\mathbf{y}\mid\mathbf{x}) = 0.8 \cdot 0.6 = 0.48
+$$
+
+Taking logs gives
+
+$$
+\log p(\mathbf{y}\mid\mathbf{x}) = \log(0.48) \approx -0.73397
+$$
+
+Now compute the sum of the two token-level log-probabilities:
+
+$$
+\log(0.8) + \log(0.6) \approx -0.22314 + (-0.51083) = -0.73397
+$$
+
+The two results match exactly, which is why training can be written as a sum over target positions rather than as one monolithic sentence-level quantity.
 
 This is the training objective the model maximizes. The alignment model receives no direct supervision. It learns useful alignments only because better alignments improve the translation log-likelihood.
 
@@ -753,7 +855,81 @@ $$
 e_{ij} = \mathbf{v}_a^\top \tanh(W_a s_{i-1} + U_a h_j)
 $$
 
-where $s_{i-1}$ and $h_j$ are vectors and $W_a$, $U_a$, $\mathbf{v}_a$ are learned. Different decoder states can interact with different encoder annotations in different directions, so the ranking can change from one target position to the next. Our scalar example is useful because it makes the arithmetic transparent, while the full vector model is useful because it restores expressive power.
+where $s_{i-1}$ and $h_j$ are vectors and $W_a$, $U_a$, $\mathbf{v}_a$ are learned. Different decoder states can interact with different encoder annotations in different directions, so the ranking can change from one target position to the next.
+
+To see that change explicitly, leave the scalar toy for a moment and take a tiny 2-dimensional example with two source positions:
+
+$$
+h_1 = \begin{bmatrix} 1 \\ 0 \end{bmatrix},
+\qquad
+h_2 = \begin{bmatrix} 0 \\ 1 \end{bmatrix},
+\qquad
+W_a = I,\quad U_a = I,\quad \mathbf{v}_a = \begin{bmatrix} 1 \\ 1 \end{bmatrix}
+$$
+
+Now compare two decoder states.
+
+For the first target step, let
+
+$$
+s_0 = \begin{bmatrix} 1 \\ 0 \end{bmatrix}
+$$
+
+Then
+
+$$
+e_{1,1}
+= \mathbf{v}_a^\top \tanh(s_0 + h_1)
+= \begin{bmatrix} 1 & 1 \end{bmatrix}
+\tanh\!\left(\begin{bmatrix} 2 \\ 0 \end{bmatrix}\right)
+= \begin{bmatrix} 1 & 1 \end{bmatrix}
+\begin{bmatrix} 0.9640 \\ 0 \end{bmatrix}
+= 0.9640
+$$
+
+while
+
+$$
+e_{1,2}
+= \mathbf{v}_a^\top \tanh(s_0 + h_2)
+= \begin{bmatrix} 1 & 1 \end{bmatrix}
+\tanh\!\left(\begin{bmatrix} 1 \\ 1 \end{bmatrix}\right)
+= \begin{bmatrix} 1 & 1 \end{bmatrix}
+\begin{bmatrix} 0.7616 \\ 0.7616 \end{bmatrix}
+= 1.5232
+$$
+
+So at the first target step, source position 2 receives the higher score.
+
+For the second target step, let
+
+$$
+s_1 = \begin{bmatrix} 0 \\ 1 \end{bmatrix}
+$$
+
+Then the same computation gives
+
+$$
+e_{2,1} = 1.5232,
+\qquad
+e_{2,2} = 0.9640
+$$
+
+Now source position 1 receives the higher score. The ranking has flipped.
+
+If we softmax each pair of scores, the first step gives attention weights approximately
+
+$$
+(\alpha_{1,1}, \alpha_{1,2}) \approx (0.3637,\, 0.6363)
+$$
+
+while the second step gives
+
+$$
+(\alpha_{2,1}, \alpha_{2,2}) \approx (0.6363,\, 0.3637)
+$$
+
+So the decoder really can look in different places at different target positions. Our scalar example is useful because it makes the arithmetic transparent, while the full vector model is useful because it restores expressive power.
 
 ---
 
