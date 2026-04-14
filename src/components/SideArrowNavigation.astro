@@ -1,0 +1,104 @@
+---
+import type { AdjacentLink } from "../utils/contentNavigation";
+
+interface Props {
+  previous?: AdjacentLink;
+  next?: AdjacentLink;
+  itemLabel: string;
+}
+
+const { previous, next, itemLabel } = Astro.props;
+const hasNavigation = Boolean(previous || next);
+
+function getLabel(direction: "previous" | "next", item: AdjacentLink) {
+  return `${direction === "previous" ? "Previous" : "Next"} ${itemLabel}: ${item.title}`;
+}
+---
+
+{
+  hasNavigation && (
+    <>
+      {
+        previous && (
+          <div class="side-arrow-zone pointer-events-auto fixed inset-y-0 left-0 z-40 flex w-16 items-center justify-start pl-2 sm:w-20 sm:pl-3 md:w-24 md:pl-4">
+            <a
+              href={previous.href}
+              aria-label={getLabel("previous", previous)}
+              title={previous.title}
+              class="side-arrow-button side-arrow-button--left inline-flex h-12 w-12 items-center justify-center rounded-full border border-gray-200 bg-white/95 text-gray-700 shadow-[0_10px_30px_rgba(15,23,42,0.12)] backdrop-blur focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-gray-700 dark:bg-gray-900/90 dark:text-gray-200 dark:shadow-[0_12px_32px_rgba(0,0,0,0.35)] dark:focus-visible:ring-primary-400 dark:focus-visible:ring-offset-gray-950"
+            >
+              <span class="sr-only">{getLabel("previous", previous)}</span>
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6" />
+              </svg>
+            </a>
+          </div>
+        )
+      }
+
+      {
+        next && (
+          <div class="side-arrow-zone pointer-events-auto fixed inset-y-0 right-0 z-40 flex w-16 items-center justify-end pr-2 sm:w-20 sm:pr-3 md:w-24 md:pr-4">
+            <a
+              href={next.href}
+              aria-label={getLabel("next", next)}
+              title={next.title}
+              class="side-arrow-button side-arrow-button--right inline-flex h-12 w-12 items-center justify-center rounded-full border border-gray-200 bg-white/95 text-gray-700 shadow-[0_10px_30px_rgba(15,23,42,0.12)] backdrop-blur focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-gray-700 dark:bg-gray-900/90 dark:text-gray-200 dark:shadow-[0_12px_32px_rgba(0,0,0,0.35)] dark:focus-visible:ring-primary-400 dark:focus-visible:ring-offset-gray-950"
+            >
+              <span class="sr-only">{getLabel("next", next)}</span>
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6" />
+              </svg>
+            </a>
+          </div>
+        )
+      }
+    </>
+  )
+}
+
+<style>
+  .side-arrow-button {
+    opacity: 0;
+    transition:
+      opacity 180ms ease,
+      transform 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .side-arrow-button--left {
+    transform: translateX(-1.25rem);
+  }
+
+  .side-arrow-button--right {
+    transform: translateX(1.25rem);
+  }
+
+  .side-arrow-zone:hover .side-arrow-button,
+  .side-arrow-zone:focus-within .side-arrow-button,
+  .side-arrow-button:focus-visible {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .side-arrow-zone:hover .side-arrow-button,
+  .side-arrow-button:focus-visible {
+    color: rgb(2 132 199);
+    border-color: rgb(125 211 252);
+  }
+
+  :global(.dark) .side-arrow-zone:hover .side-arrow-button,
+  :global(.dark) .side-arrow-button:focus-visible {
+    color: rgb(56 189 248);
+    border-color: rgb(2 132 199);
+  }
+
+  @media (hover: none), (pointer: coarse) {
+    .side-arrow-button {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+</style>

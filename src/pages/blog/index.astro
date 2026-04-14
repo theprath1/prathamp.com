@@ -2,10 +2,9 @@
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import BlogCard from "../../components/BlogCard.astro";
 import { getCollection } from "astro:content";
+import { sortBlogEntries } from "../../utils/contentNavigation";
 
-const posts = (await getCollection("blog"))
-  .filter((p) => !p.data.draft)
-  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf() || (a.data.order ?? 0) - (b.data.order ?? 0));
+const posts = sortBlogEntries(await getCollection("blog"));
 ---
 
 <BaseLayout title="Blog" description="Thoughts, tutorials, and insights on software development.">

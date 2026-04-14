@@ -1,19 +1,32 @@
 ---
 import { getCollection } from "astro:content";
 import ProjectLayout from "../../layouts/ProjectLayout.astro";
+import {
+  getAdjacentNavigation,
+  sortProjectEntries,
+} from "../../utils/contentNavigation";
 
 export async function getStaticPaths() {
   const projects = await getCollection("projects");
+  const publishedProjects = sortProjectEntries(projects);
+
   return projects.map((project) => ({
     params: { slug: project.slug },
-    props: { project },
+    props: {
+      project,
+      navigation: getAdjacentNavigation(
+        publishedProjects,
+        project.slug,
+        "/projects",
+      ),
+    },
   }));
 }
 
-const { project } = Astro.props;
+const { project, navigation } = Astro.props;
 const { Content } = await project.render();
 ---
 
-<ProjectLayout frontmatter={project.data} slug={project.slug}>
+<ProjectLayout frontmatter={project.data} slug={project.slug} navigation={navigation}>
   <Content />
 </ProjectLayout>

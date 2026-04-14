@@ -1,0 +1,285 @@
+---
+import type { AdjacentLink } from "../utils/contentNavigation";
+
+interface Props {
+  previous?: AdjacentLink;
+  next?: AdjacentLink;
+  itemLabel: string;
+  showLinks?: boolean;
+}
+
+const { previous, next, itemLabel, showLinks = true } = Astro.props;
+const hasNavigation = Boolean(previous || next);
+
+const instructions = [
+  next && `Swipe right for the next ${itemLabel}`,
+  previous && `swipe left for the previous ${itemLabel}`,
+  "or use the arrow keys on desktop",
+]
+  .filter(Boolean)
+  .join(" \u00b7 ");
+---
+
+{
+  hasNavigation && (
+    <section class="mt-12">
+      <div class="rounded-2xl border border-primary-100 bg-white/90 p-5 shadow-sm shadow-primary-100/30 dark:border-primary-900/60 dark:bg-gray-900/80 dark:shadow-none">
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.22em] text-primary-700 dark:text-primary-300">
+              Keep Browsing
+            </p>
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+              {instructions}
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+            {
+              previous && (
+                <span class="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 dark:bg-gray-800">
+                  Left: previous
+                </span>
+              )
+            }
+            {
+              next && (
+                <span class="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 dark:bg-gray-800">
+                  Right: next
+                </span>
+              )
+            }
+          </div>
+        </div>
+      </div>
+
+      {
+        showLinks ? (
+          <div
+            class:list={[
+              "mt-4 grid gap-4",
+              previous && next ? "md:grid-cols-2" : "md:grid-cols-1",
+            ]}
+          >
+            {
+              previous ? (
+                <a
+                  href={previous.href}
+                  data-swipe-nav-link="previous"
+                  class="group block rounded-2xl border border-gray-200 bg-white p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-primary-600"
+                >
+                  <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Previous {itemLabel}</p>
+                  <div class="mt-3 flex items-start justify-between gap-4">
+                    <h2 class="text-lg font-semibold text-gray-900 transition-colors group-hover:text-primary-600 dark:text-gray-100 dark:group-hover:text-primary-400">
+                      {previous.title}
+                    </h2>
+                    <span class="mt-0.5 text-gray-400 transition-transform duration-200 group-hover:-translate-x-1 dark:text-gray-500">
+                      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6" />
+                      </svg>
+                    </span>
+                  </div>
+                </a>
+              ) : null
+            }
+
+            {
+              next ? (
+                <a
+                  href={next.href}
+                  data-swipe-nav-link="next"
+                  class="group block rounded-2xl border border-gray-200 bg-white p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-primary-600"
+                >
+                  <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Next {itemLabel}</p>
+                  <div class="mt-3 flex items-start justify-between gap-4">
+                    <h2 class="text-lg font-semibold text-gray-900 transition-colors group-hover:text-primary-600 dark:text-gray-100 dark:group-hover:text-primary-400">
+                      {next.title}
+                    </h2>
+                    <span class="mt-0.5 text-gray-400 transition-transform duration-200 group-hover:translate-x-1 dark:text-gray-500">
+                      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6" />
+                      </svg>
+                    </span>
+                  </div>
+                </a>
+              ) : null
+            }
+          </div>
+        ) : (
+          <div class="sr-only">
+            {previous && <a href={previous.href} data-swipe-nav-link="previous">Previous {itemLabel}: {previous.title}</a>}
+            {next && <a href={next.href} data-swipe-nav-link="next">Next {itemLabel}: {next.title}</a>}
+          </div>
+        )
+      }
+    </section>
+  )
+}
+
+<script is:inline>
+  (() => {
+    const cleanupKey = "__swipeNavigatorCleanup";
+    const swapListenerKey = "__swipeNavigatorSwapListener";
+    const swipeThreshold = 88;
+    const axisRatio = 1.2;
+
+    function isTypingTarget(target) {
+      return (
+        target instanceof HTMLElement &&
+        target.closest("input, textarea, select, [contenteditable='true']")
+      );
+    }
+
+    function shouldIgnoreTouchTarget(target, root) {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+
+      if (target.closest("a, button, input, textarea, select, summary, [contenteditable='true'], [data-no-swipe-nav]")) {
+        return true;
+      }
+
+      let current = target;
+
+      while (current && current !== root && current !== document.body) {
+        if (
+          current.scrollWidth > current.clientWidth + 24 &&
+          current.clientWidth > 0
+        ) {
+          return true;
+        }
+
+        current = current.parentElement;
+      }
+
+      return false;
+    }
+
+    function setupSwipeNavigator() {
+      const existingCleanup = window[cleanupKey];
+      if (typeof existingCleanup === "function") {
+        existingCleanup();
+      }
+
+      const root = document.querySelector("[data-swipe-nav-root]");
+      if (!(root instanceof HTMLElement)) {
+        return;
+      }
+
+      const previousLink = root.querySelector('[data-swipe-nav-link="previous"]');
+      const nextLink = root.querySelector('[data-swipe-nav-link="next"]');
+
+      if (!(previousLink instanceof HTMLAnchorElement) && !(nextLink instanceof HTMLAnchorElement)) {
+        return;
+      }
+
+      let startX = 0;
+      let startY = 0;
+      let hasTouch = false;
+      let ignoreTouch = false;
+      let isNavigating = false;
+
+      const navigateTo = (link) => {
+        if (!(link instanceof HTMLAnchorElement) || isNavigating) {
+          return;
+        }
+
+        isNavigating = true;
+        window.location.assign(link.href);
+      };
+
+      const onTouchStart = (event) => {
+        if (event.touches.length !== 1) {
+          hasTouch = false;
+          ignoreTouch = false;
+          return;
+        }
+
+        const touch = event.touches[0];
+        startX = touch.clientX;
+        startY = touch.clientY;
+        hasTouch = true;
+        ignoreTouch = shouldIgnoreTouchTarget(event.target, root);
+      };
+
+      const onTouchEnd = (event) => {
+        if (!hasTouch || ignoreTouch || event.changedTouches.length !== 1) {
+          hasTouch = false;
+          ignoreTouch = false;
+          return;
+        }
+
+        const touch = event.changedTouches[0];
+        const deltaX = touch.clientX - startX;
+        const deltaY = touch.clientY - startY;
+
+        hasTouch = false;
+        ignoreTouch = false;
+
+        if (Math.abs(deltaX) < swipeThreshold) {
+          return;
+        }
+
+        if (Math.abs(deltaX) < Math.abs(deltaY) * axisRatio) {
+          return;
+        }
+
+        if (deltaX > 0) {
+          navigateTo(nextLink);
+          return;
+        }
+
+        navigateTo(previousLink);
+      };
+
+      const onTouchCancel = () => {
+        hasTouch = false;
+        ignoreTouch = false;
+      };
+
+      const onKeyDown = (event) => {
+        if (
+          event.defaultPrevented ||
+          event.altKey ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.shiftKey ||
+          isTypingTarget(document.activeElement)
+        ) {
+          return;
+        }
+
+        if (event.key === "ArrowRight" && nextLink instanceof HTMLAnchorElement) {
+          event.preventDefault();
+          navigateTo(nextLink);
+        }
+
+        if (event.key === "ArrowLeft" && previousLink instanceof HTMLAnchorElement) {
+          event.preventDefault();
+          navigateTo(previousLink);
+        }
+      };
+
+      root.addEventListener("touchstart", onTouchStart, { passive: true });
+      root.addEventListener("touchend", onTouchEnd, { passive: true });
+      root.addEventListener("touchcancel", onTouchCancel, { passive: true });
+      window.addEventListener("keydown", onKeyDown);
+
+      window[cleanupKey] = () => {
+        root.removeEventListener("touchstart", onTouchStart);
+        root.removeEventListener("touchend", onTouchEnd);
+        root.removeEventListener("touchcancel", onTouchCancel);
+        window.removeEventListener("keydown", onKeyDown);
+      };
+    }
+
+    setupSwipeNavigator();
+
+    const existingSwapListener = window[swapListenerKey];
+    if (typeof existingSwapListener === "function") {
+      document.removeEventListener("astro:after-swap", existingSwapListener);
+    }
+
+    window[swapListenerKey] = setupSwipeNavigator;
+    document.addEventListener("astro:after-swap", setupSwipeNavigator);
+  })();
+</script>

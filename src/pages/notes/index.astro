@@ -2,9 +2,9 @@
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import NoteCard from "../../components/NoteCard.astro";
 import { getCollection } from "astro:content";
+import { sortNoteEntries } from "../../utils/contentNavigation";
 
-const notes = (await getCollection("notes", ({ data }) => !data.draft))
-  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+const notes = sortNoteEntries(await getCollection("notes"));
 
 // Group notes by topic
 const topics = [...new Set(notes.map((n) => n.data.topic).filter(Boolean))];

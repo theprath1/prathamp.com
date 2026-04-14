@@ -1,19 +1,34 @@
 ---
 import { getCollection } from "astro:content";
 import BlogLayout from "../../layouts/BlogLayout.astro";
+import {
+  getAdjacentNavigation,
+  sortBlogEntries,
+} from "../../utils/contentNavigation";
 
 export async function getStaticPaths() {
   const posts = await getCollection("blog");
+  const publishedPosts = sortBlogEntries(posts);
+
   return posts.map((post) => ({
     params: { slug: post.slug },
-    props: { post },
+    props: {
+      post,
+      navigation: getAdjacentNavigation(publishedPosts, post.slug, "/blog"),
+    },
   }));
 }
 
-const { post } = Astro.props;
+const { post, navigation } = Astro.props;
 const { Content, headings } = await post.render();
 ---
 
-<BlogLayout frontmatter={post.data} body={post.body} headings={headings} slug={post.slug}>
+<BlogLayout
+  frontmatter={post.data}
+  body={post.body}
+  headings={headings}
+  slug={post.slug}
+  navigation={navigation}
+>
   <Content />
 </BlogLayout>
