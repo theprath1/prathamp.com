@@ -1,9 +1,6 @@
 ---
 import BaseLayout from "./BaseLayout.astro";
 import Tag from "../components/Tag.astro";
-import SideArrowNavigation from "../components/SideArrowNavigation.astro";
-import SwipeNavigator from "../components/SwipeNavigator.astro";
-import type { AdjacentNavigation } from "../utils/contentNavigation";
 
 interface Props {
   frontmatter: {
@@ -15,10 +12,9 @@ interface Props {
     image?: string;
   };
   slug: string;
-  navigation?: AdjacentNavigation;
 }
 
-const { frontmatter, slug, navigation } = Astro.props;
+const { frontmatter, slug } = Astro.props;
 const ogImage = `/og/projects/${slug}.png`;
 ---
 
@@ -29,12 +25,7 @@ const ogImage = `/og/projects/${slug}.png`;
   type="article"
   showScrollProgress={true}
 >
-  <SideArrowNavigation
-    itemLabel="project"
-    previous={navigation?.previous}
-    next={navigation?.next}
-  />
-  <article class="max-w-4xl mx-auto px-4 py-16" data-swipe-nav-root style="touch-action: pan-y;">
+  <article class="max-w-4xl mx-auto px-4 py-16">
     <header class="mb-12">
       <h1 class="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
         {frontmatter.title}
@@ -109,10 +100,5 @@ const ogImage = `/og/projects/${slug}.png`;
     >
       <slot />
     </div>
-    <SwipeNavigator
-      itemLabel="project"
-      previous={navigation?.previous}
-      next={navigation?.next}
-    />
   </article>
 </BaseLayout>

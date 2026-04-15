@@ -1,28 +1,19 @@
 ---
 import { getCollection } from "astro:content";
 import NoteLayout from "../../layouts/NoteLayout.astro";
-import {
-  getAdjacentNavigation,
-  sortNoteEntries,
-} from "../../utils/contentNavigation";
 
 export async function getStaticPaths() {
   const notes = await getCollection("notes", ({ data }) => !data.draft);
-  const orderedNotes = sortNoteEntries(notes);
-
   return notes.map((note) => ({
     params: { slug: note.slug },
-    props: {
-      note,
-      navigation: getAdjacentNavigation(orderedNotes, note.slug, "/notes"),
-    },
+    props: { note },
   }));
 }
 
-const { note, navigation } = Astro.props;
+const { note } = Astro.props;
 const { Content } = await note.render();
 ---
 
-<NoteLayout frontmatter={note.data} navigation={navigation}>
+<NoteLayout frontmatter={note.data}>
   <Content />
 </NoteLayout>

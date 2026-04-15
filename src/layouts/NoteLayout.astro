@@ -1,9 +1,6 @@
 ---
 import BaseLayout from "./BaseLayout.astro";
 import { formatDate } from "../utils/formatDate";
-import SideArrowNavigation from "../components/SideArrowNavigation.astro";
-import SwipeNavigator from "../components/SwipeNavigator.astro";
-import type { AdjacentNavigation } from "../utils/contentNavigation";
 
 interface Props {
   frontmatter: {
@@ -11,19 +8,13 @@ interface Props {
     date: Date;
     topic?: string;
   };
-  navigation?: AdjacentNavigation;
 }
 
-const { frontmatter, navigation } = Astro.props;
+const { frontmatter } = Astro.props;
 ---
 
 <BaseLayout title={frontmatter.title} type="article" showScrollProgress={true}>
-  <SideArrowNavigation
-    itemLabel="note"
-    previous={navigation?.previous}
-    next={navigation?.next}
-  />
-  <article class="max-w-3xl mx-auto px-4 py-16" data-swipe-nav-root style="touch-action: pan-y;">
+  <article class="max-w-3xl mx-auto px-4 py-16">
     <header class="mb-8">
       <div class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-4">
         <time datetime={frontmatter.date.toISOString()}>
@@ -52,10 +43,5 @@ const { frontmatter, navigation } = Astro.props;
     >
       <slot />
     </div>
-    <SwipeNavigator
-      itemLabel="note"
-      previous={navigation?.previous}
-      next={navigation?.next}
-    />
   </article>
 </BaseLayout>

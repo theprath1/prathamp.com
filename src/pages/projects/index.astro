@@ -2,9 +2,10 @@
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import ProjectCard from "../../components/ProjectCard.astro";
 import { getCollection } from "astro:content";
-import { sortProjectEntries } from "../../utils/contentNavigation";
 
-const projects = sortProjectEntries(await getCollection("projects"));
+const projects = (await getCollection("projects"))
+  .filter((p) => !p.data.draft)
+  .sort((a, b) => a.data.title.localeCompare(b.data.title));
 ---
 
 <BaseLayout title="Projects" description="A showcase of my work and side projects.">

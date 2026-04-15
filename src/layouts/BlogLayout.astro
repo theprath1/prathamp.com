@@ -5,9 +5,6 @@ import { readingTime } from "../utils/readingTime";
 import Tag from "../components/Tag.astro";
 import TableOfContents from "../components/TableOfContents.astro";
 import NewsletterSignup from "../components/NewsletterSignup.astro";
-import SwipeNavigator from "../components/SwipeNavigator.astro";
-import SideArrowNavigation from "../components/SideArrowNavigation.astro";
-import type { AdjacentNavigation } from "../utils/contentNavigation";
 
 interface Heading {
   depth: number;
@@ -25,12 +22,10 @@ interface Props {
   body: string;
   headings?: Heading[];
   slug: string;
-  navigation?: AdjacentNavigation;
 }
 
-const { frontmatter, body, headings = [], slug, navigation } = Astro.props;
+const { frontmatter, body, headings = [], slug } = Astro.props;
 const ogImage = `/og/blog/${slug}.png`;
-const hasManualPager = /^\*Previous:|^\*Next:/m.test(body);
 ---
 
 <BaseLayout
@@ -40,13 +35,8 @@ const hasManualPager = /^\*Previous:|^\*Next:/m.test(body);
   image={ogImage}
   showScrollProgress={true}
 >
-  <SideArrowNavigation
-    itemLabel="post"
-    previous={navigation?.previous}
-    next={navigation?.next}
-  />
   <div class="max-w-6xl mx-auto px-4 py-16 overflow-x-clip lg:grid lg:grid-cols-[1fr_220px] lg:gap-12">
-    <article class="min-w-0" data-swipe-nav-root style="touch-action: pan-y;">
+    <article class="min-w-0">
     <header class="mb-12">
       <div class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-4">
         <time datetime={frontmatter.date.toISOString()}>
@@ -74,12 +64,6 @@ const hasManualPager = /^\*Previous:|^\*Next:/m.test(body);
     >
       <slot />
     </div>
-    <SwipeNavigator
-      itemLabel="post"
-      previous={navigation?.previous}
-      next={navigation?.next}
-      showLinks={!hasManualPager}
-    />
     <NewsletterSignup />
     </article>
     <TableOfContents headings={headings} />
