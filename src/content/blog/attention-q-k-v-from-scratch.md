@@ -3,7 +3,7 @@ title: "From Soft Alignment to Queries, Keys, and Values: Deriving the Transform
 description: "The Q/K/V abstraction derived from first principles — why Bahdanau's feedforward alignment collapses to a dot product, how the Transformer formalizes queries, keys, and values as separate projections, why we scale by √d_k (with a complete variance proof), what multi-head attention adds, and a full 3-token self-attention numerical walkthrough"
 date: 2026-03-31
 tags: ["deep-learning", "attention", "transformers", "q-k-v", "self-attention"]
-order: 3
+order: 4
 ---
 
 In the previous post, we derived Bahdanau attention from scratch: a feedforward compatibility function $e_{ij} = \mathbf{v}_a^\top \tanh(W_a s_{i-1} + U_a h_j)$, softmax normalization, and a dynamic context vector $c_i = \sum_j \alpha_{ij} h_j$. It worked. The model learned to align source and target words without any explicit supervision.

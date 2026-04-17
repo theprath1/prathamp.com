@@ -1,18 +1,16 @@
 ---
 title: "Hybrid Architectures: RetNet and the Three Computation Paradigms"
-description: "Building hybrid sequence architectures from the ground up — why pure transformers and pure RNNs each fail at one vertex of the impossible triangle (training parallelism, low-cost inference, strong performance), the two problems with linear attention's accumulate-only recurrence (unbounded state growth and missing position information), how RetNet's retention mechanism fixes both with exponential decay γ and complex-exponential position encoding, deriving the parallel form as attention with a causal decay mask, verifying the recurrent form produces identical outputs, the chunkwise hybrid that processes chunks in parallel while passing state recurrently, multi-scale retention with different decay rates per head, the swish gate and GroupNorm that complete the architecture, and why this hybrid design — one formula, three computation modes — achieves all three vertices simultaneously — all derived step by step with concrete examples."
+description: "Building RetNet from scratch — how a single retention formula admits three computation modes (parallel for training, recurrent for inference, chunkwise for long sequences) producing identical outputs, why exponential decay and complex-exponential position encoding together fix the two failure modes of linear attention, and what the impossible triangle of training parallelism, low-cost inference, and strong performance actually requires."
 date: 2026-04-07
 tags: [machine-learning, attention, transformers, retnet, retention, linear-attention, rnn, hybrid-architectures, efficiency]
 order: 2
 ---
 
-The previous twelve blogs modified attention, and the Why Replace Attention blog replaced it entirely — rewriting the softmax as a kernel and discovering that the result is an RNN with constant-size state. That blog ended with a landscape: the boundary between transformers and RNNs is algebraic, not architectural. But it left an open question: if transformers and RNNs are two views of the same computation, why must we choose one?
+A **hybrid architecture** is one whose forward pass can be computed by more than one algorithm — a parallel one and a recurrent one — that produce *identical* outputs from the same parameters. Not approximations of each other. Not different models that happen to behave similarly. The same number, computed two ways. Such an architecture is neither a transformer nor an RNN; it is both, depending on which algorithm the implementation chooses to run.
 
-Transformers are parallel but expensive at inference ($O(n)$ per token, growing KV cache). RNNs are cheap at inference ($O(1)$ per token, constant state) but sequential during training. Linear attention showed that the same formula can be computed both ways — but its quality lagged behind softmax transformers.
+This matters because of an old tension. Training a sequence model on a GPU rewards parallelism: every position should be computable at the same time. Generating tokens at inference rewards a constant-size state: every new token should cost the same regardless of how much context came before. Transformers nail the first but pay a growing KV cache for the second. RNNs nail the second but cannot parallelize across time. A model that admits *both* algorithms — train it as a parallel transformer, deploy it as an $O(1)$ RNN — sidesteps the tradeoff entirely. Sun et al. (2023) call this the **impossible triangle**: training parallelism, low-cost inference, and strong performance, and argue that previous architectures achieved at most two of the three.
 
-This blog introduces **hybrid architectures**: models designed from the start to have multiple equivalent computation modes. The defining property of a hybrid architecture is that a single mathematical formula admits both a parallel form (for training) and a recurrent form (for inference), producing **identical** outputs — not an approximation, but exact mathematical equivalence. The architecture is neither a transformer nor an RNN. It is both, depending on how you compute it.
-
-We derive the first and cleanest example of this idea: the **retention** mechanism of Sun et al. (2023), the core of the Retentive Network (RetNet). Retention has three computation paradigms — parallel, recurrent, and chunkwise recurrent — all producing identical outputs from a single formula. The parallel form enables GPU-efficient training. The recurrent form enables $O(1)$ inference. The chunkwise form bridges the two for long sequences. Sun et al. call this the **impossible triangle**: training parallelism, low-cost inference, and strong performance. Previous architectures achieved at most two of the three. RetNet claims all three.
+This post derives **retention**, the mechanism at the core of the Retentive Network (RetNet) and the cleanest worked example of the hybrid pattern. Retention has *three* computation modes — parallel (for training), recurrent (for inference), and chunkwise (for long sequences) — all dropping out of a single recurrence $S_n = \gamma S_{n-1} + k_n v_n^\top$. We will derive each mode, verify numerically that all three produce identical outputs, and then layer on the two pieces that make retention competitive with softmax attention: complex-exponential position encoding (which slots in via the eigendecomposition of a generalized state-transition matrix) and multi-scale retention (which assigns each head a different decay rate $\gamma$ to capture different timescales).
 
 The core paper is Sun et al. (2023), "Retentive Network: A Successor to Transformer for Large Language Models."
 
@@ -519,7 +517,9 @@ If $q_{10} = q_{1000}$ and $k_8 = k_{998}$ (same content), both scenarios produc
 
 ### 6.2 The general state transition matrix
 
-To add position encoding, we generalize the retention recurrence. Instead of the scalar decay $\gamma$, we use a matrix $A \in \mathbb{R}^{d \times d}$ as the state transition:
+The fix has to come from the recurrence itself. The scalar decay $\gamma$ shrinks the state by the same fraction at every step regardless of position, which is why nothing in the formula knows where token $m$ sits on the timeline. Replace that single number with a $d \times d$ matrix and the per-step transformation becomes rich enough to encode rotation in addition to decay — the rotation will carry the position information.
+
+Concretely, generalize the recurrence by replacing the scalar $\gamma$ with a state-transition matrix $A \in \mathbb{R}^{d \times d}$:
 
 $$
 s_n = A \, s_{n-1} + k_n \, v_n^\top
@@ -905,13 +905,15 @@ Compare to the parallel form: $O(n^2 d_k) = O(n^2 \cdot 256)$. The chunkwise for
 
 ### 8.1 Different decay rates per head
 
-A single decay rate $\gamma$ creates a single effective window size. But language modeling requires attention at multiple scales — local patterns (syntax, within a phrase) and global patterns (topic, across paragraphs). RetNet assigns a different $\gamma$ value to each attention head using the formula:
+A single decay rate $\gamma$ pins the model to a single effective window. With $\gamma = 0.9$ we built a model that pays attention to the last ~44 tokens; with $\gamma = 0.99$ we would build one that reaches ~458 tokens but gives almost equal weight to everything in that window; with $\gamma = 0.5$ we would build one that effectively only sees the last ~7 tokens. Language has structure at all of these scales — a closing bracket binds to the most recent opening one (short window), a pronoun binds to its antecedent some sentences ago (medium), a topic word echoes across paragraphs (long). One $\gamma$ cannot serve all three.
+
+The fix is to make $\gamma$ a per-head knob: assign each of the $h$ heads its own decay rate, spaced geometrically from "very forgetful" to "very persistent". RetNet picks the spacing with the formula:
 
 $$
 \boxed{\gamma = 1 - 2^{-5 - \text{arange}(0, h)} \in \mathbb{R}^h}
 $$
 
-where $\text{arange}(0, h) = (0, 1, 2, \ldots, h-1)$ and the formula is applied element-wise. This produces one $\gamma$ per head.
+where $\text{arange}(0, h) = (0, 1, 2, \ldots, h-1)$ and the formula is applied element-wise, producing one $\gamma$ per head. The $-5$ offset starts the smallest gap at $2^{-5} = 1/32$ (so $\gamma_0 = 31/32 \approx 0.97$, already a fairly long window), and each subsequent head halves the gap, pushing $\gamma$ closer and closer to 1.
 
 ### 8.2 Numerical values for $h = 8$ heads
 

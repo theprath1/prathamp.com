@@ -3,7 +3,7 @@ title: "Mathematical Prerequisites for the Attention Series"
 description: "Building the math foundations for the attention series — the tanh function, dot products as similarity measures, the standard normal distribution, variance, independence of random variables, and why the variance of a dot product equals the vector dimension — all derived step by step with one consistent 2-dimensional example."
 date: 2026-03-31
 tags: [attention, transformers, mathematics, deep-learning]
-order: 5
+order: 6
 ---
 
 Before diving into the attention series, we need four tools that have not appeared in any earlier prerequisite post: the tanh function, the dot product, the standard normal distribution, and variance. The most important is the last. In [From Soft Alignment to Queries, Keys, and Values](/blog/attention-q-k-v-from-scratch), we derive why the attention score matrix must be divided by $\sqrt{d_k}$ before the softmax. The entire argument rests on one result: when each component of $\mathbf{q}$ and $\mathbf{k}$ is independently drawn from a standard normal distribution, the variance of their dot product equals $d_k$. Everything in this post builds toward that one identity.

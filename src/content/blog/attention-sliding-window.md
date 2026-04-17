@@ -1,6 +1,6 @@
 ---
 title: "Sliding Window Attention: From Local Windows to Global Context"
-description: "Building Longformer's attention from the ground up — sliding windows that scale linearly, receptive field growth through stacking (the CNN analogy), dilated sliding windows for long-range reach without extra cost, task-motivated global attention with separate projections, combined O(n) complexity, the pretrain-finetune bridge via position embedding copying, and state-of-the-art results on language modeling and document-level NLP — all derived step by step with a 16-token running example."
+description: "Borrowing from convolutions — how a sliding local window keeps attention linear in sequence length, recovers a global receptive field by stacking layers, and reaches across the whole document through a small set of task-driven global tokens."
 date: 2026-04-06
 tags: [machine-learning, attention, transformers, sliding-window, longformer, efficiency, sparse-attention]
 order: 1

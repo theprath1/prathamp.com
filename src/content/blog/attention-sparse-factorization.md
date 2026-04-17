@@ -1,6 +1,6 @@
 ---
 title: "Why Full Attention Is Wasteful: Sparse Factorization from Scratch"
-description: "Most learned attention weights are near zero — full attention computes n-squared interactions when only a sparse subset matters. Building sparse factorized attention from the ground up: connectivity sets, strided and fixed patterns, the path-length argument for full reachability, complexity reduction from O(n squared) to O(n times square root of n), pre-activation residual blocks, gradient checkpointing, and experimental results — all derived step by step with a 16-token running example."
+description: "Most learned attention weights are near zero, so why pay for all $n^2$ pairs? Building sparse factorized attention from scratch — strided and fixed patterns that keep every token reachable in two hops while cutting the cost to $O(n\\sqrt{n})$."
 date: 2026-04-06
 tags: [machine-learning, attention, transformers, sparse-attention, efficiency, sparse-transformers]
 order: 2

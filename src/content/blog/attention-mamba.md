@@ -1,14 +1,14 @@
 ---
 title: "Mamba and Mamba-2: Selective State Spaces and Structured State Space Duality"
-description: "Building selective state space models from the ground up — why the fixed dynamics of prior SSMs cannot perform content-based reasoning on discrete data, deriving the selection mechanism that makes Δ, B, C input-dependent so the model can focus on or ignore tokens at will, proving that the selective SSM with A = −1 and B = 1 reduces exactly to classical RNN gating through the zero-order hold discretization, the hardware-aware selective scan that fuses discretization, recurrence, and output projection into a single SRAM-resident kernel, the Mamba architecture that merges the SSM and MLP blocks into one homogeneous unit, deriving the matrix transformation form that reveals every SSM is a semiseparable matrix multiplication, the structured state space duality that shows scalar-identity SSMs and 1-semiseparable structured masked attention are dual algorithms for computing the same function, the SSD block decomposition algorithm that combines quadratic attention within chunks and linear recurrence between chunks for optimal hardware efficiency, and the Mamba-2 architecture that uses parallel projections, grouped-value attention head structure, and extra normalization to be 2–8× faster than Mamba while matching Transformer++ quality — all derived step by step with concrete examples."
+description: "Building Mamba and Mamba-2 from scratch — why fixed-dynamics state space models cannot do content-based reasoning, how the selection mechanism fixes it, and the structured-matrix duality showing every selective SSM is masked attention in disguise."
 date: 2026-04-08
 tags: [machine-learning, attention, transformers, state-space-models, mamba, mamba-2, selective-ssm, structured-state-space-duality, ssd, efficiency, sequence-modeling]
 order: 1
 ---
 
-The previous blogs in this series modified or replaced the attention mechanism. The Why Replace Attention blog showed that softmax attention is secretly a kernel, and replacing the kernel with $\phi(q)^\top \phi(k)$ turns a Transformer into an RNN with constant-size state. The RetNet blog added exponential decay. The Gated DeltaNet blog added targeted erasure. The Kernel Zoo blog explored different feature maps $\phi$. All of these start from attention and work backward toward efficient recurrence.
+A **state space model** (SSM) is a sequence model rooted in control theory: a hidden state evolves through time according to a linear differential equation, driven by the input. Discretize the equation, plug in trainable matrices, and you get a sequence layer that runs as a recurrence at inference, scales linearly in sequence length, and looks nothing like attention. The catch is that classical SSMs apply the *same* transformation to every token regardless of what the token contains — a property that makes them excellent at signal processing and hopeless at selective recall like "Harry … Harry Potter".
 
-This blog takes the opposite path. We start from **state space models** (SSMs) — a class of sequence models rooted in control theory and signal processing — and work forward toward attention. We derive insights from two papers:
+This post derives Mamba and Mamba-2, the two papers that fixed this. The first paper makes the SSM parameters input-dependent so the model can decide per token whether to read or skip. The second reveals that this selective SSM is, under a natural restriction, the same function as a structured form of masked attention computed by a different algorithm. We will work through both papers using a 4-token running example, and arrive at the **structured state space duality** that ties SSMs and attention together. Concretely, we draw from:
 
 1. **Gu and Dao (2023)**, "Mamba: Linear-Time Sequence Modeling with Selective State Spaces": identifies the fundamental limitation of prior SSMs (fixed dynamics cannot reason about content), introduces the **selection mechanism** that makes SSM parameters input-dependent, and proposes a hardware-aware architecture that matches Transformer quality for the first time.
 
@@ -36,33 +36,67 @@ For the selective SSM and the Mamba-2 duality sections, we extend to a multi-cha
 
 ### 1.1 The continuous system
 
-A **state space model** (SSM) is defined by a continuous-time dynamical system that maps an input signal $x(t) \in \mathbb{R}$ to an output signal $y(t) \in \mathbb{R}$ through a latent state $h(t) \in \mathbb{R}^N$:
+We will build the state space model one concept at a time. Each piece answers one question.
+
+#### What is a "state"?
+
+The **state** is a small running summary of everything the model has seen so far. We denote it $h(t) \in \mathbb{R}^N$, where $t$ is time and $N$ is how many numbers the summary contains. Imagine a bucket sitting under a tap. The tap drips water in (the input), the bucket has a small hole at the bottom that drips water out (forgetting), and at any moment the only thing that matters about the past is the current water level. That water level is the state. Everything the model "remembers" must fit inside it.
+
+In our running example we will pick the smallest possible state: $N = 1$, a single scalar. So the bucket holds just one number.
+
+#### How does the state change?
+
+The state evolves continuously over time. We need an equation that says how it changes from one instant to the next. Two things can change the state: the state itself (the bucket leaks proportional to how full it is), and the current input (water arriving through the tap). The simplest equation that captures both is:
 
 $$
 h'(t) = Ah(t) + Bx(t) \qquad \text{(state equation)}
 $$
 
+Read this slowly. $h'(t)$ is the rate of change of the state — how fast the bucket level is rising or falling at this exact moment. $Ah(t)$ is the part of that change that depends on the current state itself (the leak). $Bx(t)$ is the part driven by the current input (the tap). Add the two contributions and you get the total rate of change.
+
+There is a separate equation for what we *read out* of the state at each moment:
+
 $$
 y(t) = Ch(t) \qquad \text{(output equation)}
 $$
 
-where $A \in \mathbb{R}^{N \times N}$ is the **state matrix** that governs the dynamics, $B \in \mathbb{R}^{N \times 1}$ is the **input matrix** that controls how the input enters the state, and $C \in \mathbb{R}^{1 \times N}$ is the **output matrix** that reads from the state. This is the standard **linear time-invariant (LTI)** system from classical control theory (Kalman, 1960).
+This says the output $y(t)$ is just a linear measurement of the current state. We do not get to look directly at the input $x(t)$ when producing the output — everything must flow through the state.
 
-The name "state space model" comes from the fact that the system is fully described by the trajectory of $h(t)$ through an $N$-dimensional **state space**.
+#### What do $A$, $B$, and $C$ do?
 
-For our running example with $N = 1$: $A = -1$, $B = 1$, $C = 1$. The state equation becomes:
+Each matrix has one job. $A \in \mathbb{R}^{N \times N}$ is the **state matrix**: it controls how the state evolves on its own (how fast the bucket leaks, and in our scalar case, whether the leak is even leaking — if $A$ were positive instead of negative, the bucket would refill itself). $B \in \mathbb{R}^{N \times 1}$ is the **input matrix**: it controls how the new input enters the state (how wide the tap is). $C \in \mathbb{R}^{1 \times N}$ is the **output matrix**: it controls how we read out of the state (which dipstick we use to measure the level). Together, $A$, $B$, and $C$ fully specify the system's behavior. This setup is the **linear time-invariant (LTI)** system from classical control theory ([Kalman, 1960](https://www.cs.unc.edu/~welch/kalman/media/pdf/Kalman1960.pdf)), and the entire space of possible state trajectories — what could ever happen to $h(t)$ — is called the **state space**.
+
+#### What does "time-invariant" mean?
+
+The matrices $A$, $B$, $C$ do not depend on $t$. The bucket has the same hole size and the same tap width at every moment. Pour the same water in at $t = 3$ or at $t = 300$ and the bucket level reacts identically. This is what *time-invariant* means: the rule that governs the system is the same at every instant.
+
+This sounds innocent. It will turn out to be the entire problem we eventually need to fix in Section 2 — because in language modeling, we *want* the rule to depend on what token just arrived.
+
+#### Plugging in the running example
+
+For our running example with $N = 1$, we pick $A = -1$, $B = 1$, $C = 1$. The state equation becomes:
 
 $$
 h'(t) = -h(t) + x(t)
 $$
 
-This is a **leaky integrator**: the state decays exponentially (the $-h(t)$ term) while accumulating the input (the $x(t)$ term). The decay rate is $|A| = 1$, meaning the state loses about 63% of its value per unit time.
+This is the canonical **leaky integrator**: the state grows by whatever you put in (the $+x(t)$ term, which is $Bx(t)$ with $B=1$) and shrinks in proportion to how much is currently there (the $-h(t)$ term, which is $Ah(t)$ with $A=-1$). The decay rate is $|A| = 1$, meaning that if you stop pouring anything in, the bucket loses about 63% of its level per unit of time. This is the same dynamics as an RC circuit discharging through a resistor, or a hot cup of coffee cooling toward room temperature — equations from physics that share the same first-order structure.
 
 ### 1.2 Discretization
 
-Neural networks operate on discrete sequences, not continuous signals. We need to convert the continuous parameters $(\Delta, A, B)$ to discrete parameters $(\bar{A}, \bar{B})$ through a **discretization rule**. The parameter $\Delta \in \mathbb{R}_{>0}$ is the **step size** — it controls the resolution at which the continuous system is sampled.
+#### Why we need to discretize
 
-Mamba uses the **zero-order hold (ZOH)** discretization:
+The state equation we just wrote down is a **continuous-time** equation: it talks about $h'(t)$, the rate of change of the state at every real-numbered moment in time. But neural networks do not see continuous signals. They see a discrete sequence of tokens $x_1, x_2, x_3, \ldots$ arriving one at a time. We need a way to convert "the continuous bucket equation" into "a recurrence that takes one token in and produces one new state out." That conversion is called **discretization**.
+
+A **discretization rule** is a recipe with one job: turn the continuous parameters $(\Delta, A, B)$ into discrete parameters $(\bar{A}, \bar{B})$ such that the discrete recurrence $h_t = \bar{A} h_{t-1} + \bar{B} x_t$ produces the same trajectory at sample points $t = 0, \Delta, 2\Delta, \ldots$ that the continuous bucket would have produced.
+
+#### What is $\Delta$?
+
+$\Delta \in \mathbb{R}_{>0}$ is the **step size**: how much continuous time elapses between two adjacent tokens. It is a **knob**. Crank it small, and adjacent tokens are very close together in continuous time — the bucket barely changes between them. Crank it large, and adjacent tokens are far apart in continuous time — the bucket has long stretches to leak and fill. So $\Delta$ controls how aggressively each new token affects the state. We will see in Section 2.3 that this knob is exactly what Mamba turns into a learnable, input-dependent quantity.
+
+#### What does "zero-order hold" mean?
+
+To do the conversion, we have to make some assumption about what the input $x$ is doing *between* samples — between, say, $t$ and $t + \Delta$. We only have a sample at $t$ and a sample at $t + \Delta$. What happens in between? The simplest possible answer is: *it stays at the value it had at $t$*. The input is a flat plateau between samples. That assumption is called the **zero-order hold (ZOH)**: we hold the input constant ("zero-order" means "constant," as opposed to "first-order" which would be linear interpolation, etc.). Under this pretense, the continuous equation can be integrated exactly between samples, and we get the closed-form discrete update:
 
 $$
 \bar{A} = \exp(\Delta A)
@@ -72,43 +106,27 @@ $$
 \bar{B} = (\Delta A)^{-1}(\exp(\Delta A) - I) \cdot \Delta B
 $$
 
-The ZOH assumes the input $x(t)$ is constant over each interval $[t, t + \Delta)$. Let us derive these formulas.
+Two formulas. The first says: in $\Delta$ seconds, the bucket leaks by a factor of $\exp(\Delta A)$ on its own (with $A < 0$, this is between 0 and 1). The second says: how much new input gets pumped into the bucket during that same interval, accounting for the fact that it leaks while it fills.
 
-The continuous state equation $h'(t) = Ah(t) + Bx(t)$ is a **first-order linear ODE**. The general solution (by the **integrating factor method**) is:
+#### Where these formulas come from
 
-$$
-h(t + \Delta) = \exp(\Delta A) h(t) + \int_0^{\Delta} \exp((\Delta - \tau) A) \cdot B \cdot x(t + \tau) \, d\tau
-$$
+The two boxed expressions for $\bar{A}$ and $\bar{B}$ are not assumed — they are derived. The continuous equation $h'(t) = Ah(t) + Bx(t)$ is a first-order linear ODE; solving it with the integrating factor method gives a closed-form expression for $h(t + \Delta)$ in terms of $h(t)$ and an integral of the input over $[t, t+\Delta]$. Under ZOH the input is constant on that interval, so it factors out of the integral, and what remains evaluates to $A^{-1}(\exp(\Delta A) - I)$ via a matrix-exponential integral identity. Reading off the coefficients of $h(t)$ and $x(t)$ in the resulting expression gives the two formulas above. The full step-by-step derivation — integrating factor, matrix exponential, the integral identity, and the ZOH substitution — is in [Mathematical Prerequisites for Mamba](/blog/math-prerequisites-for-mamba), Sections 2 through 5.
 
-Under the ZOH assumption, $x(t + \tau) = x(t)$ for $\tau \in [0, \Delta)$, so the integral simplifies:
+#### Plugging in the running example
 
-$$
-\int_0^{\Delta} \exp((\Delta - \tau) A) \, d\tau \cdot B \cdot x(t)
-$$
-
-Computing the integral by substitution $u = \Delta - \tau$, $du = -d\tau$:
-
-$$
-\int_0^{\Delta} \exp(uA) \, du = A^{-1}(\exp(\Delta A) - I)
-$$
-
-This uses the **matrix exponential integral identity**: $\int_0^T \exp(uA) du = A^{-1}(\exp(TA) - I)$, which follows from the fact that $\frac{d}{du}\exp(uA) = A\exp(uA)$ (the **matrix exponential derivative**).
-
-Multiplying by $\Delta B / \Delta$:
-
-$$
-\bar{B} = (\Delta A)^{-1}(\exp(\Delta A) - I) \cdot \Delta B
-$$
-
-For our running example with $A = -1$, $B = 1$, $\Delta = 1.0$:
+For $A = -1$, $B = 1$, $\Delta = 1.0$ (one second between samples):
 
 $$
 \bar{A} = \exp(-1 \cdot 1.0) = \exp(-1) = 0.368
 $$
 
+So one second of leak shrinks the bucket level to 36.8% of what it was — equivalently, 63.2% leaks out. That matches the leaky-integrator interpretation from Section 1.1.
+
 $$
 \bar{B} = (-1)^{-1}(\exp(-1) - 1) \cdot 1.0 = (-1)(0.368 - 1) = (-1)(-0.632) = 0.632
 $$
+
+So 63.2% of the new input gets written into the bucket per step. Notice that $\bar{A} + \bar{B} = 1$ in this scalar case — the fraction that leaks out and the fraction that gets written in sum to 1. The bucket update is a **convex combination** of the old level and the new input. We will see in Section 2 that this identity is exactly what makes the discretized SSM equivalent to a classical RNN gate.
 
 ### 1.3 The discrete recurrence
 
@@ -246,9 +264,9 @@ Prior SSMs (S4, DSS, S4D, S5, H3, Hyena) exploit this duality: train with convol
 
 ### 1.6 The LTI property — and its limitation
 
-The duality between recurrence and convolution exists **because** the parameters $(\bar{A}, \bar{B}, C)$ are constant across time. This is the **linear time-invariance (LTI)** property. A time-invariant system applies the same transformation regardless of when or where in the sequence a token appears.
+The duality between recurrence and convolution only exists *because* $(\bar{A}, \bar{B}, C)$ are constant across time. This is the **linear time-invariance (LTI)** property. The bucket has the same hole and the same tap width at every step, regardless of which token just walked in the door.
 
-LTI is a double-edged sword. It enables convolutions (because a fixed kernel can be applied everywhere). But it prevents **content-based reasoning** — the model cannot decide to focus on one token and ignore another based on what those tokens contain. The dynamics are the same for every input.
+LTI is a double-edged sword. On one hand it enables convolutions, because a single fixed kernel can be applied everywhere. On the other hand it prevents **content-based reasoning** — the model cannot decide to *pay attention to one token and ignore another based on what those tokens actually contain*. To see why this matters concretely: imagine a sequence "Harry … (lots of irrelevant words) … Harry Potter," and you want to predict "Potter" after seeing the second "Harry." The model has to recognize that the current token *matches* a token it saw earlier and *route* information based on that match. But an LTI SSM applies the same $\bar{A}, \bar{B}$ at every step — it cannot make any decision conditional on what the input looks like. The dynamics are frozen. Mamba's whole job is to unfreeze them.
 
 ---
 
@@ -292,7 +310,7 @@ This is the fundamental tradeoff. Selection gives the model content-dependent dy
 
 ### 2.3 Interpretation of $\Delta$
 
-$\Delta$ controls the balance between focusing on the current input $x_t$ and persisting the state $h_{t-1}$. Mechanistically:
+Of the three input-dependent parameters $(\Delta, B, C)$, the most important is $\Delta$ — and the easiest way to see why is to think of it as a knob between two extremes. $\Delta$ controls the balance between focusing on the current input $x_t$ and persisting the state $h_{t-1}$. Mechanistically:
 
 - A **large** $\Delta_t$ means $\bar{A}_t = \exp(\Delta_t A) \to 0$ (since $A$ has negative entries) and $\bar{B}_t \to$ large. The state is reset, and the current input $x_t$ is written strongly. The system is "selecting" $x_t$.
 
@@ -522,7 +540,7 @@ The Mamba block consists of:
 
 5. **Output projection**: the gated result is projected back to $\mathbb{R}^D$.
 
-The SiLU gating makes the Mamba block analogous to a **SwiGLU MLP** (Shazeer, 2020) — the standard MLP used in modern Transformers like PaLM and LLaMA. Compared to the MLP block, Mamba simply adds a convolution and SSM to the main branch.
+The SiLU gating makes the Mamba block analogous to a **SwiGLU MLP** ([Shazeer, 2020](https://arxiv.org/abs/2002.05202)) — a variant of the standard two-layer MLP in which one of the linear branches is multiplied element-wise by a Swish-activated copy of the input, used in PaLM and LLaMA. Compared to the MLP block, Mamba simply adds a convolution and SSM to the main branch.
 
 ### 4.2 Parameter count
 
@@ -595,7 +613,7 @@ $$
 h_t = A_t h_{t-1} + B_t x_t, \qquad y_t = C_t^\top h_t
 $$
 
-We can unroll this. By induction (starting from $h_0 = 0$):
+Unrolling this from $h_0 = 0$ — multiply out $h_1, h_2, h_3, \ldots$ in turn and collect the contribution of each input $x_s$ — produces a closed-form expression for $h_t$ as a sum over the inputs, each weighted by a cumulative product of the $A$ matrices that came after it. The full unrolling is derived in [Mathematical Prerequisites for Mamba](/blog/math-prerequisites-for-mamba), Section 6. The result is
 
 $$
 h_t = \sum_{s=0}^{t} A_{t:s}^\times B_s x_s
@@ -623,39 +641,19 @@ Dao and Gu (2024) identify the matrix $M$ as belonging to a well-studied class c
 
 **Definition 3.1.** A lower-triangular matrix $M$ is **N-semiseparable** if every submatrix contained in the lower-triangular portion has rank at most N.
 
-This is exactly what the SSM matrix $M$ satisfies. Consider any off-diagonal block $M_{j':j, i':i}$ with $j' > j > i > i'$. By the formula above:
-
-$$
-M_{j,i} = C_j^\top A_{j:i}^\times B_i
-$$
-
-This can be factored as a product of a column vector ($C_j^\top A_{j:j'}$), a chain of $A$ matrices, and a row vector ($A_{i':i} B_i$). The rank of any such block is at most $N$ (the state dimension).
-
-This is Theorem 3.5 of the paper: **the SSM transformation $y = \text{SSM}(A, B, C)(x)$ is identical to matrix multiplication by an N-semiseparable matrix $M = \text{SSS}(A, B, C)$**.
+The SSM matrix $M$ satisfies this with $N$ equal to the state dimension: the formula $M_{ts} = C_t^\top A_{t:s}^\times B_s$ factors any lower-triangular submatrix as an outer product of a chain of $C$'s and a chain of $B$'s, capped at rank $N$. This is Theorem 3.5 of the paper: **the SSM transformation $y = \text{SSM}(A, B, C)(x)$ is identical to matrix multiplication by an N-semiseparable matrix $M = \text{SSS}(A, B, C)$**.
 
 ### 6.3 The scalar case: 1-semiseparable matrices
 
-The most important special case is when $A_t$ is a **scalar times the identity**: $A_t = a_t I$ for some scalar $a_t \in [0, 1]$. Then the cumulative product simplifies:
+The most important special case is when $A_t$ is a **scalar times the identity**: $A_t = a_t I$ for some scalar $a_t \in [0, 1]$. The cumulative product collapses to a scalar, $A_{t:s}^\times = a_{t:s}^\times \cdot I$ where $a_{t:s}^\times = a_t a_{t-1} \cdots a_{s+1}$, and the matrix factors as
 
 $$
-A_{t:s}^\times = a_t a_{t-1} \cdots a_{s+1} \cdot I = a_{t:s}^\times \cdot I
+M_{ts} = a_{t:s}^\times \cdot (C_t^\top B_s), \qquad M = L \circ (CB^\top)
 $$
 
-and the matrix becomes:
+where $L_{ts} = a_{t:s}^\times$ is a **1-semiseparable matrix** (also called a 1-SS matrix) and $\circ$ denotes the **Hadamard (element-wise) product**. The 1-SS structure of $L$ — a lower-triangular matrix whose every entry below the diagonal is a cumulative product, equivalently whose every lower-triangular submatrix has rank at most 1 — is derived directly from the unrolling in [Mathematical Prerequisites for Mamba](/blog/math-prerequisites-for-mamba), Section 7, where the explicit rank-1 factorization $L_{ts} = c_t / c_s$ is built up from first principles.
 
-$$
-M_{ts} = a_{t:s}^\times \cdot (C_t^\top B_s)
-$$
-
-This can be decomposed as:
-
-$$
-M = L \circ (CB^\top)
-$$
-
-where $L_{ts} = a_{t:s}^\times$ is a **1-semiseparable matrix** (also called a 1-SS matrix) and $\circ$ denotes the **Hadamard (element-wise) product**.
-
-The 1-SS matrix $L$ has a very specific structure:
+Concretely, $L$ has the form:
 
 $$
 L = \text{1SS}(a) = \begin{pmatrix} 1 \\ a_1 & 1 \\ a_2 a_1 & a_2 & 1 \\ a_3 a_2 a_1 & a_3 a_2 & a_3 & 1 \end{pmatrix}
@@ -892,7 +890,7 @@ The Mamba-2 block modifies the Mamba block in two ways motivated by the attentio
 
 In Mamba-2, $(A, X, B, C)$ are all produced from the input $u$ in **parallel** — analogous to how $(Q, K, V)$ are produced in parallel in a Transformer. This slightly reduces parameters and, more importantly, enables tensor parallelism for larger models by reducing the number of synchronization points per block from two to one.
 
-**Extra normalization.** Mamba-2 adds a normalization layer (GroupNorm or RMSNorm) after the gating multiplication and before the output projection. This improves training stability at larger scales and is analogous to the NormFormer architecture (Shleifer, Weston, and Ott, 2021) that adds normalization at the end of MLP and attention blocks.
+**Extra normalization.** Mamba-2 adds a normalization layer (GroupNorm or RMSNorm) after the gating multiplication and before the output projection. **GroupNorm** ([Wu and He, 2018](https://arxiv.org/abs/1803.08494)) splits a feature vector into groups of channels and normalizes each group independently to zero mean and unit variance, sitting between LayerNorm (one group, the whole vector) and InstanceNorm (one group per channel). This improves training stability at larger scales and is analogous to the NormFormer architecture ([Shleifer, Weston, and Ott, 2021](https://arxiv.org/abs/2110.09456)) that adds normalization at the end of MLP and attention blocks.
 
 ### 9.2 Multi-head patterns
 

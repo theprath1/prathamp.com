@@ -3,7 +3,7 @@ title: "What Attention is Really Doing: Weighted Memory Retrieval from Scratch"
 description: "Building attention from first principles — the fixed-length bottleneck that broke RNN encoder–decoders on long sentences, the weighted-sum solution introduced by Bahdanau, Cho, and Bengio (2015), alignment score derivation, softmax normalization, and a complete 3-word numerical walkthrough — all derived step by step"
 date: 2026-03-31
 tags: ["deep-learning", "attention", "transformers", "nlp", "neural-machine-translation"]
-order: 4
+order: 5
 ---
 
 Before the Transformer, before Q/K/V, before any of the modern terminology, there was a concrete failure mode: sequence-to-sequence models fell apart on long sentences. The fix that Bahdanau, Cho, and Bengio proposed in 2015 is what we now call attention. We will derive it from first principles, starting from the failure and arriving at the mechanism.

@@ -1,24 +1,20 @@
 ---
 title: "Why Replace Attention? The Softmax Bottleneck and the Path to Linear Time"
-description: "Building the case for replacing attention from the ground up — the cost ledger after twelve blogs of modifications, the KV cache wall during inference, why softmax forces quadratic materialization, rewriting attention as a kernel function, the associativity trick that changes multiplication order from O(n²) to O(n), the recurrent form that turns a transformer into an RNN with constant memory, and what we gain and lose — all derived step by step with concrete examples."
+description: "Why softmax is the bottleneck that every attention variant leaves untouched — and how rewriting attention as a kernel exposes an associativity trick that collapses the O(n²) cost to O(n) and turns the transformer into an RNN."
 date: 2026-04-07
 tags: [machine-learning, attention, transformers, linear-attention, kernels, efficiency, rnn]
 order: 3
 ---
 
-The previous twelve blogs modified attention. We changed the number of KV heads (the GQA and KV Bottleneck blogs), compressed the KV representation (the KV Bottleneck blog), sparsified the attention pattern with fixed rules (the Sparse Factorization blog), sliding windows (the Sliding Window blog), learned selection (the DeepSeek Sparse Attention blog), and replaced the residual connections and FFN activations with learned gates (the Gated Attention blog). Every modification improved something — memory, compute, stability, quality.
-
-But every modification preserved something too: the core attention operation. Every blog kept the formula
+Every change made to attention so far has touched the periphery — which keys participate, how they are stored, what wraps the block — but left the formula
 
 $$
 o_i = \sum_{j} \frac{\exp(q_i^\top k_j / \sqrt{d_k})}{\sum_{j'} \exp(q_i^\top k_{j'} / \sqrt{d_k})} \, v_j
 $$
 
-intact. We changed which $(i, j)$ pairs participate, how the keys and values are stored, what wraps the attention block. We never touched the softmax.
+untouched. The softmax stayed.
 
-This blog asks: what if the softmax is the problem?
-
-We will derive, from scratch, the exact computational and memory costs that remain after all our modifications, identify the softmax as the root cause of the quadratic bottleneck, rewrite attention using kernel functions, discover an algebraic trick that changes the multiplication order from $O(n^2)$ to $O(n)$, and show that the result is an RNN — a recurrent neural network with constant memory per token. This is the mathematical bridge between transformers and their replacements.
+This blog asks the next question: what if the softmax is the problem? The exponential and the denominator force every query to see every key before producing an output. That is what makes attention quadratic. Drop the softmax and the algebra changes — multiplication becomes associative, and a different grouping turns $O(n^2)$ into $O(n)$ with constant memory per token. The transformer becomes an RNN.
 
 The core paper for this blog is Katharopoulos et al. (2020), "Transformers are RNNs: Fast Autoregressive Transformers with Linear Attention," supplemented by the taxonomy from the Efficient Transformers survey (Tay et al., 2022).
 
