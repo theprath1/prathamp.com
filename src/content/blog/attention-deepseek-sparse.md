@@ -3,7 +3,7 @@ title: "DeepSeek Sparse Attention: Learned Token Selection from Scratch"
 description: "Letting the model choose its own sparse pattern — a lightweight indexer scores every past token, top-k selects the keys that matter for this query, and two-stage training with KL alignment keeps the sparse model faithful to its dense teacher at $O(nk)$ cost."
 date: 2026-04-07
 tags: [machine-learning, attention, transformers, sparse-attention, deepseek, efficiency]
-order: 5
+order: 6
 ---
 
 The previous two blogs derived two approaches to sparse attention, both living on the same axis: reduce the number of entries each token attends to.
