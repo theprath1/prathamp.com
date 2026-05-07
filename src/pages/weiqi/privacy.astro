@@ -1,0 +1,106 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+title="Weiqi — Privacy Policy"
+description="Privacy policy for the Weiqi mobile app — an offline Go board with rules, scoring, beginner AI, SGF import/export, and review."
+>
+<section class="max-w-3xl mx-auto px-4 py-16">
+<h1 class="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
+    Privacy Policy for Weiqi
+</h1>
+<p class="text-gray-600 dark:text-gray-400 mb-8">
+    <strong>Last updated:</strong> 2026-05-07
+</p>
+
+<div class="prose prose-lg prose-gray dark:prose-invert max-w-none">
+    <h2>Summary</h2>
+    <p>
+    Weiqi is an offline Go (Weiqi) board application for Android.
+    <strong>We do not collect, transmit, sell, or share any personal data.</strong>
+    All your data stays on your device.
+    </p>
+
+    <h2>Information We Collect</h2>
+    <p>
+    We do not collect any personal information. Weiqi has no user accounts,
+    no login, no analytics, no advertising SDKs, no crash reporting, and no
+    telemetry. The app does not make network requests.
+    </p>
+
+    <h2>Data Stored on Your Device</h2>
+    <p>
+    The app stores the following information locally on your device only:
+    </p>
+    <ul>
+    <li>
+        Saved games and move history, so you can resume play and review past
+        games (stored in a local SQLite database on your device).
+    </li>
+    <li>
+        App settings and preferences such as board size, theme, and tutorial
+        progress (stored using Android's standard SharedPreferences).
+    </li>
+    <li>
+        SGF (Smart Game Format) files that you choose to import or export.
+    </li>
+    </ul>
+    <p>
+    This data never leaves your device unless you explicitly export or share
+    an SGF file using your device's share sheet. You can remove all locally
+    stored data at any time by uninstalling the app or clearing its storage
+    in your device's system settings.
+    </p>
+
+    <h2>Permissions</h2>
+    <p>
+    Weiqi only uses standard Android system services and does not request
+    sensitive permissions such as location, contacts, camera, or microphone.
+    </p>
+    <ul>
+    <li>
+        <strong>File access</strong> — only when you explicitly choose to
+        import or export an SGF file. The app uses Android's system file
+        picker; we do not scan or read any other files on your device.
+    </li>
+    <li>
+        <strong>Sharing</strong> — when you tap "share" on an SGF file, the
+        app hands the file to Android's standard share sheet. The app itself
+        does not transmit any data.
+    </li>
+    </ul>
+
+    <h2>Third-Party Services</h2>
+    <p>
+    Weiqi does not include third-party analytics, advertising, crash
+    reporting, or tracking services. The app is built with the Flutter
+    framework and uses standard open-source packages (such as
+    <code>sqflite</code>, <code>shared_preferences</code>,
+    <code>file_picker</code>, and <code>share_plus</code>) purely for local
+    storage and OS integration. None of these are used to collect personal
+    data.
+    </p>
+
+    <h2>Children's Privacy</h2>
+    <p>
+    Weiqi is suitable for all ages. Because the app does not collect any
+    information from anyone, it does not knowingly collect information from
+    children under 13.
+    </p>
+
+    <h2>Changes to This Policy</h2>
+    <p>
+    If we ever change this policy, we will update the "Last updated" date
+    above and post the new version at the same URL. Material changes will
+    be reflected in the app's Play Store listing.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+        If you have any questions about this Privacy Policy, contact:
+        <a href="mailto:prathammpatel@outlook.com">prathammpatel@outlook.com</a>
+    </p>
+    </div>
+</section>
+</BaseLayout>
